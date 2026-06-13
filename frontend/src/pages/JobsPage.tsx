@@ -1,0 +1,319 @@
+// 岗位管理页 — 新建岗位 + 岗位列表。
+
+import { useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import { api } from '../lib/api';
+import { formatDate } from '../lib/formatDate';
+import { useAsync } from '../lib/useAsync';
+import {
+  Badge,
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  CardTitle,
+  Input,
+  Spinner,
+} from '../components/ui';
+import type { CreateJobResponse, JobStructured } from '../types';
+import { Reveal } from '../components/motion';
+
+// ---- Structured JD result renderer ----
+
+function isStringArray(v: unknown): v is string[] {
+  return Array.isArray(v) && v.every((i) => typeof i === 'string');
+}
+
+// Render the free-form `structured` object from the LLM defensively.
+function StructuredResult({ structured }: { structured: JobStructured }) {
+  const entries = Object.entries(structured);
+  if (entries.length === 0) {
+    return <p className="text-sm text-muted-soft">暂无结构化内容</p>;
+  }
+
+  // Label map for well-known keys
+  const LABELS: Record<string, string> = {
+    education: '学历要求',
+    major: '专业要求',
+    skills: '技能要求',
+    skill_tags_raw: '技能标签',
+    experience: '工作经验',
+    responsibilities: '岗位职责',
+    requirements: '任职要求',
+  };
+
+  return (
+    <dl className="space-y-3">
+      {entries.map(([k, v]) => {
+        const label = LABELS[k] ?? k;
+        let content: React.ReactNode;
+
+        if (v === null || v === undefined || v === '') {
+          content = <span className="text-muted-soft">—</span>;
+        } else if (isStringArray(v)) {
+          content = (
+            <div className="flex flex-wrap gap-1.5">
+              {(v as string[]).map((tag) => (
+                <Badge key={tag} tone="brand">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          );
+        } else if (Array.isArray(v)) {
+          content = (
+            <ul className="ml-4 list-disc space-y-0.5 text-sm text-body">
+              {v.map((item, i) => (
+                <li key={i}>{typeof item === 'string' ? item : JSON.stringify(item)}</li>
+              ))}
+            </ul>
+          );
+        } else if (typeof v === 'object') {
+          content = (
+            <pre className="text-xs text-muted whitespace-pre-wrap">
+              {JSON.stringify(v, null, 2)}
+            </pre>
+          );
+        } else {
+          content = <span className="text-sm text-body">{String(v)}</span>;
+        }
+
+        return (
+          <div key={k}>
+            <dt className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
+              {label}
+            </dt>
+            <dd>{content}</dd>
+          </div>
+        );
+      })}
+    </dl>
+  );
+}
+
+// ---- Create-job form ----
+
+interface CreateJobFormProps {
+  onCreated: (result: CreateJobResponse) => void;
+}
+
+function CreateJobForm({ onCreated }: CreateJobFormProps) {
+  const [title, setTitle] = useState('');
+  const [jdText, setJdText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const titleMissing = title.trim() === '';
+  const jdMissing = jdText.trim() === '';
+  const isDisabled = titleMissing || jdMissing || submitting;
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (isDisabled) return;
+    setSubmitting(true);
+    setFormError(null);
+    try {
+      const result = await api.createJob({ title: title.trim(), jd_text: jdText.trim() });
+      onCreated(result);
+      setTitle('');
+      setJdText('');
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : '创建失败，请重试');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>新建岗位</CardTitle>
+      </CardHeader>
+      <CardBody>
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          <Input
+            label="岗位名称"
+            name="title"
+            placeholder="例：前端工程师"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            disabled={submitting}
+            required
+          />
+          <div className="w-full">
+            <label
+              htmlFor="jd_text"
+              className="mb-1.5 block text-sm font-medium text-ink"
+            >
+              岗位描述（JD）
+            </label>
+            <textarea
+              id="jd_text"
+              name="jd_text"
+              rows={6}
+              placeholder="粘贴或输入完整的职位描述，AI 将自动解析技能要求…"
+              value={jdText}
+              onChange={(e) => setJdText(e.target.value)}
+              disabled={submitting}
+              className={[
+                'w-full rounded-md border border-hairline bg-canvas px-3 py-2 text-sm text-ink',
+                'placeholder:text-muted-soft resize-y',
+                'focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink',
+                'disabled:opacity-50 disabled:cursor-not-allowed',
+              ].join(' ')}
+            />
+          </div>
+
+          {(titleMissing || jdMissing) && !submitting && (title !== '' || jdText !== '') && (
+            <p className="text-xs text-danger-600">
+              {titleMissing ? '请填写岗位名称' : '请填写岗位描述'}
+            </p>
+          )}
+
+          {formError && (
+            <p className="text-xs text-danger-600">{formError}</p>
+          )}
+
+          <Button type="submit" disabled={isDisabled} loading={submitting}>
+            {submitting ? '创建中…' : '保存岗位'}
+          </Button>
+        </form>
+      </CardBody>
+    </Card>
+  );
+}
+
+// ---- Page ----
+
+export function JobsPage() {
+  const { data, loading, error, reload } = useAsync(() => api.listJobs(), []);
+
+  // Latest created job result — shown inline after creation
+  const [lastCreated, setLastCreated] = useState<CreateJobResponse | null>(null);
+
+  const handleCreated = useCallback(
+    (result: CreateJobResponse) => {
+      setLastCreated(result);
+      reload();
+    },
+    [reload]
+  );
+
+  const jobs = data ?? [];
+
+  return (
+    <div className="space-y-6">
+      {/* Page header */}
+      <div>
+        <h1 className="mb-1 font-display text-2xl text-ink">
+          岗位管理
+        </h1>
+        <p className="text-sm text-muted">创建招聘岗位并查看 AI 解析的技能要求</p>
+      </div>
+
+      {/* Create form */}
+      <CreateJobForm onCreated={handleCreated} />
+
+      {/* AI 解析结果 after creation */}
+      {lastCreated && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>AI 解析结果</CardTitle>
+                <p className="mt-0.5 text-xs text-muted">岗位：{lastCreated.title}</p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setLastCreated(null)} aria-label="关闭解析结果">✕</Button>
+            </div>
+          </CardHeader>
+          <CardBody>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted">技能要求</p>
+            <StructuredResult structured={lastCreated.structured} />
+          </CardBody>
+        </Card>
+      )}
+
+      {/* Job list */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>岗位列表</CardTitle>
+            {!loading && (
+              <span className="text-xs text-muted-soft">共 {jobs.length} 个岗位</span>
+            )}
+          </div>
+        </CardHeader>
+
+        {loading ? (
+          <CardBody className="flex items-center justify-center py-16">
+            <Spinner size="lg" />
+          </CardBody>
+        ) : error ? (
+          <CardBody>
+            <div className="rounded-lg bg-danger-50 px-4 py-3 text-sm text-danger-700">
+              {error.message}
+              <button
+                onClick={reload}
+                className="ml-3 font-medium underline hover:no-underline"
+              >
+                重试
+              </button>
+            </div>
+          </CardBody>
+        ) : jobs.length === 0 ? (
+          <CardBody className="flex flex-col items-center justify-center py-16 text-center">
+            <svg
+              className="mb-3 h-10 w-10 text-surface-strong"
+              fill="none"
+              viewBox="0 0 48 48"
+              stroke="currentColor"
+              strokeWidth={1.5}
+              aria-hidden="true"
+            >
+              <rect x="8" y="12" width="32" height="28" rx="3" strokeLinecap="round" strokeLinejoin="round" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16 12V9a2 2 0 012-2h12a2 2 0 012 2v3" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16 24h16M16 30h8" />
+            </svg>
+            <p className="text-sm font-medium text-muted">暂无岗位</p>
+            <p className="mt-1 text-xs text-muted-soft">使用上方表单新建第一个招聘岗位</p>
+          </CardBody>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-hairline-soft bg-surface-soft text-left text-xs font-medium uppercase tracking-wide text-muted">
+                  <th className="px-5 py-3">岗位名称</th>
+                  <th className="px-5 py-3">创建时间</th>
+                  <th className="px-5 py-3 text-right">操作</th>
+                </tr>
+              </thead>
+              <Reveal as="tbody" className="divide-y divide-hairline-soft" stagger={0.05} y={12}>
+                {jobs.map((job) => (
+                  <tr
+                    key={job.id}
+                    className="transition-colors hover:bg-surface-soft"
+                  >
+                    <td className="px-5 py-3.5">
+                      <span className="font-medium text-ink">{job.title}</span>
+                    </td>
+                    <td className="px-5 py-3.5 text-muted">
+                      {formatDate(job.created_at)}
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <Link
+                        to={`/jobs/${job.id}/match`}
+                        className="text-xs font-medium text-ink hover:text-body hover:underline"
+                      >
+                        匹配候选人
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </Reveal>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}

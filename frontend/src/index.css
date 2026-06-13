@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Cal.com: white canvas is the page floor; the app content area sits on a
+     very-soft gray (surface-soft) set by AppShell. */
+  body {
+    @apply bg-canvas font-sans text-ink;
+  }
+}
+
+@layer components {
+  /* Display headlines: Inter 600 with negative tracking — the Cal Sans
+     substitute signature. Pair with text-* sizes at the call site. */
+  .font-display {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .font-display-tight {
+    font-weight: 600;
+    letter-spacing: -0.03em;
+  }
+}
+
+/* Subtle page-enter transition */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Refined thin scrollbar — neutral hairline tones */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #e5e7eb;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #d1d5db;
+}

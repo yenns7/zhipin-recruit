@@ -1,0 +1,47 @@
+# ── Secrets ──────────────────────────────────────────────
+.env
+*.env
+!*.env.example
+backend/.env
+
+# ── Python ───────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+
+# ── Databases ────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+backend/instance/
+
+# ── Node / frontend ──────────────────────────────────────
+node_modules/
+frontend/dist/
+dist/
+.vite/
+
+# ── Logs ─────────────────────────────────────────────────
+*.log
+backend/server.log
+frontend/dev.*.log
+
+# ── Agent tooling (installed skills; reproducible via skills-lock.json) ──
+.agents/
+.claude/settings.local.json
+
+# ── OS / editor ──────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# ── Misc binaries / generated docs ───────────────────────
+cloudflared.exe
+*_已填写.docx
