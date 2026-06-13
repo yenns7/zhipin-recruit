@@ -15,6 +15,7 @@ import type {
   InterviewSubmitRequest,
   InterviewSubmitResponse,
   JobListItem,
+  JdClarifyResponse,
   LoginRequest,
   LoginResponse,
   MatchResponse,
@@ -151,6 +152,13 @@ export const api = {
   // ---- Jobs ----
   createJob(payload: CreateJobRequest): Promise<CreateJobResponse> {
     return request('/jobs', { method: 'POST', body: payload });
+  },
+  // Ask the AI which key details the JD is missing, before saving.
+  clarifyJob(title: string, jdText: string): Promise<JdClarifyResponse> {
+    return request('/jobs/clarify', {
+      method: 'POST',
+      body: { title, jd_text: jdText },
+    });
   },
   listJobs(): Promise<JobListItem[]> {
     return request('/jobs');

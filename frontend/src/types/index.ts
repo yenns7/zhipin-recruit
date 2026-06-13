@@ -84,6 +84,26 @@ export interface CandidateListItem {
 export interface CreateJobRequest {
   title: string;
   jd_text: string;
+  // Optional HR answers to AI clarification questions, folded into the JD.
+  clarifications?: JdClarificationAnswer[];
+}
+
+// A single AI clarification question about a JD.
+export interface JdClarificationQuestion {
+  field: string;
+  question: string;
+  placeholder?: string;
+}
+
+// HR's answer to one clarification question.
+export interface JdClarificationAnswer {
+  question: string;
+  answer: string;
+}
+
+export interface JdClarifyResponse {
+  questions: JdClarificationQuestion[];
+  warning?: string;
 }
 
 export type JobStructured = Record<string, unknown>;

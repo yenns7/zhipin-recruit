@@ -15,7 +15,12 @@ import {
   Input,
   Spinner,
 } from '../components/ui';
-import type { CreateJobResponse, JobStructured } from '../types';
+import type {
+  CreateJobResponse,
+  JobStructured,
+  JdClarificationQuestion,
+  JdClarificationAnswer,
+} from '../types';
 import { Reveal } from '../components/motion';
 
 // ---- Structured JD result renderer ----
@@ -103,20 +108,38 @@ function CreateJobForm({ onCreated }: CreateJobFormProps) {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Clarification flow: 'edit' → fetch questions → 'clarify' → save.
+  const [phase, setPhase] = useState<'edit' | 'clarify'>('edit');
+  const [clarifying, setClarifying] = useState(false);
+  const [questions, setQuestions] = useState<JdClarificationQuestion[]>([]);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+
   const titleMissing = title.trim() === '';
   const jdMissing = jdText.trim() === '';
-  const isDisabled = titleMissing || jdMissing || submitting;
+  const inputsMissing = titleMissing || jdMissing;
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (isDisabled) return;
+  // Reset back to a clean editing state.
+  function resetFlow() {
+    setPhase('edit');
+    setQuestions([]);
+    setAnswers({});
+    setFormError(null);
+  }
+
+  // Persist the job, optionally with HR's clarification answers folded in.
+  async function saveJob(clarifications: JdClarificationAnswer[]) {
     setSubmitting(true);
     setFormError(null);
     try {
-      const result = await api.createJob({ title: title.trim(), jd_text: jdText.trim() });
+      const result = await api.createJob({
+        title: title.trim(),
+        jd_text: jdText.trim(),
+        clarifications,
+      });
       onCreated(result);
       setTitle('');
       setJdText('');
+      resetFlow();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : '创建失败，请重试');
     } finally {
@@ -124,60 +147,155 @@ function CreateJobForm({ onCreated }: CreateJobFormProps) {
     }
   }
 
+  // Step 1: ask the AI which details the JD is missing.
+  async function handleClarify() {
+    if (inputsMissing) {
+      setFormError(titleMissing ? '请填写岗位名称' : '请填写岗位描述');
+      return;
+    }
+    setClarifying(true);
+    setFormError(null);
+    try {
+      const res = await api.clarifyJob(title.trim(), jdText.trim());
+      if (res.questions.length === 0) {
+        // JD already complete — save directly.
+        await saveJob([]);
+      } else {
+        setQuestions(res.questions);
+        setPhase('clarify');
+      }
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'AI 澄清失败，可直接保存');
+    } finally {
+      setClarifying(false);
+    }
+  }
+
+  // Step 2: submit with whatever answers HR provided (blanks allowed).
+  async function handleConfirmSave() {
+    const clarifications: JdClarificationAnswer[] = questions
+      .map((q) => ({ question: q.question, answer: (answers[q.field] ?? '').trim() }))
+      .filter((c) => c.answer !== '');
+    await saveJob(clarifications);
+  }
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>新建岗位</CardTitle>
+        <CardTitle>{phase === 'edit' ? '新建岗位' : 'AI 澄清追问'}</CardTitle>
       </CardHeader>
       <CardBody>
-        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-          <Input
-            label="岗位名称"
-            name="title"
-            placeholder="例：前端工程师"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            disabled={submitting}
-            required
-          />
-          <div className="w-full">
-            <label
-              htmlFor="jd_text"
-              className="mb-1.5 block text-sm font-medium text-ink"
-            >
-              岗位描述（JD）
-            </label>
-            <textarea
-              id="jd_text"
-              name="jd_text"
-              rows={6}
-              placeholder="粘贴或输入完整的职位描述，AI 将自动解析技能要求…"
-              value={jdText}
-              onChange={(e) => setJdText(e.target.value)}
-              disabled={submitting}
-              className={[
-                'w-full rounded-md border border-hairline bg-canvas px-3 py-2 text-sm text-ink',
-                'placeholder:text-muted-soft resize-y',
-                'focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink',
-                'disabled:opacity-50 disabled:cursor-not-allowed',
-              ].join(' ')}
+        {phase === 'edit' ? (
+          <div className="space-y-4">
+            <Input
+              label="岗位名称"
+              name="title"
+              placeholder="例：前端工程师"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              disabled={clarifying || submitting}
+              required
             />
+            <div className="w-full">
+              <label
+                htmlFor="jd_text"
+                className="mb-1.5 block text-sm font-medium text-ink"
+              >
+                岗位描述（JD）
+              </label>
+              <textarea
+                id="jd_text"
+                name="jd_text"
+                rows={6}
+                placeholder="粘贴或输入完整的职位描述，AI 将先追问缺失信息，再解析技能要求…"
+                value={jdText}
+                onChange={(e) => setJdText(e.target.value)}
+                disabled={clarifying || submitting}
+                className={[
+                  'w-full rounded-md border border-hairline bg-canvas px-3 py-2 text-sm text-ink',
+                  'placeholder:text-muted-soft resize-y',
+                  'focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink',
+                  'disabled:opacity-50 disabled:cursor-not-allowed',
+                ].join(' ')}
+              />
+            </div>
+
+            {formError && <p className="text-xs text-danger-600">{formError}</p>}
+
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                onClick={handleClarify}
+                disabled={inputsMissing || clarifying || submitting}
+                loading={clarifying || submitting}
+              >
+                {clarifying ? 'AI 审阅 JD 中…' : submitting ? '创建中…' : '下一步：AI 澄清'}
+              </Button>
+              <span className="text-xs text-muted-soft">
+                AI 会先检查 JD 是否缺少关键信息
+              </span>
+            </div>
           </div>
+        ) : (
+          <div className="space-y-5">
+            <div className="rounded-lg border border-hairline-soft bg-surface-soft px-4 py-3">
+              <p className="text-xs text-muted">
+                AI 发现以下信息可能缺失或模糊，补充后岗位画像与匹配会更准确。
+                可逐项填写，也可留空直接保存。
+              </p>
+            </div>
 
-          {(titleMissing || jdMissing) && !submitting && (title !== '' || jdText !== '') && (
-            <p className="text-xs text-danger-600">
-              {titleMissing ? '请填写岗位名称' : '请填写岗位描述'}
-            </p>
-          )}
+            <Reveal className="space-y-4" stagger={0.06}>
+              {questions.map((q) => (
+                <div key={q.field || q.question}>
+                  <label
+                    htmlFor={`clarify-${q.field}`}
+                    className="mb-1.5 block text-sm font-medium text-ink"
+                  >
+                    {q.question}
+                  </label>
+                  <input
+                    id={`clarify-${q.field}`}
+                    type="text"
+                    placeholder={q.placeholder || '补充说明（可留空）'}
+                    value={answers[q.field] ?? ''}
+                    onChange={(e) =>
+                      setAnswers((prev) => ({ ...prev, [q.field]: e.target.value }))
+                    }
+                    disabled={submitting}
+                    className={[
+                      'w-full rounded-md border border-hairline bg-canvas px-3 py-2 text-sm text-ink',
+                      'placeholder:text-muted-soft',
+                      'focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink',
+                      'disabled:opacity-50 disabled:cursor-not-allowed',
+                    ].join(' ')}
+                  />
+                </div>
+              ))}
+            </Reveal>
 
-          {formError && (
-            <p className="text-xs text-danger-600">{formError}</p>
-          )}
+            {formError && <p className="text-xs text-danger-600">{formError}</p>}
 
-          <Button type="submit" disabled={isDisabled} loading={submitting}>
-            {submitting ? '创建中…' : '保存岗位'}
-          </Button>
-        </form>
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                onClick={handleConfirmSave}
+                loading={submitting}
+                disabled={submitting}
+              >
+                {submitting ? '创建中…' : '确认并保存岗位'}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={resetFlow}
+                disabled={submitting}
+              >
+                返回修改 JD
+              </Button>
+            </div>
+          </div>
+        )}
       </CardBody>
     </Card>
   );
