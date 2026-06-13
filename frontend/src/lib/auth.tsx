@@ -19,12 +19,14 @@ interface Session {
   token: string;
   role: Role;
   name: string;
+  userId: number | null;
 }
 
 interface AuthContextValue {
   token: string | null;
   role: Role | null;
   name: string | null;
+  userId: number | null;
   isAuthenticated: boolean;
   login: (res: LoginResponse) => void;
   logout: () => void;
@@ -55,15 +57,16 @@ function loadSession(): Session | null {
   if (!token || isExpired(token)) {
     return null;
   }
+  const payload = decodeJwt(token);
+  const userId = payload && typeof payload.user_id === 'number' ? payload.user_id : null;
   const role = (localStorage.getItem(ROLE_KEY) as Role | null) ?? null;
   const name = localStorage.getItem(NAME_KEY);
   if (!role || !name) {
     // Fall back to JWT payload role if cached values are missing.
-    const payload = decodeJwt(token);
     if (!payload) return null;
-    return { token, role: payload.role, name: name ?? '' };
+    return { token, role: payload.role, name: name ?? '', userId };
   }
-  return { token, role, name };
+  return { token, role, name, userId };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -83,12 +86,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token: session?.token ?? null,
       role: session?.role ?? null,
       name: session?.name ?? null,
+      userId: session?.userId ?? null,
       isAuthenticated: !!session,
       login: (res: LoginResponse) => {
         setToken(res.token);
         localStorage.setItem(NAME_KEY, res.name);
         localStorage.setItem(ROLE_KEY, res.role);
-        setSession({ token: res.token, role: res.role, name: res.name });
+        const payload = decodeJwt(res.token);
+        const userId =
+          payload && typeof payload.user_id === 'number' ? payload.user_id : null;
+        setSession({ token: res.token, role: res.role, name: res.name, userId });
       },
       logout: () => {
         clearToken();

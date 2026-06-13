@@ -3,7 +3,7 @@
 
 import { useRef } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { LogOut } from 'lucide-react';
+import { LogOut, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { navItemsForRole } from '../lib/nav';
 import { cn } from '../lib/cn';
@@ -41,6 +41,12 @@ export function AppShell() {
 
   const sidebarScope = useRef<HTMLElement>(null);
   const mainScope = useRef<HTMLDivElement>(null);
+
+  // 顶级页（侧边栏直达的页面）不显示返回按钮；详情/子页才显示。
+  const TOP_LEVEL_PATHS = new Set([
+    '/', '/agent', '/candidates', '/upload', '/jobs', '/pipeline', '/interviews', '/bi',
+  ]);
+  const isTopLevel = TOP_LEVEL_PATHS.has(location.pathname);
 
   // 侧边栏首次挂载：Logo 弹入 → 导航项 stagger 上浮 → 身份卡淡入。
   useGSAP(
@@ -190,7 +196,21 @@ export function AppShell() {
 
       {/* Main column */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-16 items-center justify-end border-b border-hairline bg-canvas px-6">
+        <header className="flex h-16 items-center justify-between border-b border-hairline bg-canvas px-6">
+          {/* 左侧：自然返回（基于浏览器历史；顶级页隐藏） */}
+          <div className="flex items-center">
+            {!isTopLevel && (
+              <button
+                onClick={() => navigate(-1)}
+                className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-surface-soft hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                aria-label="返回上一页"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                返回
+              </button>
+            )}
+          </div>
+
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2.5">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-card text-xs font-semibold text-body">
