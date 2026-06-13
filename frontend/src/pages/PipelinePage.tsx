@@ -15,6 +15,7 @@ import {
   EmptyState,
   ErrorState,
   PageHeader,
+  Select,
 } from '../components/ui';
 import type { PipelineCounts, PipelineStage } from '../types';
 import { Reveal, AnimatedNumber } from '../components/motion';
@@ -176,9 +177,8 @@ function MovePanel({ jobId, onSuccess }: MovePanelProps) {
                 {candidatesAsync.error.message}
               </p>
             ) : (
-              <select
+              <Select
                 id="move-candidate"
-                className="h-10 w-full rounded-md border border-hairline bg-canvas px-3 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
                 value={candidateId}
                 onChange={(e) => {
                   setCandidateId(e.target.value);
@@ -192,35 +192,27 @@ function MovePanel({ jobId, onSuccess }: MovePanelProps) {
                     {c.name_masked} (ID {c.id})
                   </option>
                 ))}
-              </select>
+              </Select>
             )}
           </div>
 
           {/* Stage selector */}
-          <div>
-            <label
-              htmlFor="move-stage"
-              className="mb-1.5 block text-sm font-medium text-ink"
-            >
-              目标阶段
-            </label>
-            <select
-              id="move-stage"
-              className="h-10 w-full rounded-md border border-hairline bg-canvas px-3 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
-              value={stage}
-              onChange={(e) => {
-                setStage(e.target.value as PipelineStage);
-                setMoveError(null);
-                setSuccessMsg(null);
-              }}
-            >
-              {STAGES.map((s) => (
-                <option key={s.key} value={s.key}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <Select
+            label="目标阶段"
+            id="move-stage"
+            value={stage}
+            onChange={(e) => {
+              setStage(e.target.value as PipelineStage);
+              setMoveError(null);
+              setSuccessMsg(null);
+            }}
+          >
+            {STAGES.map((s) => (
+              <option key={s.key} value={s.key}>
+                {s.label}
+              </option>
+            ))}
+          </Select>
 
           {/* Error / success */}
           {moveError && (
