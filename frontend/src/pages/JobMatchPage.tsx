@@ -1,6 +1,7 @@
 // 岗位匹配页 — 展示与当前岗位匹配的候选人排名及标签分析。
 
 import { Link, useParams } from 'react-router-dom';
+import { Users } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAsync } from '../lib/useAsync';
 import {
@@ -11,6 +12,8 @@ import {
   CardHeader,
   CardTitle,
   Spinner,
+  EmptyState,
+  ErrorState,
 } from '../components/ui';
 import type { MatchResultItem } from '../types';
 import { Reveal, AnimatedNumber } from '../components/motion';
@@ -131,8 +134,8 @@ export function JobMatchPage() {
         >
           ← 返回岗位管理
         </Link>
-        <div className="mt-4 rounded-lg bg-danger-50 px-4 py-3 text-sm text-danger-700">
-          无效的岗位 ID
+        <div className="mt-4">
+          <ErrorState message="无效的岗位 ID" />
         </div>
       </div>
     );
@@ -176,17 +179,7 @@ export function JobMatchPage() {
 
       {/* Error state */}
       {!loading && error && (
-        <div>
-          <div className="rounded-lg bg-danger-50 px-4 py-3 text-sm text-danger-700">
-            {error.message}
-            <button
-              onClick={reload}
-              className="ml-3 font-medium underline hover:no-underline"
-            >
-              重试
-            </button>
-          </div>
-        </div>
+        <ErrorState message={error.message} onRetry={reload} />
       )}
 
       {/* Results */}
@@ -197,21 +190,11 @@ export function JobMatchPage() {
         if (results.length === 0) {
           return (
             <Card>
-              <CardBody className="flex flex-col items-center justify-center py-20 text-center">
-                <svg
-                  className="mb-3 h-10 w-10 text-surface-strong"
-                  fill="none"
-                  viewBox="0 0 48 48"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                  aria-hidden="true"
-                >
-                  <circle cx="24" cy="20" r="8" strokeLinecap="round" strokeLinejoin="round" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 42c0-8.837 7.163-16 16-16s16 7.163 16 16" />
-                </svg>
-                <p className="text-sm font-medium text-muted">简历池暂无匹配候选人</p>
-                <p className="mt-1 text-xs text-muted-soft">请先在「候选人」模块上传简历，再进行匹配</p>
-              </CardBody>
+              <EmptyState
+                icon={Users}
+                title="简历池暂无匹配候选人"
+                description="请先在「候选人」模块上传简历，再进行匹配"
+              />
             </Card>
           );
         }
