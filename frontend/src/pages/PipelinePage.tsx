@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { KanbanSquare } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAsync } from '../lib/useAsync';
 import {
@@ -11,6 +12,8 @@ import {
   CardHeader,
   CardTitle,
   Spinner,
+  EmptyState,
+  ErrorState,
 } from '../components/ui';
 import type { PipelineCounts, PipelineStage } from '../types';
 import { Reveal, AnimatedNumber } from '../components/motion';
@@ -286,41 +289,23 @@ export function PipelinePage() {
       )}
 
       {!jobsAsync.loading && jobsAsync.error && (
-        <div className="rounded-lg bg-danger-50 px-4 py-3 text-sm text-danger-700">
-          {jobsAsync.error.message}
-          <button
-            onClick={jobsAsync.reload}
-            className="ml-3 font-medium underline hover:no-underline"
-          >
-            重试
-          </button>
-        </div>
+        <ErrorState message={jobsAsync.error.message} onRetry={jobsAsync.reload} />
       )}
 
       {!jobsAsync.loading && !jobsAsync.error && jobsAsync.data?.length === 0 && (
         <Card>
-          <CardBody className="flex flex-col items-center justify-center py-20 text-center">
-            <svg
-              className="mb-3 h-10 w-10 text-surface-strong"
-              fill="none"
-              viewBox="0 0 48 48"
-              stroke="currentColor"
-              strokeWidth={1.5}
-              aria-hidden="true"
-            >
-              <rect x="6" y="10" width="36" height="28" rx="3" strokeLinecap="round" strokeLinejoin="round" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16 10V8a2 2 0 012-2h12a2 2 0 012 2v2" />
-            </svg>
-            <p className="text-sm font-medium text-muted">暂无岗位</p>
-            <p className="mt-1 text-xs text-muted-soft">请先在「岗位管理」创建岗位，再查看招聘流程</p>
-            <div className="mt-4">
+          <EmptyState
+            icon={KanbanSquare}
+            title="暂无岗位"
+            description="请先在「岗位管理」创建岗位，再查看招聘流程"
+            action={
               <Link to="/jobs">
                 <Button variant="secondary" size="sm">
                   前往创建岗位
                 </Button>
               </Link>
-            </div>
-          </CardBody>
+            }
+          />
         </Card>
       )}
 
@@ -351,15 +336,7 @@ export function PipelinePage() {
 
           {/* Pipeline error */}
           {!pipelineAsync.loading && pipelineAsync.error && (
-            <div className="rounded-lg bg-danger-50 px-4 py-3 text-sm text-danger-700">
-              {pipelineAsync.error.message}
-              <button
-                onClick={pipelineAsync.reload}
-                className="ml-3 font-medium underline hover:no-underline"
-              >
-                重试
-              </button>
-            </div>
+            <ErrorState message={pipelineAsync.error.message} onRetry={pipelineAsync.reload} />
           )}
 
           {/* Kanban board */}
