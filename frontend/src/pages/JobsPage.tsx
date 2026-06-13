@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { Briefcase } from 'lucide-react';
 import { api } from '../lib/api';
 import { formatDate } from '../lib/formatDate';
 import { useAsync } from '../lib/useAsync';
@@ -14,6 +15,8 @@ import {
   CardTitle,
   Input,
   Spinner,
+  EmptyState,
+  ErrorState,
 } from '../components/ui';
 import type {
   CreateJobResponse,
@@ -368,33 +371,14 @@ export function JobsPage() {
           </CardBody>
         ) : error ? (
           <CardBody>
-            <div className="rounded-lg bg-danger-50 px-4 py-3 text-sm text-danger-700">
-              {error.message}
-              <button
-                onClick={reload}
-                className="ml-3 font-medium underline hover:no-underline"
-              >
-                重试
-              </button>
-            </div>
+            <ErrorState message={error.message} onRetry={reload} />
           </CardBody>
         ) : jobs.length === 0 ? (
-          <CardBody className="flex flex-col items-center justify-center py-16 text-center">
-            <svg
-              className="mb-3 h-10 w-10 text-surface-strong"
-              fill="none"
-              viewBox="0 0 48 48"
-              stroke="currentColor"
-              strokeWidth={1.5}
-              aria-hidden="true"
-            >
-              <rect x="8" y="12" width="32" height="28" rx="3" strokeLinecap="round" strokeLinejoin="round" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16 12V9a2 2 0 012-2h12a2 2 0 012 2v3" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16 24h16M16 30h8" />
-            </svg>
-            <p className="text-sm font-medium text-muted">暂无岗位</p>
-            <p className="mt-1 text-xs text-muted-soft">使用上方表单新建第一个招聘岗位</p>
-          </CardBody>
+          <EmptyState
+            icon={Briefcase}
+            title="暂无岗位"
+            description="使用上方表单新建第一个招聘岗位"
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
