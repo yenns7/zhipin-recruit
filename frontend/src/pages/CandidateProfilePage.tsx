@@ -13,7 +13,7 @@ import {
 import { api } from '../lib/api';
 import { formatDate } from '../lib/formatDate';
 import { useAsync } from '../lib/useAsync';
-import { Badge, Card, CardBody, CardHeader, CardTitle, Spinner } from '../components/ui';
+import { Badge, Card, CardBody, CardHeader, CardTitle, Spinner, ErrorState } from '../components/ui';
 import { Reveal } from '../components/motion';
 import type { CandidateTag, ResumeJson } from '../types';
 
@@ -257,8 +257,8 @@ export function CandidateProfilePage() {
         >
           ← 候选人列表
         </Link>
-        <div className="mt-4 rounded-lg bg-danger-50 px-4 py-3 text-sm text-danger-700">
-          无效的候选人 ID
+        <div className="mt-4">
+          <ErrorState message="无效的候选人 ID" />
         </div>
       </div>
     );
@@ -281,14 +281,8 @@ export function CandidateProfilePage() {
         >
           ← 候选人列表
         </Link>
-        <div className="mt-4 rounded-lg bg-danger-50 px-4 py-3 text-sm text-danger-700">
-          {error.message}
-          <button
-            onClick={reload}
-            className="ml-3 font-medium underline hover:no-underline"
-          >
-            重试
-          </button>
+        <div className="mt-4">
+          <ErrorState message={error.message} onRetry={reload} />
         </div>
       </div>
     );

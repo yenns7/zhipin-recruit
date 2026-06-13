@@ -3,7 +3,7 @@
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAsync } from '../lib/useAsync';
-import { Spinner } from '../components/ui';
+import { Spinner, ErrorState } from '../components/ui';
 import { InterviewReport } from '../components/InterviewReport';
 
 export function InterviewReportPage() {
@@ -30,8 +30,8 @@ export function InterviewReportPage() {
         >
           ← 返回面试列表
         </Link>
-        <div className="mt-4 rounded-lg bg-danger-50 px-4 py-3 text-sm text-danger-700">
-          无效的面试 ID
+        <div className="mt-4">
+          <ErrorState message="无效的面试 ID" />
         </div>
       </div>
     );
@@ -54,14 +54,8 @@ export function InterviewReportPage() {
         >
           ← 返回面试列表
         </Link>
-        <div className="mt-4 rounded-lg bg-danger-50 px-4 py-3 text-sm text-danger-700">
-          {error.message}
-          <button
-            onClick={reload}
-            className="ml-3 font-medium underline hover:no-underline"
-          >
-            重试
-          </button>
+        <div className="mt-4">
+          <ErrorState message={error.message} onRetry={reload} />
         </div>
       </div>
     );
