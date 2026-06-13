@@ -95,9 +95,12 @@ const EMPTY_STATS: DashboardStats = {
 };
 
 // 按角色拉取 KPI 数据。candidates / jobs 所有角色都取；
-// biOverview 仅 manager / admin 调用（recruiter / interviewer 调用会 403）。
+// 经理/管理员看团队总览(bi/overview)；招聘专员/面试官看自己的漏斗(bi/staff/<自己id>)。
 // 用 allSettled 隔离单点失败：某个 KPI 拿不到就保持 null，不影响其余展示，整页不崩。
-function useDashboardStats(role: Role | null): { stats: DashboardStats; loading: boolean } {
+function useDashboardStats(
+  role: Role | null,
+  userId: number | null
+): { stats: DashboardStats; loading: boolean } {
   const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS);
   const [loading, setLoading] = useState(true);
 
@@ -106,11 +109,16 @@ function useDashboardStats(role: Role | null): { stats: DashboardStats; loading:
     let active = true;
     setLoading(true);
 
-    const wantsBi = role === 'manager' || role === 'admin';
+    const wantsTeamBi = role === 'manager' || role === 'admin';
+    const wantsOwnBi = (role === 'recruiter' || role === 'interviewer') && userId != null;
 
     const candidatesP = api.listCandidates();
     const jobsP = api.listJobs();
-    const biP = wantsBi ? api.biOverview() : Promise.resolve(null);
+    const biP = wantsTeamBi
+      ? api.biOverview()
+      : wantsOwnBi
+        ? api.biStaff(userId as number)
+        : Promise.resolve(null);
 
     Promise.allSettled([candidatesP, jobsP, biP]).then(
       ([candidatesR, jobsR, biR]) => {
@@ -119,6 +127,7 @@ function useDashboardStats(role: Role | null): { stats: DashboardStats; loading:
         if (candidatesR.status === 'fulfilled') next.candidates = candidatesR.value.length;
         if (jobsR.status === 'fulfilled') next.jobs = jobsR.value.length;
         if (biR.status === 'fulfilled' && biR.value) {
+          // bi/overview 与 bi/staff 都返回 { funnel: {...} } 形状
           const f = biR.value.funnel;
           next.interview = f.interview ?? 0;
           next.onboarded = f.onboarded ?? 0;
@@ -132,7 +141,7 @@ function useDashboardStats(role: Role | null): { stats: DashboardStats; loading:
     return () => {
       active = false;
     };
-  }, [role]);
+  }, [role, userId]);
 
   return { stats, loading };
 }
@@ -201,14 +210,16 @@ function FeatureCard({
 // ─── 页面 ─────────────────────────────────────────────────────────────────────
 
 export function DashboardPage() {
-  const { name, role } = useAuth();
-  const { stats } = useDashboardStats(role);
+  const { name, role, userId } = useAuth();
+  const { stats } = useDashboardStats(role, userId);
 
   if (!role) return null;
 
   const info = ROLE_INFO[role];
   const RoleIcon = info.icon;
-  const wantsBi = role === 'manager' || role === 'admin';
+  // 所有角色都展示漏斗 KPI：经理/管理员看团队，专员/面试官看个人。
+  const showFunnelKpis =
+    role === 'manager' || role === 'admin' || userId != null;
 
   // 功能宫格：复用 navItemsForRole，剔除工作台自身（/）。
   const features = navItemsForRole(role).filter((item) => item.to !== '/');
@@ -251,8 +262,8 @@ export function DashboardPage() {
         >
           <KpiCard label="候选人总数" value={stats.candidates} />
           <KpiCard label="岗位总数" value={stats.jobs} />
-          {wantsBi && <KpiCard label="面试中" value={stats.interview} />}
-          {wantsBi && (
+          {showFunnelKpis && <KpiCard label="面试中" value={stats.interview} />}
+          {showFunnelKpis && (
             <KpiCard label="转化率" value={stats.conversionRate} decimals={1} suffix="%" />
           )}
         </Reveal>
