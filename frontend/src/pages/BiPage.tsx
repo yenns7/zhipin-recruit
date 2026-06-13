@@ -15,6 +15,7 @@ import {
   CardTitle,
   SegmentedControl,
   Spinner,
+  PageHeader,
 } from '../components/ui';
 import type { BiFunnel, BiStaffMember } from '../types';
 import type { ReactNode } from 'react';
@@ -224,19 +225,18 @@ function TeamOverview({
   return (
     <div>
       {/* 标题栏 */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-display text-ink">数据看板</h1>
-          <p className="mt-0.5 text-sm text-muted">团队招聘漏斗与专员效能对比</p>
-        </div>
-        {/* 时间范围切换器 — SegmentedControl（Cal.com 签名组件） */}
-        <SegmentedControl<number>
-          options={DAYS_OPTIONS}
-          value={days}
-          onChange={onDaysChange}
-          size="sm"
-        />
-      </div>
+      <PageHeader
+        title="数据看板"
+        description="团队招聘漏斗与专员效能对比"
+        actions={
+          <SegmentedControl<number>
+            options={DAYS_OPTIONS}
+            value={days}
+            onChange={onDaysChange}
+            size="sm"
+          />
+        }
+      />
 
       {loading && (
         <div className="flex items-center justify-center py-32">
