@@ -37,6 +37,7 @@ from llm_client import LLMClient
 # 配置
 ROOT_DIR = Path(__file__).resolve().parent
 DEFAULT_LABELS_FILE = ROOT_DIR / "all_labels.csv"
+DEFAULT_TAXONOMY_FILE = ROOT_DIR / "tech_taxonomy.json"
 DEFAULT_API_KEY_FILE = ROOT_DIR / "API_key-openai.md"
 
 _TAG_SCORE_RE = re.compile(r"([^:：\s]+?)\s*[:：]\s*([1-5])(?=\s|$)")
@@ -60,12 +61,47 @@ class ResumeParser:
         self.level3_list, self.level3_to_tags = self._load_level3_and_tags()
         logging.info(f"已加载 {len(self.all_tags)} 个技能标签，{len(self.level3_list)} 个岗位类别(level_3rd)")
     
+    def _load_taxonomy(self):
+        """加载 tech_taxonomy.json，返回 (level3_list, level3_to_tags)。
+        在 all_labels.csv 缺失时作为标签库的兜底来源。
+        将 level2_roles 的 name 当作 level_3rd，其 keywords 当作 tags。"""
+        if not DEFAULT_TAXONOMY_FILE.exists():
+            return [], {}
+        try:
+            data = json.loads(DEFAULT_TAXONOMY_FILE.read_text(encoding="utf-8"))
+        except Exception as e:
+            logging.warning(f"无法解析 tech_taxonomy.json: {e}")
+            return [], {}
+        level3_list: List[str] = []
+        level3_to_tags: Dict[str, List[str]] = {}
+        for cat in data.get("level1_categories", []):
+            for role in cat.get("level2_roles", []):
+                name = str(role.get("name", "")).strip()
+                if not name:
+                    continue
+                kws = [str(k).strip() for k in role.get("keywords", []) if str(k).strip()]
+                # role 名称本身也作为一个可匹配标签
+                tags = [name] + kws
+                if name not in level3_to_tags:
+                    level3_to_tags[name] = []
+                    level3_list.append(name)
+                level3_to_tags[name].extend(tags)
+        return level3_list, level3_to_tags
+
     def _load_tags(self) -> Set[str]:
-        """加载所有可用的技能标签"""
+        """加载所有可用的技能标签。优先 all_labels.csv，缺失时回退 tech_taxonomy.json。"""
         if not DEFAULT_LABELS_FILE.exists():
-            logging.warning(f"技能标签文件不存在: {DEFAULT_LABELS_FILE}")
-            return set()
-        
+            logging.warning(f"技能标签文件不存在: {DEFAULT_LABELS_FILE}，回退 tech_taxonomy.json")
+            _, level3_to_tags = self._load_taxonomy()
+            tags: Set[str] = set()
+            for tag_list in level3_to_tags.values():
+                for t in tag_list:
+                    if t:
+                        tags.add(t)
+            if not tags:
+                logging.warning("tech_taxonomy.json 也不可用，技能标签库为空")
+            return tags
+
         tags = set()
         df = pd.read_csv(DEFAULT_LABELS_FILE).fillna("")
         for _, row in df.iterrows():
@@ -74,14 +110,24 @@ class ResumeParser:
                 tag = tag.strip()
                 if tag:
                     tags.add(tag)
-        
+
         return tags
 
     def _load_level3_and_tags(self) -> Tuple[List[str], Dict[str, List[str]]]:
-        """加载 level_3rd 列表及其对应的 tags"""
+        """加载 level_3rd 列表及其对应的 tags。优先 all_labels.csv，缺失时回退 tech_taxonomy.json。"""
         level3_to_tags: Dict[str, List[str]] = {}
         level3_list: List[str] = []
         if not DEFAULT_LABELS_FILE.exists():
+            level3_list, level3_to_tags = self._load_taxonomy()
+            # 去重保持顺序
+            for lv3, tags in level3_to_tags.items():
+                seen = set()
+                deduped = []
+                for t in tags:
+                    if t not in seen:
+                        seen.add(t)
+                        deduped.append(t)
+                level3_to_tags[lv3] = deduped
             return level3_list, level3_to_tags
         df = pd.read_csv(DEFAULT_LABELS_FILE).fillna("")
         for _, row in df.iterrows():
@@ -107,18 +153,78 @@ class ResumeParser:
             level3_to_tags[lv3] = deduped
         return level3_list, level3_to_tags
     
+    def extract_text(self, file_path: str) -> str:
+        """按文件类型分派文本提取：PDF / Word(.docx) / 纯文本。
+
+        历史问题：原先无论扩展名一律走 PDF 解析器，导致 .docx 报
+        "EOF marker not found"（PyPDF2 找不到 PDF 的 %%EOF 标记）。
+        现按扩展名分派，且 PDF 优先用更稳健的 pdfplumber。
+        """
+        ext = Path(file_path).suffix.lower().lstrip(".")
+        if ext == "pdf":
+            return self.extract_text_from_pdf(file_path)
+        if ext == "docx":
+            return self.extract_text_from_docx(file_path)
+        if ext == "doc":
+            # 旧版 .doc 二进制格式，python-docx 不支持，给出可操作的提示
+            raise ValueError(
+                "暂不支持旧版 .doc 格式，请将简历另存为 .docx 或 PDF 后重新上传"
+            )
+        if ext in ("txt", "md"):
+            return Path(file_path).read_text(encoding="utf-8", errors="ignore").strip()
+        raise ValueError(f"不支持的简历格式: .{ext}（支持 PDF / .docx）")
+
     def extract_text_from_pdf(self, pdf_path: str) -> str:
-        """从PDF文件中提取文本"""
+        """从PDF文件中提取文本。优先 pdfplumber（对真实简历更稳健），
+        失败再回退 PyPDF2，两者都失败才抛错。"""
+        # 1) 首选 pdfplumber
+        try:
+            import pdfplumber
+            parts = []
+            with pdfplumber.open(pdf_path) as pdf:
+                for page in pdf.pages:
+                    parts.append(page.extract_text() or "")
+            text = "\n".join(parts).strip()
+            if text:
+                return text
+            logging.warning("pdfplumber 未提取到文本，尝试 PyPDF2 回退")
+        except Exception as e:
+            logging.warning(f"pdfplumber 提取失败，回退 PyPDF2: {e}")
+
+        # 2) 回退 PyPDF2
         try:
             text = ""
-            with open(pdf_path, 'rb') as file:
+            with open(pdf_path, "rb") as file:
                 pdf_reader = PyPDF2.PdfReader(file)
                 for page in pdf_reader.pages:
-                    text += page.extract_text() + "\n"
+                    text += (page.extract_text() or "") + "\n"
             return text.strip()
         except Exception as e:
             logging.error(f"PDF文本提取失败: {e}")
-            raise
+            raise ValueError(f"PDF 解析失败，文件可能已损坏或为扫描件: {e}")
+
+    def extract_text_from_docx(self, docx_path: str) -> str:
+        """从 Word(.docx) 文件中提取文本，包含段落与表格内容。"""
+        try:
+            import docx  # python-docx
+        except ImportError:
+            raise ValueError("缺少 python-docx 依赖，无法解析 Word 简历")
+        try:
+            document = docx.Document(docx_path)
+            lines = [p.text for p in document.paragraphs if p.text and p.text.strip()]
+            # 表格里常放教育/工作经历，一并提取
+            for table in document.tables:
+                for row in table.rows:
+                    cells = [c.text.strip() for c in row.cells if c.text and c.text.strip()]
+                    if cells:
+                        lines.append(" | ".join(cells))
+            text = "\n".join(lines).strip()
+            if not text:
+                raise ValueError("Word 文档为空或无可提取文本")
+            return text
+        except Exception as e:
+            logging.error(f"Word 文本提取失败: {e}")
+            raise ValueError(f"Word 解析失败: {e}")
     
     def _call_llm(self, system_prompt: str, user_prompt: str) -> str:
         """调用统一LLM客户端"""
@@ -369,13 +475,15 @@ class ResumeParser:
         else:
             return "其他"
     
-    def parse_resume(self, pdf_path: str) -> Dict[str, Any]:
-        """解析简历的主方法"""
-        logging.info(f"开始解析简历: {pdf_path}")
-        
-        # 1. 提取PDF文本
-        resume_text = self.extract_text_from_pdf(pdf_path)
+    def parse_resume(self, file_path: str) -> Dict[str, Any]:
+        """解析简历的主方法（支持 PDF / Word .docx）"""
+        logging.info(f"开始解析简历: {file_path}")
+
+        # 1. 按文件类型提取文本
+        resume_text = self.extract_text(file_path)
         logging.info(f"提取文本长度: {len(resume_text)} 字符")
+        if not resume_text.strip():
+            raise ValueError("简历内容为空，无法解析（可能是扫描件或加密文件）")
         
         # 2. 提取结构化信息
         extracted_info = self.extract_resume_info(resume_text)
