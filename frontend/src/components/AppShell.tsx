@@ -124,7 +124,7 @@ export function AppShell() {
         <div className="flex h-16 items-center gap-2 border-b border-hairline-soft px-5">
           <div
             data-shell="logo"
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink text-sm font-bold text-white"
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink text-sm font-bold text-white shadow-card"
           >
             智
           </div>
