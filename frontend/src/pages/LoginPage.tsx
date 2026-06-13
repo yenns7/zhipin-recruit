@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { defaultRouteForRole } from '../lib/nav';
-import { Button, Card, Input, ErrorState } from '../components/ui';
+import { Button, Card, Input, ErrorState, Select } from '../components/ui';
 import { gsap, useGSAP, EASE, DUR, STAGGER } from '../lib/motion';
 import type { Role } from '../types';
 
@@ -182,26 +182,18 @@ export function LoginPage() {
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
             />
             {mode === 'register' && (
-              <div>
-                <label
-                  htmlFor="role"
-                  className="mb-1.5 block text-sm font-medium text-ink"
-                >
-                  角色
-                </label>
-                <select
-                  id="role"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as Role)}
-                  className="h-10 w-full rounded-md border border-hairline bg-canvas px-3 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
-                >
-                  {ROLE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <Select
+                label="角色"
+                id="role"
+                value={role}
+                onChange={(e) => setRole(e.target.value as Role)}
+              >
+                {ROLE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </Select>
             )}
 
             {error && <ErrorState message={error} />}
