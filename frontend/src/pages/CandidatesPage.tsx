@@ -1,10 +1,11 @@
 // 候选人列表页 — HR 管理视角，展示所有候选人简历库，支持点击进入详情。
 
 import { Link } from 'react-router-dom';
+import { Users } from 'lucide-react';
 import { api } from '../lib/api';
 import { formatDate } from '../lib/formatDate';
 import { useAsync } from '../lib/useAsync';
-import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Spinner } from '../components/ui';
+import { Badge, Button, Card, CardHeader, CardTitle, Spinner, EmptyState, ErrorState } from '../components/ui';
 import { Reveal, AnimatedNumber } from '../components/motion';
 
 export function CandidatesPage() {
@@ -24,14 +25,8 @@ export function CandidatesPage() {
         <h1 className="mb-1 text-2xl font-display text-ink">
           候选人
         </h1>
-        <div className="mt-6 rounded-lg bg-danger-50 px-4 py-3 text-sm text-danger-700">
-          {error.message}
-          <button
-            onClick={reload}
-            className="ml-3 font-medium underline hover:no-underline"
-          >
-            重试
-          </button>
+        <div className="mt-6">
+          <ErrorState message={error.message} onRetry={reload} />
         </div>
       </div>
     );
@@ -58,27 +53,19 @@ export function CandidatesPage() {
 
       {candidates.length === 0 ? (
         <Card>
-          <CardBody className="flex flex-col items-center justify-center py-20 text-center">
-            <svg
-              className="mb-3 h-10 w-10 text-muted-soft"
-              fill="none"
-              viewBox="0 0 48 48"
-              stroke="currentColor"
-              strokeWidth={1.5}
-              aria-hidden="true"
-            >
-              <circle cx="24" cy="20" r="8" strokeLinecap="round" strokeLinejoin="round" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 42c0-8.837 7.163-16 16-16s16 7.163 16 16" />
-            </svg>
-            <p className="text-sm font-medium text-muted">暂无候选人</p>
-            <p className="mt-1 text-xs text-muted-soft">
-              先{' '}
-              <Link to="/upload" className="font-medium text-ink hover:underline">
-                上传简历
-              </Link>{' '}
-              以添加候选人到简历库
-            </p>
-          </CardBody>
+          <EmptyState
+            icon={Users}
+            title="暂无候选人"
+            description={
+              <>
+                先{' '}
+                <Link to="/upload" className="font-medium text-ink hover:underline">
+                  上传简历
+                </Link>{' '}
+                以添加候选人到简历库
+              </>
+            }
+          />
         </Card>
       ) : (
         <Card>
