@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { defaultRouteForRole } from '../lib/nav';
-import { Button, Card, Input } from '../components/ui';
+import { Button, Card, Input, ErrorState } from '../components/ui';
 import { gsap, useGSAP, EASE, DUR, STAGGER } from '../lib/motion';
 import type { Role } from '../types';
 
@@ -104,14 +104,34 @@ export function LoginPage() {
   return (
     <div
       ref={scope}
-      className="flex min-h-screen items-center justify-center bg-surface-soft px-4"
+      className="relative flex min-h-screen items-center justify-center overflow-hidden bg-surface-soft px-4"
     >
-      <div className="w-full max-w-sm">
+      {/* 精致背景：柔和径向高光 + 细网格，避免纯色偏素 */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(60% 50% at 50% 0%, rgba(17,17,17,0.05) 0%, rgba(17,17,17,0) 70%)',
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 opacity-[0.4]"
+        style={{
+          backgroundImage:
+            'linear-gradient(rgba(17,17,17,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(17,17,17,0.025) 1px, transparent 1px)',
+          backgroundSize: '36px 36px',
+          maskImage: 'radial-gradient(80% 60% at 50% 40%, #000 0%, transparent 100%)',
+          WebkitMaskImage: 'radial-gradient(80% 60% at 50% 40%, #000 0%, transparent 100%)',
+        }}
+      />
+      <div className="relative w-full max-w-sm">
         {/* Logo + 品牌区 */}
         <div className="mb-8 flex flex-col items-center">
           <div
             data-anim="logo"
-            className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-ink text-lg font-bold text-on-primary"
+            className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-ink text-lg font-bold text-on-primary shadow-card-lg"
           >
             智
           </div>
@@ -184,11 +204,7 @@ export function LoginPage() {
               </div>
             )}
 
-            {error && (
-              <div className="rounded-lg bg-danger-50 px-3 py-2 text-sm text-danger-700">
-                {error}
-              </div>
-            )}
+            {error && <ErrorState message={error} />}
 
             <Button type="submit" className="w-full" loading={loading}>
               {mode === 'login' ? '登录' : '创建账户'}
