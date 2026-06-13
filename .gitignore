@@ -26,6 +26,10 @@ frontend/dist/
 dist/
 .vite/
 
+# ── Runtime uploads ──────────────────────────────────────
+backend/uploads/
+uploads/
+
 # ── Logs ─────────────────────────────────────────────────
 *.log
 backend/server.log
