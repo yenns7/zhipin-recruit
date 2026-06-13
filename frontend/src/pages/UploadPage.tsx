@@ -6,7 +6,7 @@ import { useMemo, useRef, useState, type ChangeEvent, type DragEvent } from 'rea
 
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
-import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Spinner } from '../components/ui';
+import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Spinner, ErrorState } from '../components/ui';
 import type { ResumeUploadResultItem } from '../types';
 
 const ACCEPTED = ['.pdf', '.doc', '.docx', '.zip'];
@@ -293,7 +293,9 @@ export function UploadPage() {
 
       {/* 上传错误 */}
       {uploadError && (
-        <div className="mb-6 rounded-lg bg-danger-50 px-4 py-3 text-sm text-danger-700">{uploadError}</div>
+        <div className="mb-6">
+          <ErrorState message={uploadError} onRetry={handleUpload} />
+        </div>
       )}
 
       {/* 上传结果 */}
