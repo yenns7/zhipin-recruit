@@ -5,7 +5,7 @@ import { Users } from 'lucide-react';
 import { api } from '../lib/api';
 import { formatDate } from '../lib/formatDate';
 import { useAsync } from '../lib/useAsync';
-import { Badge, Button, Card, CardHeader, CardTitle, Spinner, EmptyState, ErrorState } from '../components/ui';
+import { Badge, Button, Card, CardHeader, CardTitle, Spinner, EmptyState, ErrorState, PageHeader } from '../components/ui';
 import { Reveal, AnimatedNumber } from '../components/motion';
 
 export function CandidatesPage() {
@@ -37,19 +37,19 @@ export function CandidatesPage() {
   return (
     <div>
       {/* 页头 */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="mb-1 text-2xl font-display text-ink">
-            候选人
-          </h1>
-          <p className="text-sm text-muted">
+      <PageHeader
+        title="候选人"
+        description={
+          <>
             管理候选人简历库，共 <AnimatedNumber value={candidates.length} /> 位候选人
-          </p>
-        </div>
-        <Link to="/upload">
-          <Button>上传简历</Button>
-        </Link>
-      </div>
+          </>
+        }
+        actions={
+          <Link to="/upload">
+            <Button>上传简历</Button>
+          </Link>
+        }
+      />
 
       {candidates.length === 0 ? (
         <Card>

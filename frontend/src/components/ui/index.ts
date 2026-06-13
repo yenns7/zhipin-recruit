@@ -7,3 +7,4 @@ export { Spinner } from './Spinner';
 export { SegmentedControl } from './SegmentedControl';
 export { EmptyState } from './EmptyState';
 export { ErrorState } from './ErrorState';
+export { PageHeader } from './PageHeader';
