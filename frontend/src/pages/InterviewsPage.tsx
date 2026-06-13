@@ -12,6 +12,7 @@ import {
   Input,
   Spinner,
   PageHeader,
+  Select,
 } from '../components/ui';
 import { InterviewReport } from '../components/InterviewReport';
 import { Reveal } from '../components/motion';
@@ -106,56 +107,40 @@ function SetupPhase({ onStart }: SetupProps) {
       <CardBody>
         <div className="max-w-md space-y-4">
           {/* Candidate */}
-          <div>
-            <label
-              htmlFor="setup-candidate"
-              className="mb-1.5 block text-sm font-medium text-ink"
-            >
-              候选人
-            </label>
-            <select
-              id="setup-candidate"
-              className="h-10 w-full rounded-md border border-hairline bg-canvas px-3 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
-              value={candidateId}
-              onChange={(e) => {
-                setCandidateId(e.target.value);
-                setError(null);
-              }}
-            >
-              <option value="">— 请选择候选人 —</option>
-              {(candidatesAsync.data ?? []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name_masked} (ID {c.id})
-                </option>
-              ))}
-            </select>
-          </div>
+          <Select
+            label="候选人"
+            id="setup-candidate"
+            value={candidateId}
+            onChange={(e) => {
+              setCandidateId(e.target.value);
+              setError(null);
+            }}
+          >
+            <option value="">— 请选择候选人 —</option>
+            {(candidatesAsync.data ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name_masked} (ID {c.id})
+              </option>
+            ))}
+          </Select>
 
           {/* Job */}
-          <div>
-            <label
-              htmlFor="setup-job"
-              className="mb-1.5 block text-sm font-medium text-ink"
-            >
-              面试岗位
-            </label>
-            <select
-              id="setup-job"
-              className="h-10 w-full rounded-md border border-hairline bg-canvas px-3 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
-              value={jobId}
-              onChange={(e) => {
-                setJobId(e.target.value);
-                setError(null);
-              }}
-            >
-              <option value="">— 请选择岗位 —</option>
-              {(jobsAsync.data ?? []).map((j) => (
-                <option key={j.id} value={j.id}>
-                  {j.title} (ID {j.id})
-                </option>
-              ))}
-            </select>
-          </div>
+          <Select
+            label="面试岗位"
+            id="setup-job"
+            value={jobId}
+            onChange={(e) => {
+              setJobId(e.target.value);
+              setError(null);
+            }}
+          >
+            <option value="">— 请选择岗位 —</option>
+            {(jobsAsync.data ?? []).map((j) => (
+              <option key={j.id} value={j.id}>
+                {j.title} (ID {j.id})
+              </option>
+            ))}
+          </Select>
 
           {/* Question count */}
           <Input
