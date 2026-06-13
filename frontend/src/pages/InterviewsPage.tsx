@@ -11,6 +11,7 @@ import {
   CardTitle,
   Input,
   Spinner,
+  PageHeader,
 } from '../components/ui';
 import { InterviewReport } from '../components/InterviewReport';
 import { Reveal } from '../components/motion';
@@ -328,21 +329,17 @@ export function InterviewsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="font-display text-2xl text-ink">
-            AI 面试
-          </h1>
-          <p className="mt-1 text-sm text-muted">
-            生成定制面试题，录入候选人作答，获取 AI 评估报告
-          </p>
-        </div>
-        {phase !== 'setup' && (
-          <Button variant="secondary" size="sm" onClick={handleReset}>
-            重新开始
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        title="AI 面试"
+        description="生成定制面试题，录入候选人作答，获取 AI 评估报告"
+        actions={
+          phase !== 'setup' ? (
+            <Button variant="secondary" size="sm" onClick={handleReset}>
+              重新开始
+            </Button>
+          ) : undefined
+        }
+      />
 
       {/* Phase indicator */}
       <div className="flex items-center gap-0">
