@@ -17,6 +17,7 @@ import {
   Spinner,
   EmptyState,
   ErrorState,
+  PageHeader,
 } from '../components/ui';
 import type {
   CreateJobResponse,
@@ -325,12 +326,10 @@ export function JobsPage() {
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <div>
-        <h1 className="mb-1 font-display text-2xl text-ink">
-          岗位管理
-        </h1>
-        <p className="text-sm text-muted">创建招聘岗位并查看 AI 解析的技能要求</p>
-      </div>
+      <PageHeader
+        title="岗位管理"
+        description="创建招聘岗位并查看 AI 解析的技能要求"
+      />
 
       {/* Create form */}
       <CreateJobForm onCreated={handleCreated} />
