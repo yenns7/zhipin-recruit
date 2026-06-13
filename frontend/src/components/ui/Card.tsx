@@ -5,13 +5,15 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
 }
 
-// Default: white canvas + hairline border + rounded-lg (12px) + shadow-card
-// To use a feature/stat card style, pass className="bg-surface-card border-transparent shadow-none"
+// Default: white canvas + hairline border + rounded-lg (12px) + shadow-card.
+// Transition is built in so pages adding hover:shadow-card-hover / hover:-translate-y
+// animate smoothly. For a flat feature/stat card, pass
+// className="bg-surface-card border-transparent shadow-none".
 export function Card({ className, children, ...props }: CardProps) {
   return (
     <div
       className={cn(
-        'rounded-lg border border-hairline bg-canvas shadow-card',
+        'rounded-lg border border-hairline bg-canvas shadow-card transition-all duration-200',
         className
       )}
       {...props}
