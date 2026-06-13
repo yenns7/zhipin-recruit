@@ -14,6 +14,7 @@ import {
   Spinner,
   EmptyState,
   ErrorState,
+  PageHeader,
 } from '../components/ui';
 import type { PipelineCounts, PipelineStage } from '../types';
 import { Reveal, AnimatedNumber } from '../components/motion';
@@ -271,14 +272,10 @@ export function PipelinePage() {
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <div>
-        <h1 className="font-display text-2xl text-ink">
-          招聘流程
-        </h1>
-        <p className="mt-1 text-sm text-muted">
-          按阶段查看各岗位候选人分布，并手动推进候选人至下一阶段
-        </p>
-      </div>
+      <PageHeader
+        title="招聘流程"
+        description="按阶段查看各岗位候选人分布，并手动推进候选人至下一阶段"
+      />
 
       {/* Job selector */}
       {jobsAsync.loading && (
