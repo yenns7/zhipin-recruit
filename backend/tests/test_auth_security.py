@@ -4,10 +4,11 @@ def test_register_ignores_role_forces_recruiter(client):
     assert r.status_code == 201
     assert r.get_json()["role"] == "recruiter"  # 自封 admin 被拒绝，落库为 recruiter
 
-def test_deactivated_user_cannot_login(client, make_user, app):
+def test_deactivated_user_cannot_login(client, make_user):
     make_user("dead@x.com", role="recruiter", password="pw123456", is_active=False)
     r = client.post("/api/auth/login", json={"email": "dead@x.com", "password": "pw123456"})
     assert r.status_code == 403
+    assert "停用" in r.get_json()["error"]
 
 def test_active_user_can_login(client, make_user):
     make_user("ok@x.com", role="manager", password="pw123456")
