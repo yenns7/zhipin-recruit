@@ -38,6 +38,7 @@ frontend/dev.*.log
 # ── Agent tooling (installed skills; reproducible via skills-lock.json) ──
 .agents/
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
 
 # ── OS / editor ──────────────────────────────────────────
 .DS_Store
