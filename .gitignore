@@ -19,6 +19,8 @@ env/
 *.sqlite
 *.sqlite3
 backend/instance/
+# 保留开发种子数据库供克隆后直接使用
+!backend/hireinsight.db
 
 # ── Node / frontend ──────────────────────────────────────
 node_modules/
