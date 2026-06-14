@@ -1,275 +1,91 @@
-// 招聘流程看板页 — 按岗位展示各阶段候选人数量，并提供"推进候选人"操作面板。
+// 招聘流程看板页 — 按岗位以看板形式展示每位候选人的当前阶段，
+// 并支持就地变更候选人状态（推进 / 淘汰 / 跳转任意阶段）与加入新候选人。
 
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { KanbanSquare } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAsync } from '../lib/useAsync';
 import {
   Button,
-  Card,
-  CardBody,
-  CardHeader,
-  CardTitle,
   Spinner,
   EmptyState,
   ErrorState,
   PageHeader,
-  Select,
+  Card,
 } from '../components/ui';
-import type { PipelineCounts, PipelineStage } from '../types';
-import { Reveal, AnimatedNumber } from '../components/motion';
-
-// ---- Stage config ----
-
-interface StageConfig {
-  key: PipelineStage;
-  label: string;
-  bg: string;
-  border: string;
-  text: string;
-  badgeBg: string;
-}
-
-const STAGES: StageConfig[] = [
-  {
-    key: 'pending',
-    label: '待筛选',
-    bg: 'bg-surface-soft',
-    border: 'border-hairline',
-    text: 'text-body',
-    badgeBg: 'bg-surface-strong text-body',
-  },
-  {
-    key: 'ai_screen',
-    label: 'AI 初筛',
-    bg: 'bg-brand-50',
-    border: 'border-hairline',
-    text: 'text-brand-700',
-    badgeBg: 'bg-brand-100 text-brand-700',
-  },
-  {
-    key: 'interview',
-    label: '面试',
-    bg: 'bg-warning-50',
-    border: 'border-warning-200',
-    text: 'text-warning-700',
-    badgeBg: 'bg-warning-100 text-warning-700',
-  },
-  {
-    key: 'offer',
-    label: 'Offer',
-    bg: 'bg-success-50',
-    border: 'border-success-200',
-    text: 'text-success-700',
-    badgeBg: 'bg-success-100 text-success-700',
-  },
-  {
-    key: 'onboarded',
-    label: '已入职',
-    bg: 'bg-success-50',
-    border: 'border-success-300',
-    text: 'text-success-800',
-    badgeBg: 'bg-success-200 text-success-800',
-  },
-  {
-    key: 'rejected',
-    label: '淘汰',
-    bg: 'bg-danger-50',
-    border: 'border-danger-200',
-    text: 'text-danger-700',
-    badgeBg: 'bg-danger-100 text-danger-700',
-  },
-];
-
-// ---- Kanban column ----
-
-function KanbanColumn({
-  stage,
-  count,
-}: {
-  stage: StageConfig;
-  count: number;
-}) {
-  return (
-    <div
-      className={`flex min-h-[180px] flex-col rounded-xl border ${stage.border} ${stage.bg} px-4 py-4 transition-transform duration-200 hover:-translate-y-0.5`}
-    >
-      <div className="mb-3 flex items-center justify-between">
-        <span className={`text-sm font-semibold ${stage.text}`}>
-          {stage.label}
-        </span>
-        {/* Plain span — Badge px-2.5 conflicts if we pass size overrides */}
-        <span
-          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-bold tabular-nums ${stage.badgeBg}`}
-        >
-          {count}
-        </span>
-      </div>
-      <div className="flex flex-1 items-center justify-center">
-        <span className="text-2xl font-bold tabular-nums text-ink">
-          {count > 0 ? <AnimatedNumber value={count} /> : '—'}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-// ---- Move panel ----
-
-interface MovePanelProps {
-  jobId: number;
-  onSuccess: () => void;
-}
-
-function MovePanel({ jobId, onSuccess }: MovePanelProps) {
-  const candidatesAsync = useAsync(() => api.listCandidates(), []);
-  const [candidateId, setCandidateId] = useState('');
-  const [stage, setStage] = useState<PipelineStage>('ai_screen');
-  const [moving, setMoving] = useState(false);
-  const [moveError, setMoveError] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
-
-  async function handleMove() {
-    const cid = Number(candidateId);
-    if (!candidateId || Number.isNaN(cid)) {
-      setMoveError('请选择候选人');
-      return;
-    }
-    setMoving(true);
-    setMoveError(null);
-    setSuccessMsg(null);
-    try {
-      await api.movePipeline({ candidate_id: cid, job_id: jobId, stage });
-      const stageLabel = STAGES.find((s) => s.key === stage)?.label ?? stage;
-      setSuccessMsg(`已推进至「${stageLabel}」阶段`);
-      setCandidateId('');
-      onSuccess();
-    } catch (err) {
-      setMoveError(err instanceof Error ? err.message : '操作失败');
-    } finally {
-      setMoving(false);
-    }
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>推进候选人</CardTitle>
-      </CardHeader>
-      <CardBody>
-        <div className="space-y-4">
-          {/* Candidate selector */}
-          <div>
-            <label
-              htmlFor="move-candidate"
-              className="mb-1.5 block text-sm font-medium text-ink"
-            >
-              候选人
-            </label>
-            {candidatesAsync.loading ? (
-              <div className="flex items-center gap-2 py-2 text-sm text-muted">
-                <Spinner size="sm" />
-                加载候选人列表…
-              </div>
-            ) : candidatesAsync.error ? (
-              <p className="text-sm text-danger-600">
-                {candidatesAsync.error.message}
-              </p>
-            ) : (
-              <Select
-                id="move-candidate"
-                value={candidateId}
-                onChange={(e) => {
-                  setCandidateId(e.target.value);
-                  setMoveError(null);
-                  setSuccessMsg(null);
-                }}
-              >
-                <option value="">— 请选择候选人 —</option>
-                {(candidatesAsync.data ?? []).map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name_masked} (ID {c.id})
-                  </option>
-                ))}
-              </Select>
-            )}
-          </div>
-
-          {/* Stage selector */}
-          <Select
-            label="目标阶段"
-            id="move-stage"
-            value={stage}
-            onChange={(e) => {
-              setStage(e.target.value as PipelineStage);
-              setMoveError(null);
-              setSuccessMsg(null);
-            }}
-          >
-            {STAGES.map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.label}
-              </option>
-            ))}
-          </Select>
-
-          {/* Error / success */}
-          {moveError && (
-            <p className="text-sm text-danger-600">{moveError}</p>
-          )}
-          {successMsg && (
-            <p className="text-sm text-success-600">{successMsg}</p>
-          )}
-
-          <Button
-            onClick={handleMove}
-            loading={moving}
-            disabled={!candidateId || moving}
-            className="w-full"
-          >
-            确认推进
-          </Button>
-        </div>
-      </CardBody>
-    </Card>
-  );
-}
-
-// ---- Page ----
+import type { PipelineStage, PipelineBoardCandidate } from '../types';
+import { STAGES, stageLabel } from '../lib/pipelineStages';
+import { KanbanColumn } from '../components/pipeline/KanbanColumn';
+import { AddToPipeline } from '../components/pipeline/AddToPipeline';
+import { Reveal } from '../components/motion';
 
 export function PipelinePage() {
   const jobsAsync = useAsync(() => api.listJobs(), []);
-
-  // selectedJobId may be null while jobs are loading; we default to first job
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
 
-  // Compute the effective job id: user pick → first available → null
   const effectiveJobId =
     selectedJobId ??
-    (jobsAsync.data && jobsAsync.data.length > 0
-      ? jobsAsync.data[0].id
-      : null);
+    (jobsAsync.data && jobsAsync.data.length > 0 ? jobsAsync.data[0].id : null);
 
-  const pipelineAsync = useAsync(
+  const boardAsync = useAsync(
     () =>
       effectiveJobId !== null
-        ? api.getPipeline(effectiveJobId)
-        : Promise.resolve({} as PipelineCounts),
-    [effectiveJobId]
+        ? api.getPipelineBoard(effectiveJobId)
+        : Promise.resolve(null),
+    [effectiveJobId],
   );
 
-  // ---- Render ----
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const candidates: PipelineBoardCandidate[] = boardAsync.data?.candidates ?? [];
+
+  // 已在本岗位流程中的候选人 id 集合（供"加入流程"排除）。
+  const existingIds = useMemo(
+    () => new Set(candidates.map((c) => c.candidate_id)),
+    [candidates],
+  );
+
+  // 按阶段分桶。
+  const byStage = useMemo(() => {
+    const map: Record<string, PipelineBoardCandidate[]> = {};
+    for (const s of STAGES) map[s.key] = [];
+    for (const c of candidates) {
+      (map[c.stage] ??= []).push(c);
+    }
+    return map;
+  }, [candidates]);
+
+  const handleMove = useCallback(
+    async (candidateId: number, toStage: PipelineStage) => {
+      if (effectiveJobId === null) return;
+      setBusyId(candidateId);
+      setToast(null);
+      try {
+        const res = await api.movePipeline({
+          candidate_id: candidateId,
+          job_id: effectiveJobId,
+          stage: toStage,
+        });
+        setToast(`${res.name_masked || '候选人'} 已更新至「${stageLabel(toStage)}」`);
+        await boardAsync.reload();
+      } catch (err) {
+        setToast(err instanceof Error ? err.message : '操作失败');
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [effectiveJobId, boardAsync],
+  );
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
       <PageHeader
         title="招聘流程"
-        description="按阶段查看各岗位候选人分布，并手动推进候选人至下一阶段"
+        description="以看板查看每位候选人所处阶段，并就地推进、淘汰或调整其状态"
       />
 
-      {/* Job selector */}
       {jobsAsync.loading && (
         <div className="flex items-center gap-2 text-sm text-muted">
           <Spinner size="sm" />
@@ -300,55 +116,81 @@ export function PipelinePage() {
 
       {!jobsAsync.loading && !jobsAsync.error && (jobsAsync.data?.length ?? 0) > 0 && (
         <>
-          {/* Job picker */}
-          <div className="flex items-center gap-3">
-            <label
-              htmlFor="job-select"
-              className="text-sm font-medium text-ink"
-            >
-              当前岗位
-            </label>
-            <select
-              id="job-select"
-              className="h-10 rounded-md border border-hairline bg-canvas px-3 text-sm text-ink transition-all duration-200 focus:border-ink focus:outline-none focus:shadow-apple-focus"
-              value={effectiveJobId ?? ''}
-              onChange={(e) => setSelectedJobId(Number(e.target.value))}
-            >
-              {(jobsAsync.data ?? []).map((j) => (
-                <option key={j.id} value={j.id}>
-                  {j.title}
-                </option>
-              ))}
-            </select>
-            {pipelineAsync.loading && <Spinner size="sm" />}
+          {/* 岗位选择 + 匹配入口 */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <label htmlFor="job-select" className="text-sm font-medium text-ink">
+                当前岗位
+              </label>
+              <select
+                id="job-select"
+                className="h-10 rounded-md border border-hairline bg-canvas px-3 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+                value={effectiveJobId ?? ''}
+                onChange={(e) => setSelectedJobId(Number(e.target.value))}
+              >
+                {(jobsAsync.data ?? []).map((j) => (
+                  <option key={j.id} value={j.id}>
+                    {j.title}
+                  </option>
+                ))}
+              </select>
+              {boardAsync.loading && <Spinner size="sm" />}
+            </div>
+
+            {effectiveJobId !== null && (
+              <Link
+                to={`/jobs/${effectiveJobId}/match`}
+                className="text-sm font-medium text-muted hover:text-ink hover:underline"
+              >
+                去匹配更多候选人 →
+              </Link>
+            )}
           </div>
 
-          {/* Pipeline error */}
-          {!pipelineAsync.loading && pipelineAsync.error && (
-            <ErrorState message={pipelineAsync.error.message} onRetry={pipelineAsync.reload} />
+          {/* 加入候选人到流程 */}
+          {effectiveJobId !== null && (
+            <AddToPipeline
+              jobId={effectiveJobId}
+              existingIds={existingIds}
+              onAdded={boardAsync.reload}
+            />
           )}
 
-          {/* Kanban board */}
-          {!pipelineAsync.loading && !pipelineAsync.error && (
-            <Reveal as="div" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6" stagger={0.06}>
+          {/* Toast 反馈 */}
+          {toast && (
+            <div className="rounded-md border border-hairline bg-surface-soft px-4 py-2 text-sm text-body">
+              {toast}
+            </div>
+          )}
+
+          {/* 看板 */}
+          {!boardAsync.loading && boardAsync.error && (
+            <ErrorState message={boardAsync.error.message} onRetry={boardAsync.reload} />
+          )}
+
+          {!boardAsync.error && (
+            <Reveal
+              as="div"
+              className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
+              stagger={0.06}
+            >
               {STAGES.map((s) => (
                 <KanbanColumn
                   key={s.key}
                   stage={s}
-                  count={pipelineAsync.data?.[s.key] ?? 0}
+                  candidates={byStage[s.key] ?? []}
+                  busyId={busyId}
+                  onMove={handleMove}
                 />
               ))}
             </Reveal>
           )}
 
-          {/* Move panel */}
-          {effectiveJobId !== null && (
-            <div className="max-w-sm">
-              <MovePanel
-                jobId={effectiveJobId}
-                onSuccess={pipelineAsync.reload}
-              />
-            </div>
+          {/* 空流程提示 */}
+          {!boardAsync.loading && !boardAsync.error && candidates.length === 0 && (
+            <p className="text-center text-sm text-muted-soft">
+              本岗位流程中暂无候选人，先从上方「加入候选人到流程」开始。
+            </p>
           )}
         </>
       )}

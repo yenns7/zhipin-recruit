@@ -22,6 +22,8 @@ import type {
   LoginResponse,
   MatchResponse,
   MeResponse,
+  PipelineBoard,
+  PipelineHistory,
   PipelineCounts,
   PipelineMoveRequest,
   PipelineMoveResponse,
@@ -206,6 +208,14 @@ export const api = {
   },
   getPipeline(jobId: number): Promise<PipelineCounts> {
     return request(`/pipeline/${jobId}`);
+  },
+  // Per-candidate board: who is at which stage right now for this job.
+  getPipelineBoard(jobId: number): Promise<PipelineBoard> {
+    return request(`/pipeline/${jobId}/board`);
+  },
+  // Stage-transition timeline for one candidate in one job.
+  getPipelineHistory(jobId: number, candidateId: number): Promise<PipelineHistory> {
+    return request(`/pipeline/${jobId}/history/${candidateId}`);
   },
 
   // ---- BI (manager/admin only) ----

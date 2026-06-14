@@ -9,16 +9,31 @@ bp = Blueprint("bi", __name__)
 
 
 def _funnel(hr_id=None, days=30, job_id=None):
+    """
+    招聘漏斗：按每个 (candidate_id, job_id) 的【当前阶段】去重计数。
+    PipelineStage 是 append-only 流水表，直接 group by stage 会把同一候选人的
+    历史流转重复计入多个阶段，导致漏斗虚高。这里先取每对的最新一行再聚合。
+    """
     cutoff = datetime.utcnow() - timedelta(days=days)
-    q = db.session.query(
-        PipelineStage.stage,
-        func.count(PipelineStage.candidate_id)
+    base = db.session.query(
+        PipelineStage.candidate_id.label("candidate_id"),
+        PipelineStage.job_id.label("job_id"),
+        func.max(PipelineStage.id).label("max_id"),
     ).filter(PipelineStage.ts >= cutoff)
     if hr_id:
-        q = q.filter(PipelineStage.updated_by == hr_id)
+        base = base.filter(PipelineStage.updated_by == hr_id)
     if job_id:
-        q = q.filter(PipelineStage.job_id == job_id)
-    rows = q.group_by(PipelineStage.stage).all()
+        base = base.filter(PipelineStage.job_id == job_id)
+    latest = base.group_by(
+        PipelineStage.candidate_id, PipelineStage.job_id
+    ).subquery()
+
+    rows = (
+        db.session.query(PipelineStage.stage, func.count(PipelineStage.id))
+        .join(latest, PipelineStage.id == latest.c.max_id)
+        .group_by(PipelineStage.stage)
+        .all()
+    )
     stages = {s: c for s, c in rows}
     top = stages.get("pending", 1) or 1
     stages["conversion_rate"] = round(stages.get("onboarded", 0) / top * 100, 1)

@@ -1,5 +1,6 @@
-// 岗位匹配页 — 展示与当前岗位匹配的候选人排名及标签分析。
+// 岗位匹配页 — 展示与当前岗位匹配的候选人排名及标签分析，并可一键将候选人加入招聘流程。
 
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Users } from 'lucide-react';
 import { api } from '../lib/api';
@@ -46,9 +47,13 @@ function ScoreBadge({ score }: { score: number }) {
 function MatchRow({
   rank,
   item,
+  joinState,
+  onJoin,
 }: {
   rank: number;
   item: MatchResultItem;
+  joinState: 'idle' | 'joining' | 'joined' | 'error';
+  onJoin: (candidateId: number) => void;
 }) {
   const matched = Array.isArray(item.matched_tags) ? item.matched_tags : [];
   const missing = Array.isArray(item.missing_tags) ? item.missing_tags : [];
@@ -104,6 +109,23 @@ function MatchRow({
           <span className="text-xs text-muted-soft">—</span>
         )}
       </td>
+
+      {/* Join pipeline action */}
+      <td className="px-5 py-3.5 text-right">
+        {joinState === 'joined' ? (
+          <span className="text-xs font-medium text-success-600">已加入流程</span>
+        ) : (
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={joinState === 'joining'}
+            disabled={joinState === 'joining'}
+            onClick={() => onJoin(item.candidate_id)}
+          >
+            {joinState === 'error' ? '重试加入' : '加入流程'}
+          </Button>
+        )}
+      </td>
     </tr>
   );
 }
@@ -123,6 +145,25 @@ export function JobMatchPage() {
         : api.matchJob(jobId),
     [jobId, isInvalidId]
   );
+
+  // Per-candidate "join pipeline" state, keyed by candidate id.
+  const [joinStates, setJoinStates] = useState<
+    Record<number, 'idle' | 'joining' | 'joined' | 'error'>
+  >({});
+
+  async function handleJoin(candidateId: number) {
+    setJoinStates((prev) => ({ ...prev, [candidateId]: 'joining' }));
+    try {
+      await api.movePipeline({
+        candidate_id: candidateId,
+        job_id: jobId,
+        stage: 'pending',
+      });
+      setJoinStates((prev) => ({ ...prev, [candidateId]: 'joined' }));
+    } catch {
+      setJoinStates((prev) => ({ ...prev, [candidateId]: 'error' }));
+    }
+  }
 
   // Invalid id guard — after all hooks
   if (isInvalidId) {
@@ -216,11 +257,18 @@ export function JobMatchPage() {
                     <th className="px-5 py-3">匹配度</th>
                     <th className="px-5 py-3">匹配技能</th>
                     <th className="px-5 py-3">欠缺技能</th>
+                    <th className="px-5 py-3 text-right">操作</th>
                   </tr>
                 </thead>
                 <Reveal as="tbody" stagger={0.05} y={12}>
                   {results.map((item, i) => (
-                    <MatchRow key={item.candidate_id} rank={i + 1} item={item} />
+                    <MatchRow
+                      key={item.candidate_id}
+                      rank={i + 1}
+                      item={item}
+                      joinState={joinStates[item.candidate_id] ?? 'idle'}
+                      onJoin={handleJoin}
+                    />
                   ))}
                 </Reveal>
               </table>

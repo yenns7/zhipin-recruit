@@ -207,10 +207,43 @@ export interface PipelineMoveRequest {
 export interface PipelineMoveResponse {
   status: string;
   stage: PipelineStage;
+  from: PipelineStage | null;
+  candidate_id: number;
+  name_masked: string;
 }
 
 // Map of stage -> count. Keys are PipelineStage values.
 export type PipelineCounts = Partial<Record<PipelineStage, number>>;
+
+// A single candidate currently sitting in a job's pipeline (at their latest stage).
+export interface PipelineBoardCandidate {
+  candidate_id: number;
+  name_masked: string;
+  stage: PipelineStage;
+  updated_at: string | null;
+  updated_by_name: string | null;
+}
+
+// Full board payload for one job: candidates bucketed by their current stage.
+export interface PipelineBoard {
+  job_id: number;
+  job_title: string;
+  stage_order: PipelineStage[];
+  candidates: PipelineBoardCandidate[];
+}
+
+// One step in a candidate's stage-transition timeline for a job.
+export interface PipelineHistoryStep {
+  stage: PipelineStage;
+  ts: string | null;
+  updated_by_name: string | null;
+}
+
+export interface PipelineHistory {
+  job_id: number;
+  candidate_id: number;
+  timeline: PipelineHistoryStep[];
+}
 
 // ---- BI ----
 export interface BiFunnel {
