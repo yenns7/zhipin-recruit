@@ -44,3 +44,9 @@ def test_patch_forbidden_for_non_admin(client, make_user):
     r = client.patch(f"/api/admin/users/{target_id}", headers=_auth(rec_token),
                      json={"role": "manager"})
     assert r.status_code == 403
+
+def test_admin_cannot_self_deactivate(client, make_user):
+    admin_id, admin_token = make_user("a@x.com", role="admin")
+    r = client.patch(f"/api/admin/users/{admin_id}", headers=_auth(admin_token),
+                     json={"is_active": False})
+    assert r.status_code == 400

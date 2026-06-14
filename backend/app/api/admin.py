@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 from ..middleware.auth import require_auth, require_role
 from ..middleware.events import record_event
 from .. import db
@@ -28,6 +28,9 @@ def update_user(user_id):
     user = User.query.get(user_id)
     if user is None:
         return jsonify({"error": "用户不存在"}), 404
+    if user_id == g.user_id:
+        if data.get("is_active") is False or ("role" in data and data["role"] != "admin"):
+            return jsonify({"error": "不能停用或降级自己的账号"}), 400
     if "role" in data:
         if data["role"] not in VALID_ROLES:
             return jsonify({"error": f"无效角色。可选：{sorted(VALID_ROLES)}"}), 400
