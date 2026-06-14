@@ -7,10 +7,11 @@ interface KanbanColumnProps {
   stage: StageConfig;
   candidates: PipelineBoardCandidate[];
   busyId: number | null;
+  jobId: number;
   onMove: (candidateId: number, toStage: PipelineStage, note?: string) => void;
 }
 
-export function KanbanColumn({ stage, candidates, busyId, onMove }: KanbanColumnProps) {
+export function KanbanColumn({ stage, candidates, busyId, jobId, onMove }: KanbanColumnProps) {
   return (
     <div
       className={`flex min-h-[200px] flex-col rounded-xl border ${stage.border} ${stage.bg} px-3 py-3`}
@@ -38,6 +39,7 @@ export function KanbanColumn({ stage, candidates, busyId, onMove }: KanbanColumn
               key={c.candidate_id}
               candidate={c}
               busy={busyId === c.candidate_id}
+              jobId={jobId}
               onMove={onMove}
             />
           ))

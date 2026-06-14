@@ -181,6 +181,7 @@ export function PipelinePage() {
                   stage={s}
                   candidates={byStage[s.key] ?? []}
                   busyId={busyId}
+                  jobId={effectiveJobId!}
                   onMove={handleMove}
                 />
               ))}

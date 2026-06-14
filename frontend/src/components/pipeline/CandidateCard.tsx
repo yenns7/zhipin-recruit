@@ -8,6 +8,7 @@ import type { PipelineBoardCandidate, PipelineStage } from '../../types';
 import { STAGES, STAGE_BY_KEY } from '../../lib/pipelineStages';
 import { formatDate } from '../../lib/formatDate';
 import { Spinner } from '../ui';
+import { FeedbackForm } from '../interview/FeedbackForm';
 
 // 给定当前阶段，推算"推进到下一阶段"的目标（用于一键推进按钮）。
 const FORWARD: Partial<Record<PipelineStage, PipelineStage>> = {
@@ -22,11 +23,17 @@ const FORWARD: Partial<Record<PipelineStage, PipelineStage>> = {
 interface CandidateCardProps {
   candidate: PipelineBoardCandidate;
   busy: boolean;
+  jobId: number;
   onMove: (candidateId: number, toStage: PipelineStage, note?: string) => void;
 }
 
-export function CandidateCard({ candidate, busy, onMove }: CandidateCardProps) {
+export function CandidateCard({ candidate, busy, jobId, onMove }: CandidateCardProps) {
   const [picking, setPicking] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const atInterview =
+    candidate.stage === 'interview_first' ||
+    candidate.stage === 'interview_second' ||
+    candidate.stage === 'interview_final';
   const stage = STAGE_BY_KEY[candidate.stage];
   const next = FORWARD[candidate.stage];
   const isTerminal = candidate.stage === 'onboarded' || candidate.stage === 'rejected';
@@ -83,6 +90,18 @@ export function CandidateCard({ candidate, busy, onMove }: CandidateCardProps) {
           </button>
         )}
 
+        {/* 录入评分：仅在面试阶段展示 */}
+        {atInterview && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setShowFeedback((v) => !v)}
+            className="rounded-md px-2 py-1 text-[11px] font-medium text-muted hover:bg-surface-soft disabled:opacity-50"
+          >
+            {showFeedback ? '收起' : '录入评分'}
+          </button>
+        )}
+
         {/* 更多：跳到任意阶段 */}
         <div className="relative ml-auto">
           <button
@@ -122,6 +141,17 @@ export function CandidateCard({ candidate, busy, onMove }: CandidateCardProps) {
           )}
         </div>
       </div>
+
+      {/* 内联评分表单 */}
+      {atInterview && showFeedback && (
+        <div className="mt-2">
+          <FeedbackForm
+            candidateId={candidate.candidate_id}
+            jobId={jobId}
+            onSubmitted={() => setShowFeedback(false)}
+          />
+        </div>
+      )}
     </div>
   );
 }
