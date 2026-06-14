@@ -14,52 +14,20 @@ import {
   type AgentTool,
   type ChatTurn,
 } from '../lib/agent';
+import {
+  useAgentChat,
+  type Message,
+  type UserMessage,
+  type AssistantMessage,
+  type WriteProposal,
+} from '../lib/agentChat';
 import { cn } from '../lib/cn';
 import { RichText } from '../components/agent/RichText';
 import { ThoughtTrace } from '../components/agent/ThoughtTrace';
 import { ToolCallCard } from '../components/agent/ToolCallCard';
 
-// ---- View model ----------------------------------------------------------
-
-interface ToolCallView {
-  id: number;
-  tool: string;
-  args: Record<string, unknown>;
-  result?: unknown;
-}
-
-// A pending write proposal awaiting user confirmation.
-type ConfirmStatus = 'pending' | 'executing' | 'done' | 'failed' | 'cancelled';
-
-interface WriteProposal {
-  tool: string;
-  args: Record<string, unknown>;
-  summary: string;
-  status: ConfirmStatus;
-  resultText?: string;
-}
-
-type TurnStatus = 'streaming' | 'done' | 'error';
-
-interface UserMessage {
-  kind: 'user';
-  id: number;
-  text: string;
-}
-
-interface AssistantMessage {
-  kind: 'assistant';
-  id: number;
-  thoughts: string[];
-  toolCalls: ToolCallView[];
-  answer: string;
-  status: TurnStatus;
-  error?: string;
-  // Write operation the agent proposed this turn (awaiting confirmation).
-  proposal?: WriteProposal;
-}
-
-type Message = UserMessage | AssistantMessage;
+// View-model types now live in ../lib/agentChat (shared with the Context that
+// holds conversation state across route switches).
 
 // Example prompts surfaced when the conversation is empty.
 const EXAMPLES = [
@@ -73,14 +41,20 @@ let idSeq = 0;
 const nextId = () => ++idSeq;
 
 export function AgentPage() {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
-  const [streaming, setStreaming] = useState(false);
+  // 对话状态来自 Context（挂在 AppShell Outlet 之上），跨路由切换不丢失。
+  const {
+    messages,
+    setMessages,
+    input,
+    setInput,
+    streaming,
+    setStreaming,
+    abortRef,
+    toolSeqRef,
+  } = useAgentChat();
   const [tools, setTools] = useState<AgentTool[]>([]);
 
-  const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const toolSeqRef = useRef(0);
 
   // Build the history payload (user/assistant pairs) from completed turns.
   const buildHistory = useCallback((msgs: Message[]): ChatTurn[] => {

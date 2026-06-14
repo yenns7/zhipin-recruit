@@ -9,6 +9,7 @@ import { navItemsForRole } from '../lib/nav';
 import { cn } from '../lib/cn';
 import { Badge } from './ui';
 import { AccountSettings } from './AccountSettings';
+import { AgentChatProvider } from '../lib/agentChat';
 import { gsap, useGSAP, EASE, DUR, STAGGER } from '../lib/motion';
 import type { Role } from '../types';
 
@@ -246,7 +247,9 @@ export function AppShell() {
 
         <main className="flex-1 overflow-y-auto p-6">
           <div ref={mainScope} className="mx-auto max-w-7xl">
-            <Outlet />
+            <AgentChatProvider>
+              <Outlet />
+            </AgentChatProvider>
           </div>
         </main>
       </div>
