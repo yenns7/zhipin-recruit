@@ -101,21 +101,94 @@ function ObjectList({ items }: { items: Record<string, unknown>[] }) {
   return (
     <div className="space-y-3">
       {items.map((item, i) => (
-        <div key={i} className="rounded-lg border border-hairline bg-surface-soft px-4 py-3">
-          <SimpleKV data={item} />
-        </div>
+        <EntryCard key={i} data={item} />
       ))}
     </div>
   );
 }
 
-// 扁平键值对渲染
+// 简历子字段中文标签（教育/工作经历条目内部）
+const FIELD_LABELS: Record<string, string> = {
+  school: '学校',
+  degree: '学位',
+  major: '专业',
+  year: '年份',
+  duration: '时间',
+  company: '公司',
+  position: '职位',
+  title: '职位',
+  description: '描述',
+  name: '名称',
+  date: '日期',
+  level: '水平',
+};
+
+// 标题候选键（用作条目主标题）与副标题候选键
+const TITLE_KEYS = ['company', 'school', 'position', 'title', 'name'];
+const SUBTITLE_KEYS = ['position', 'degree', 'major', 'title'];
+const PERIOD_KEYS = ['duration', 'year', 'date'];
+const DESC_KEYS = ['description', 'summary'];
+
+// 结构化条目卡片：主标题 + 时间徽章 + 副标题 + 描述 + 其余字段。
+// 取代原先把 school/degree/... 平铺成 "key: value" 的丑陋样式。
+function EntryCard({ data }: { data: Record<string, unknown> }) {
+  const pick = (keys: string[]) =>
+    keys.map((k) => data[k]).find((v) => typeof v === 'string' && v.trim());
+
+  const title = pick(TITLE_KEYS) as string | undefined;
+  const subtitle = pick(SUBTITLE_KEYS.filter((k) => data[k] !== title)) as string | undefined;
+  const period = pick(PERIOD_KEYS) as string | undefined;
+  const desc = pick(DESC_KEYS) as string | undefined;
+
+  const usedKeys = new Set([
+    ...TITLE_KEYS, ...SUBTITLE_KEYS, ...PERIOD_KEYS, ...DESC_KEYS,
+  ]);
+  // 剩余未被主结构消费的字段，作为补充键值
+  const rest = Object.entries(data).filter(
+    ([k, v]) => !usedKeys.has(k) && v != null && String(v).trim() !== ''
+  );
+
+  return (
+    <div className="relative rounded-lg border border-hairline bg-canvas px-4 py-3.5 transition-colors hover:border-surface-strong">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          {title ? (
+            <p className="font-medium text-ink">{title}</p>
+          ) : (
+            <p className="text-sm text-muted-soft">条目</p>
+          )}
+          {subtitle && <p className="mt-0.5 text-sm text-body">{subtitle}</p>}
+        </div>
+        {period && (
+          <span className="shrink-0 rounded-full bg-surface-card px-2.5 py-0.5 text-xs font-medium text-muted tabular-nums">
+            {period}
+          </span>
+        )}
+      </div>
+      {desc && (
+        <p className="mt-2 text-sm leading-relaxed text-body whitespace-pre-wrap">{desc}</p>
+      )}
+      {rest.length > 0 && (
+        <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-2">
+          {rest.map(([k, v]) => (
+            <div key={k} className="flex gap-1.5 text-xs">
+              <dt className="shrink-0 text-muted-soft">{FIELD_LABELS[k] ?? k}</dt>
+              <dd className="text-body">{renderScalar(v)}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
+  );
+}
+
+// 扁平键值对渲染（用于无法结构化的对象）
 function SimpleKV({ data }: { data: Record<string, unknown> }) {
   return (
-    <dl className="space-y-1">
+    <dl className="space-y-1.5">
       {Object.entries(data).map(([k, v]) => (
         <div key={k} className="flex gap-2 text-sm">
-          <dt className="shrink-0 font-medium text-muted capitalize">{k}:</dt>
+          <dt className="shrink-0 font-medium text-muted">{FIELD_LABELS[k] ?? k}</dt>
           <dd className="text-ink">{renderScalar(v)}</dd>
         </div>
       ))}
