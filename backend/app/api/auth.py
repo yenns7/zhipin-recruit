@@ -29,7 +29,7 @@ def register():
     user = User(
         name=data.get("name", ""),
         email=data["email"],
-        role=data.get("role", "recruiter"),
+        role="recruiter",  # 安全：注册一律为 recruiter，特权角色由 admin 分配
         password_hash=_hash(data["password"]),
     )
     db.session.add(user)
@@ -43,6 +43,8 @@ def login():
     user = User.query.filter_by(email=data.get("email")).first()
     if not user or not _verify(data.get("password", ""), user.password_hash):
         return jsonify({"error": "Invalid credentials"}), 401
+    if not user.is_active:
+        return jsonify({"error": "账号已停用，请联系管理员"}), 403
     exp = datetime.utcnow() + timedelta(hours=Config.JWT_EXPIRY_HOURS)
     token = jwt.encode(
         {"user_id": user.id, "role": user.role, "exp": exp},
