@@ -251,10 +251,14 @@ export interface PipelineHistory {
 }
 
 // ---- BI ----
+// 漏斗按当前阶段计数。面试阶段已拆分为三轮（一面/二面/终面），
+// BI 漏斗展示时合并为一个"面试"概念值（见 BiPage 的 interviewTotal）。
 export interface BiFunnel {
   pending?: number;
   ai_screen?: number;
-  interview?: number;
+  interview_first?: number;
+  interview_second?: number;
+  interview_final?: number;
   offer?: number;
   onboarded?: number;
   rejected?: number;

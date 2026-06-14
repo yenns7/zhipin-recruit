@@ -125,7 +125,8 @@ function useDashboardStats(
         if (jobsR.status === 'fulfilled') next.jobs = jobsR.value.length;
         if (biR.status === 'fulfilled' && biR.value) {
           const f = biR.value.funnel;
-          next.interview = f.interview ?? 0;
+          next.interview =
+            (f.interview_first ?? 0) + (f.interview_second ?? 0) + (f.interview_final ?? 0);
           next.onboarded = f.onboarded ?? 0;
           next.conversionRate = Number.isFinite(f.conversion_rate) ? f.conversion_rate : 0;
         }
