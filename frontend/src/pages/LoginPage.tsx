@@ -3,7 +3,7 @@
 
 import { useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, ApiError } from '../lib/api';
+import { api, ApiError, clearToken } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { defaultRouteForRole } from '../lib/nav';
 import { Button, Input, ErrorState, Select } from '../components/ui';
@@ -80,6 +80,8 @@ export function LoginPage() {
     setError(null);
     setLoading(true);
     try {
+      // 清除残留旧 token，防止 API 请求带无效 token 触发 401
+      clearToken();
       if (mode === 'register') {
         await api.register({ name, email, password, role });
       }
@@ -150,7 +152,7 @@ export function LoginPage() {
         </div>
 
         {/* Glass card */}
-        <div data-anim="card" className="glass-strong p-6">
+        <div data-anim="card" className="rounded-apple border border-hairline bg-white shadow-apple-lg p-6">
           <h2 className="mb-5 text-base font-display text-ink">
             {mode === 'login' ? '登录工作台' : '创建账户'}
           </h2>

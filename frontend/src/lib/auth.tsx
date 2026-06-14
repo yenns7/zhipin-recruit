@@ -55,6 +55,10 @@ function isExpired(token: string): boolean {
 function loadSession(): Session | null {
   const token = getToken();
   if (!token || isExpired(token)) {
+    // 清除过期/无效 token，避免后续 API 调用带无效 token 触发 401
+    clearToken();
+    localStorage.removeItem(NAME_KEY);
+    localStorage.removeItem(ROLE_KEY);
     return null;
   }
   const payload = decodeJwt(token);
