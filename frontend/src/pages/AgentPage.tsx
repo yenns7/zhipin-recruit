@@ -192,49 +192,68 @@ export function AgentPage() {
   // Confirm (or cancel) a write proposal on a specific assistant message.
   const resolveProposal = useCallback(
     async (assistantId: number, confirm: boolean) => {
-      // Snapshot the proposal before mutating.
-      let target: WriteProposal | undefined;
-      setMessages((prev) =>
-        prev.map((m) => {
-          if (m.kind === 'assistant' && m.id === assistantId && m.proposal) {
-            target = m.proposal;
-            return {
-              ...m,
-              proposal: {
-                ...m.proposal,
-                status: confirm ? 'executing' : 'cancelled',
-              },
-            };
-          }
-          return m;
-        })
+      // 直接从当前 messages 读取目标 proposal —— 不依赖 setMessages updater 的
+      // 副作用赋值（React 批处理下 updater 可能延后执行，导致此处快照为 undefined，
+      // 函数提前 return，请求永不发出 → 确认卡片永久停在「执行中」）。
+      const targetMsg = messages.find(
+        (m): m is AssistantMessage =>
+          m.kind === 'assistant' && m.id === assistantId && !!m.proposal
       );
-      if (!confirm || !target) return;
+      const target = targetMsg?.proposal;
+      if (!target) return;
 
-      const res = await executeWriteTool(target.tool, target.args);
+      // 标记状态：确认 → executing；取消 → cancelled。
       setMessages((prev) =>
-        prev.map((m) => {
-          if (m.kind !== 'assistant' || m.id !== assistantId || !m.proposal) return m;
-          if (res.ok) {
-            const r = res.result || {};
-            const jid = r.job_id ?? r.candidate_id;
+        prev.map((m) =>
+          m.kind === 'assistant' && m.id === assistantId && m.proposal
+            ? { ...m, proposal: { ...m.proposal, status: confirm ? 'executing' : 'cancelled' } }
+            : m
+        )
+      );
+      if (!confirm) return;
+
+      try {
+        const res = await executeWriteTool(target.tool, target.args);
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m.kind !== 'assistant' || m.id !== assistantId || !m.proposal) return m;
+            if (res.ok) {
+              const r = res.result || {};
+              const jid = r.job_id ?? r.candidate_id;
+              return {
+                ...m,
+                proposal: {
+                  ...m.proposal,
+                  status: 'done',
+                  resultText: jid ? `操作成功（#${jid}）` : '操作成功',
+                },
+              };
+            }
             return {
               ...m,
-              proposal: {
-                ...m.proposal,
-                status: 'done',
-                resultText: jid ? `操作成功（#${jid}）` : '操作成功',
-              },
+              proposal: { ...m.proposal, status: 'failed', resultText: res.error || '执行失败' },
             };
-          }
-          return {
-            ...m,
-            proposal: { ...m.proposal, status: 'failed', resultText: res.error || '执行失败' },
-          };
-        })
-      );
+          })
+        );
+      } catch (err) {
+        // 网络/异常也要落地为 failed，绝不留在 executing 卡死。
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.kind === 'assistant' && m.id === assistantId && m.proposal
+              ? {
+                  ...m,
+                  proposal: {
+                    ...m.proposal,
+                    status: 'failed',
+                    resultText: err instanceof Error ? err.message : '执行失败',
+                  },
+                }
+              : m
+          )
+        );
+      }
     },
-    []
+    [messages]
   );
 
   // Load the capability catalogue once for the empty-state cloud.
