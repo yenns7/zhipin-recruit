@@ -10,6 +10,7 @@ class User(db.Model):
     role = db.Column(db.String(20), nullable=False, default="recruiter")  # admin/manager/recruiter/interviewer
     password_hash = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
 
 
 class Candidate(db.Model):
