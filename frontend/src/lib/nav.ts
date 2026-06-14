@@ -53,9 +53,9 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     to: '/interviews',
-    label: 'AI 面试',
+    label: '面试记录',
     icon: Bot,
-    roles: ['recruiter'],
+    roles: ['recruiter', 'interviewer', 'manager', 'admin'],
   },
   {
     to: '/bi',

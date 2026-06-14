@@ -11,6 +11,8 @@ import type {
   CandidateListItem,
   CreateJobRequest,
   CreateJobResponse,
+  InterviewFeedbackInput,
+  InterviewListItem,
   InterviewRecord,
   InterviewStartRequest,
   InterviewStartResponse,
@@ -202,6 +204,12 @@ export const api = {
   },
   getInterview(interviewId: number): Promise<InterviewRecord> {
     return request(`/interview/${interviewId}`);
+  },
+  listInterviews(): Promise<InterviewListItem[]> {
+    return request('/interviews');
+  },
+  submitFeedback(payload: InterviewFeedbackInput): Promise<{ id: number; status: string }> {
+    return request('/interview/feedback', { method: 'POST', body: payload });
   },
 
   // ---- Pipeline ----

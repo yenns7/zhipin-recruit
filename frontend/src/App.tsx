@@ -22,6 +22,7 @@ import { CandidateProfilePage } from './pages/CandidateProfilePage';
 import { JobsPage } from './pages/JobsPage';
 import { JobMatchPage } from './pages/JobMatchPage';
 import { PipelinePage } from './pages/PipelinePage';
+import { InterviewListPage } from './pages/InterviewListPage';
 import { InterviewsPage } from './pages/InterviewsPage';
 import { InterviewReportPage } from './pages/InterviewReportPage';
 import { AgentPage } from './pages/AgentPage';
@@ -103,6 +104,15 @@ function AppRoutes() {
         />
         <Route
           path="/interviews"
+          element={
+            <RequireRole
+              allow={['recruiter', 'interviewer', 'manager', 'admin']}
+              element={<InterviewListPage />}
+            />
+          }
+        />
+        <Route
+          path="/interviews/new"
           element={
             <RequireRole
               allow={['recruiter', 'manager', 'admin']}

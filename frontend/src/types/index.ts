@@ -304,3 +304,28 @@ export interface AdminUser {
   is_active: boolean;
   created_at: string | null;
 }
+
+// ---- Interview list + feedback ----
+export interface InterviewListItem {
+  id: number;
+  type: 'ai' | 'feedback';
+  candidate_id: number;
+  name_masked: string | null;
+  job_id: number;
+  job_title: string | null;
+  score: number | null;
+  pass: boolean | null;
+  round: string | null;
+  created_at: string | null;
+}
+
+export interface InterviewFeedbackInput {
+  candidate_id: number;
+  job_id: number;
+  round: PipelineStage;
+  score: number;
+  passed: boolean;
+  strengths?: string;
+  concerns?: string;
+  note?: string;
+}
