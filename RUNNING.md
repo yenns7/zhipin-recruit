@@ -1,99 +1,75 @@
-# HireInsight — Dev Setup & Running Guide
+# 智聘 · 快速启动
 
-## Prerequisites
+## 前置条件
 
-- Python 3.9+ on PATH
-- Node.js 18+ on PATH
-- Backend dependencies already installed (`pip install -r backend/requirements.txt`)
-- Frontend dependencies: run `npm install` once inside `frontend/` if `node_modules` is absent
+- Python 3.9+
+- pip 安装依赖：`pip install -r backend/requirements.txt`
 
 ---
 
-## 1. Start the backend
+## 启动后端
 
 ```bash
 cd backend
 python run.py
 ```
 
-Starts Flask on http://localhost:5000. The SQLite database (`backend/hireinsight.db`) is created automatically on first boot.
+访问 http://localhost:5000 — 前端页面由 Flask 直接托管（已内置构建产物，无需 Node）。
 
 ---
 
-## 2. Seed demo data
+## 演示账号
 
-Run once (or any time you want a clean reset — it wipes and re-seeds):
+密码统一：`demo1234`
+
+| 角色 | 邮箱 | 姓名 |
+|------|------|------|
+| 管理员 | admin@demo.com | 系统管理员 |
+| 经理 | manager@demo.com | 陈经理 |
+| 招聘专员 | hr1@demo.com | 张专员 |
+| 招聘专员 | hr2@demo.com | 李专员 |
+| 招聘专员 | hr3@demo.com | 王专员 |
+| 面试官 | interviewer@demo.com | 赵面试官 |
+
+推荐用 **manager@demo.com** 登录，可看到完整 BI 看板和团队数据。
+
+---
+
+## 重置演示数据
 
 ```bash
 cd backend
 python seed_dev.py
 ```
 
-Prints a summary table of what was created and the login credentials. No LLM key required.
+清空并重新写入 29 个用户、20 个候选人、14 个岗位及面试记录。不需要 LLM Key。
 
 ---
 
-## 3. Start the frontend
+## 需要 LLM Key 的功能
+
+以下功能需要配置 API Key，其余功能（登录、候选人、岗位、流程、BI、面试报告）完全离线可用：
+
+- JD 结构化解析
+- AI 面试出题 & 评分
+- 简历上传解析
+
+创建 `backend/.env`（参考 `.env.example`）：
+
+```env
+LLM_PROVIDER=deepseek
+LLM_API_KEY=sk-你的key
+LLM_MODEL=deepseek-v4-flash
+LLM_API_URL=https://api.deepseek.com/v1/chat/completions
+```
+
+---
+
+## 前端二次开发
 
 ```bash
 cd frontend
-npm install        # only needed once
-npm run dev
-```
-
-Opens at http://localhost:5173. The Vite dev server proxies `/api` requests to `localhost:5000`, so both processes must be running.
-
----
-
-## Demo login credentials
-
-All accounts use password `demo1234`.
-
-| Role         | Email                    | Name     |
-|--------------|--------------------------|----------|
-| admin        | admin@demo.com           | 系统管理员 |
-| manager      | manager@demo.com         | 陈经理    |
-| recruiter    | hr1@demo.com             | 张专员    |
-| recruiter    | hr2@demo.com             | 李专员    |
-| recruiter    | hr3@demo.com             | 王专员    |
-| interviewer  | interviewer@demo.com     | 赵面试官  |
-
-Log in as **manager@demo.com** to see the BI dashboard and pipeline overview.  
-Log in as **hr1@demo.com** to see the recruiter view (candidates, jobs, pipeline).
-
----
-
-## LLM-dependent features
-
-The following features require a live LLM API key:
-
-- **JD structuring** — parsing a job description into structured tags on job create
-- **AI interview Q&A** — generating interview questions and evaluating answers
-- **Live resume parsing** — extracting structured data from an uploaded PDF/DOCX
-
-To enable them, set these environment variables (or create `backend/.env`):
-
-```env
-LLM_PROVIDER=openai          # or anthropic, etc.
-LLM_API_KEY=sk-...
-LLM_MODEL=gpt-4o-mini
-# Optional — only needed for non-default API endpoints:
-# LLM_API_URL=https://...
-```
-
-All other features (auth, candidate list, job list, pipeline Kanban, BI dashboard, interview reports, job matching) work fully offline with seeded data.
-
----
-
-## Quick verification
-
-```bash
-# Backend boots
-cd backend && python -c "from app import create_app; app=create_app(); print('OK')"
-
-# Seed runs clean
-cd backend && python seed_dev.py
-
-# Frontend type-checks and builds
-cd frontend && npm run typecheck && npm run build && npm run lint
+npm install
+npm run dev      # http://localhost:5173，代理到 :5000
+npm run build    # 重新构建后提交 frontend/dist/
 ```

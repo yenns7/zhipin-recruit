@@ -21,8 +21,9 @@ class Config:
     JWT_SECRET = os.environ.get("JWT_SECRET", "dev-secret-change-in-prod")
     JWT_EXPIRY_HOURS = int(os.environ.get("JWT_EXPIRY_HOURS", "8"))
 
-    # 数据库：开发用 SQLite，生产换 PostgreSQL URL
-    DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///hireinsight.db")
+    # 数据库：开发用 SQLite（绝对路径，避免 CWD 不同导致建出空库），生产换 PostgreSQL URL
+    _default_db = "sqlite:///" + str(Path(__file__).resolve().parent.parent / "hireinsight.db")
+    DATABASE_URL = os.environ.get("DATABASE_URL", _default_db)
     SQLALCHEMY_DATABASE_URI = DATABASE_URL
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
