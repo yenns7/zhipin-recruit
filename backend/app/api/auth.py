@@ -22,7 +22,9 @@ def _verify(pw: str, hashed: str) -> bool:
 
 @bp.post("/auth/register")
 def register():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
+    if not data.get("email") or not data.get("password"):
+        return jsonify({"error": "email and password required"}), 400
     if User.query.filter_by(email=data.get("email")).first():
         return jsonify({"error": "Email already registered"}), 409
     user = User(
@@ -38,7 +40,7 @@ def register():
 
 @bp.post("/auth/login")
 def login():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     user = User.query.filter_by(email=data.get("email")).first()
     if not user or not _verify(data.get("password", ""), user.password_hash):
         return jsonify({"error": "Invalid credentials"}), 401

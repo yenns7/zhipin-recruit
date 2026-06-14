@@ -15,3 +15,7 @@ def test_active_user_can_login(client, make_user):
     r = client.post("/api/auth/login", json={"email": "ok@x.com", "password": "pw123456"})
     assert r.status_code == 200
     assert r.get_json()["role"] == "manager"
+
+def test_register_empty_body_returns_400(client):
+    r = client.post("/api/auth/register", json={})
+    assert r.status_code == 400
