@@ -35,7 +35,9 @@ def update_user(user_id):
         record_event("user.role_changed", entity_id=user_id, entity_type="user",
                      payload={"role": data["role"]})
     if "is_active" in data:
-        user.is_active = bool(data["is_active"])
+        if not isinstance(data["is_active"], bool):
+            return jsonify({"error": "is_active 必须是布尔值"}), 400
+        user.is_active = data["is_active"]
         record_event("user.active_changed", entity_id=user_id, entity_type="user",
                      payload={"is_active": user.is_active})
     db.session.commit()

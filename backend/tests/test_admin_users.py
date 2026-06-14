@@ -31,3 +31,16 @@ def test_invalid_role_rejected(client, make_user):
     r = client.patch(f"/api/admin/users/{target_id}", headers=_auth(admin_token),
                      json={"role": "superuser"})
     assert r.status_code == 400
+
+def test_patch_user_not_found(client, make_user):
+    _, admin_token = make_user("a@x.com", role="admin")
+    r = client.patch("/api/admin/users/99999", headers=_auth(admin_token),
+                     json={"role": "manager"})
+    assert r.status_code == 404
+
+def test_patch_forbidden_for_non_admin(client, make_user):
+    _, rec_token = make_user("r@x.com", role="recruiter")
+    target_id, _ = make_user("t@x.com", role="recruiter")
+    r = client.patch(f"/api/admin/users/{target_id}", headers=_auth(rec_token),
+                     json={"role": "manager"})
+    assert r.status_code == 403
