@@ -218,7 +218,18 @@ function ResumeSection({ sectionKey, value }: { sectionKey: string; value: unkno
 }
 
 function ResumeJsonView({ resumeJson }: { resumeJson: ResumeJson }) {
-  const entries = sortedEntries(resumeJson);
+  // 后端 resume_json 结构为 { extracted_info: {...简历字段}, skills: [...], upload_date }。
+  // 真正可读的简历内容在 extracted_info 里；skills 已由左栏技能标签单独展示，
+  // upload_date 是元数据。故优先解包 extracted_info 渲染；兼容旧的扁平结构。
+  const ei = resumeJson?.extracted_info;
+  const source: ResumeJson =
+    ei && typeof ei === 'object' && !Array.isArray(ei)
+      ? (ei as ResumeJson)
+      : resumeJson;
+
+  const entries = sortedEntries(source).filter(
+    ([k]) => k !== 'skills' && k !== 'upload_date' && k !== 'extracted_info'
+  );
   if (entries.length === 0) {
     return <p className="text-sm text-muted-soft">暂无简历结构化内容</p>;
   }
