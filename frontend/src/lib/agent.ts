@@ -32,8 +32,15 @@ export interface AgentTool {
   params: Record<string, unknown>;
 }
 
+// A write tool (mutates data) — carries rbac roles and a write flag.
+export interface AgentWriteTool extends AgentTool {
+  rbac: string[];
+  write: true;
+}
+
 export interface AgentToolsResponse {
   tools: AgentTool[];
+  write_tools?: AgentWriteTool[];
 }
 
 // Discriminated union of every SSE event the chat endpoint can emit.
@@ -41,6 +48,7 @@ export type AgentEvent =
   | { type: 'thought'; text: string }
   | { type: 'tool_call'; tool: string; args: Record<string, unknown> }
   | { type: 'tool_result'; tool: string; result: unknown }
+  | { type: 'confirm_required'; tool: string; args: Record<string, unknown>; summary: string }
   | { type: 'token'; text: string }
   | { type: 'done'; answer: string }
   | { type: 'error'; message: string };
@@ -62,10 +70,45 @@ const TOOL_META: Record<string, ToolMeta> = {
   get_pipeline: { label: '招聘流程', icon: KanbanSquare },
   get_bi_overview: { label: '团队报表', icon: BarChart3 },
   count_summary: { label: '系统概览', icon: Gauge },
+  // 写操作工具
+  create_job: { label: '创建岗位', icon: Briefcase },
+  move_pipeline: { label: '推进流程', icon: KanbanSquare },
+  start_interview: { label: '发起面试', icon: Target },
+  run_match: { label: '运行匹配', icon: Target },
 };
 
 export function toolMeta(name: string): ToolMeta {
   return TOOL_META[name] ?? { label: name, icon: Wrench };
+}
+
+// ---- Write-tool execution (after user confirmation) ----------------------
+
+export interface ExecuteWriteResult {
+  ok: boolean;
+  result?: Record<string, unknown>;
+  error?: string;
+}
+
+// Execute a write tool the agent proposed, once the user confirms.
+// Hits POST /api/agent/execute which enforces RBAC server-side.
+export async function executeWriteTool(
+  tool: string,
+  args: Record<string, unknown>
+): Promise<ExecuteWriteResult> {
+  const token = getToken();
+  const resp = await fetch('/api/agent/execute', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ tool, args }),
+  });
+  const data = (await resp.json().catch(() => ({}))) as ExecuteWriteResult;
+  if (!resp.ok) {
+    return { ok: false, error: data.error || `执行失败 (HTTP ${resp.status})` };
+  }
+  return data;
 }
 
 // ---- Streaming client ----------------------------------------------------
@@ -157,6 +200,7 @@ function isAgentEvent(value: unknown): value is AgentEvent {
     type === 'thought' ||
     type === 'tool_call' ||
     type === 'tool_result' ||
+    type === 'confirm_required' ||
     type === 'token' ||
     type === 'done' ||
     type === 'error'

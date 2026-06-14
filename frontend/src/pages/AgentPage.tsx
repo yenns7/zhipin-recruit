@@ -4,10 +4,11 @@
 // 维护多轮 history，每次请求带上历史消息实现连续对话。
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowUp, Bot, Brain, Sparkles, Square, User } from 'lucide-react';
+import { ArrowUp, Bot, Brain, Sparkles, Square, User, Check, X, Loader2 } from 'lucide-react';
 import {
   fetchAgentTools,
   streamChat,
+  executeWriteTool,
   toolMeta,
   type AgentEvent,
   type AgentTool,
@@ -27,6 +28,17 @@ interface ToolCallView {
   result?: unknown;
 }
 
+// A pending write proposal awaiting user confirmation.
+type ConfirmStatus = 'pending' | 'executing' | 'done' | 'failed' | 'cancelled';
+
+interface WriteProposal {
+  tool: string;
+  args: Record<string, unknown>;
+  summary: string;
+  status: ConfirmStatus;
+  resultText?: string;
+}
+
 type TurnStatus = 'streaming' | 'done' | 'error';
 
 interface UserMessage {
@@ -43,6 +55,8 @@ interface AssistantMessage {
   answer: string;
   status: TurnStatus;
   error?: string;
+  // Write operation the agent proposed this turn (awaiting confirmation).
+  proposal?: WriteProposal;
 }
 
 type Message = UserMessage | AssistantMessage;
@@ -110,6 +124,16 @@ export function AgentPage() {
           }
           case 'token':
             return { ...m, answer: m.answer + ev.text };
+          case 'confirm_required':
+            return {
+              ...m,
+              proposal: {
+                tool: ev.tool,
+                args: ev.args,
+                summary: ev.summary,
+                status: 'pending',
+              },
+            };
           case 'done':
             return {
               ...m,
@@ -191,6 +215,54 @@ export function AgentPage() {
     abortRef.current?.abort();
   }, []);
 
+  // Confirm (or cancel) a write proposal on a specific assistant message.
+  const resolveProposal = useCallback(
+    async (assistantId: number, confirm: boolean) => {
+      // Snapshot the proposal before mutating.
+      let target: WriteProposal | undefined;
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.kind === 'assistant' && m.id === assistantId && m.proposal) {
+            target = m.proposal;
+            return {
+              ...m,
+              proposal: {
+                ...m.proposal,
+                status: confirm ? 'executing' : 'cancelled',
+              },
+            };
+          }
+          return m;
+        })
+      );
+      if (!confirm || !target) return;
+
+      const res = await executeWriteTool(target.tool, target.args);
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.kind !== 'assistant' || m.id !== assistantId || !m.proposal) return m;
+          if (res.ok) {
+            const r = res.result || {};
+            const jid = r.job_id ?? r.candidate_id;
+            return {
+              ...m,
+              proposal: {
+                ...m.proposal,
+                status: 'done',
+                resultText: jid ? `操作成功（#${jid}）` : '操作成功',
+              },
+            };
+          }
+          return {
+            ...m,
+            proposal: { ...m.proposal, status: 'failed', resultText: res.error || '执行失败' },
+          };
+        })
+      );
+    },
+    []
+  );
+
   // Load the capability catalogue once for the empty-state cloud.
   useEffect(() => {
     const controller = new AbortController();
@@ -244,7 +316,12 @@ export function AgentPage() {
               m.kind === 'user' ? (
                 <UserBubble key={m.id} text={m.text} />
               ) : (
-                <AssistantBubble key={m.id} msg={m} />
+                <AssistantBubble
+                  key={m.id}
+                  msg={m}
+                  onConfirm={() => resolveProposal(m.id, true)}
+                  onCancel={() => resolveProposal(m.id, false)}
+                />
               )
             )}
           </div>
@@ -345,7 +422,15 @@ function UserBubble({ text }: { text: string }) {
   );
 }
 
-function AssistantBubble({ msg }: { msg: AssistantMessage }) {
+function AssistantBubble({
+  msg,
+  onConfirm,
+  onCancel,
+}: {
+  msg: AssistantMessage;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
   const active = msg.status === 'streaming';
   // The agent is "working" (pre-answer) when it has thoughts/tools but no text yet.
   const working = active && msg.answer.length === 0;
@@ -388,12 +473,108 @@ function AssistantBubble({ msg }: { msg: AssistantMessage }) {
           </div>
         )}
 
+        {/* 写操作确认卡片 */}
+        {msg.proposal && (
+          <ConfirmCard
+            proposal={msg.proposal}
+            onConfirm={onConfirm}
+            onCancel={onCancel}
+          />
+        )}
+
         {/* 错误 */}
         {msg.status === 'error' && (
           <div className="rounded-md bg-danger-50 px-3 py-2 text-sm text-danger-700">
             {msg.error || '发生错误，请重试。'}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ---- Write-operation confirm card ----------------------------------------
+
+function ConfirmCard({
+  proposal,
+  onConfirm,
+  onCancel,
+}: {
+  proposal: WriteProposal;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const meta = toolMeta(proposal.tool);
+  const Icon = meta.icon;
+  const pending = proposal.status === 'pending';
+  const executing = proposal.status === 'executing';
+
+  return (
+    <div className="rounded-lg border border-warning-200 bg-warning-50 p-3.5">
+      <div className="flex items-start gap-2.5">
+        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-warning-100 text-warning-700">
+          <Icon className="h-4 w-4" strokeWidth={2} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-ink">
+            确认操作：{meta.label}
+          </p>
+          <p className="mt-0.5 text-sm text-body">{proposal.summary}</p>
+
+          {/* 参数明细 */}
+          <div className="mt-2 space-y-0.5">
+            {Object.entries(proposal.args).map(([k, v]) => (
+              <div key={k} className="flex gap-2 text-xs">
+                <span className="shrink-0 font-medium text-muted">{k}:</span>
+                <span className="break-all text-body">
+                  {typeof v === 'string' ? v : JSON.stringify(v)}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* 操作区 / 状态 */}
+          {pending && (
+            <div className="mt-3 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onConfirm}
+                className="inline-flex items-center gap-1.5 rounded-md bg-brand-600 px-3 py-1.5 text-xs font-semibold text-on-primary transition-colors hover:bg-brand-700"
+              >
+                <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
+                确认执行
+              </button>
+              <button
+                type="button"
+                onClick={onCancel}
+                className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-canvas px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-surface-soft hover:text-ink"
+              >
+                <X className="h-3.5 w-3.5" />
+                取消
+              </button>
+            </div>
+          )}
+          {executing && (
+            <div className="mt-3 flex items-center gap-1.5 text-xs text-muted">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              执行中…
+            </div>
+          )}
+          {proposal.status === 'done' && (
+            <div className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-success-50 px-2.5 py-1 text-xs font-medium text-success-700">
+              <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
+              {proposal.resultText || '操作成功'}
+            </div>
+          )}
+          {proposal.status === 'failed' && (
+            <div className="mt-3 rounded-md bg-danger-50 px-2.5 py-1 text-xs text-danger-700">
+              {proposal.resultText || '执行失败'}
+            </div>
+          )}
+          {proposal.status === 'cancelled' && (
+            <div className="mt-3 text-xs text-muted-soft">已取消</div>
+          )}
+        </div>
       </div>
     </div>
   );

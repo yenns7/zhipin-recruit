@@ -1,7 +1,12 @@
 import json
 from flask import Blueprint, request, Response, jsonify, g, current_app, stream_with_context
 from ..middleware.auth import require_auth
-from ..services.agent_service import RecruitingAgent, TOOLS as AGENT_TOOLS
+from ..services.agent_service import (
+    RecruitingAgent,
+    TOOLS as AGENT_TOOLS,
+    WRITE_TOOLS as AGENT_WRITE_TOOLS,
+    execute_write_tool,
+)
 
 bp = Blueprint("agent", __name__)
 
@@ -19,8 +24,25 @@ def _get_agent() -> RecruitingAgent:
 @bp.get("/agent/tools")
 @require_auth
 def list_tools():
-    """返回智能体可用的工具清单（供前端展示「能力」）。"""
-    return jsonify({"tools": AGENT_TOOLS})
+    """返回智能体可用的工具清单（供前端展示「能力」）。含只读与写操作。"""
+    return jsonify({"tools": AGENT_TOOLS, "write_tools": AGENT_WRITE_TOOLS})
+
+
+@bp.post("/agent/execute")
+@require_auth
+def execute():
+    """执行 AI 助手提议的写操作（用户确认后调用）。
+    在正常请求上下文内运行，g.user_id / g.role 有效，做 RBAC 校验。
+    请求体：{"tool": "写工具名", "args": {...}}
+    """
+    data = request.get_json(silent=True) or {}
+    tool = (data.get("tool") or "").strip()
+    args = data.get("args") or {}
+    if not tool:
+        return jsonify({"ok": False, "error": "tool required"}), 400
+    result = execute_write_tool(tool, args, user_id=g.user_id, role=g.role)
+    status = 200 if result.get("ok") else 400
+    return jsonify(result), status
 
 
 @bp.post("/agent/chat")

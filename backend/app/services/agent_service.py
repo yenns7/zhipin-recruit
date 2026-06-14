@@ -223,6 +223,150 @@ TOOLS: List[Dict[str, Any]] = [
 
 
 # =============================================================================
+# 2b) 写操作工具：AI 只「提议」，经用户确认后由 /api/agent/execute 在请求上下文内执行
+# =============================================================================
+def _write_create_job(title: str = "", jd_text: str = "", actor_id: int = None, **_) -> Dict[str, Any]:
+    """创建岗位：LLM 结构化 JD 后落库。"""
+    from ..api.jobs import _extract_jd_structured
+    if not title or not jd_text:
+        return {"error": "缺少岗位名称或 JD 描述"}
+    llm = LLMClient()
+    structured = _extract_jd_structured(llm, jd_text)
+    job = Job(title=title, jd_text=jd_text, jd_structured=structured, owner_hr_id=actor_id)
+    db.session.add(job)
+    db.session.commit()
+    from ..middleware.events import record_event
+    record_event("job.created", entity_id=job.id, entity_type="job")
+    return {"job_id": job.id, "title": job.title, "structured": structured}
+
+
+def _write_move_pipeline(candidate_id: int = None, job_id: int = None,
+                         stage: str = "", actor_id: int = None, **_) -> Dict[str, Any]:
+    """推进候选人到指定招聘流程阶段。"""
+    from ..models import VALID_STAGES
+    from ..middleware.events import record_event
+    if not candidate_id or not job_id or not stage:
+        return {"error": "缺少 candidate_id / job_id / stage"}
+    if stage not in VALID_STAGES:
+        return {"error": f"无效阶段，可选: {sorted(VALID_STAGES)}"}
+    if not Candidate.query.get(int(candidate_id)):
+        return {"error": f"候选人 {candidate_id} 不存在"}
+    if not Job.query.get(int(job_id)):
+        return {"error": f"岗位 {job_id} 不存在"}
+    ps = PipelineStage(candidate_id=int(candidate_id), job_id=int(job_id),
+                       stage=stage, updated_by=actor_id)
+    db.session.add(ps)
+    db.session.commit()
+    record_event("pipeline.moved", entity_id=int(candidate_id), entity_type="candidate",
+                 payload={"job_id": int(job_id), "to": stage})
+    if stage == "onboarded":
+        record_event("candidate.onboarded", entity_id=int(candidate_id),
+                     entity_type="candidate", payload={"job_id": int(job_id)})
+    return {"candidate_id": int(candidate_id), "job_id": int(job_id), "stage": stage, "status": "ok"}
+
+
+def _write_start_interview(candidate_id: int = None, job_id: int = None,
+                           count: int = 5, actor_id: int = None, **_) -> Dict[str, Any]:
+    """为候选人发起 AI 面试，生成面试题。"""
+    from ..services.interview_service import PreScreenService
+    from ..middleware.events import record_event
+    if not candidate_id or not job_id:
+        return {"error": "缺少 candidate_id / job_id"}
+    job = Job.query.get(int(job_id))
+    if not job:
+        return {"error": f"岗位 {job_id} 不存在"}
+    if not Candidate.query.get(int(candidate_id)):
+        return {"error": f"候选人 {candidate_id} 不存在"}
+    try:
+        count = int(count) if count else 5
+    except (TypeError, ValueError):
+        count = 5
+    questions = PreScreenService().generate_questions(job.jd_text, count=count)
+    record_event("interview.started", entity_id=int(candidate_id), entity_type="candidate",
+                 payload={"job_id": int(job_id), "actor_id": actor_id})
+    return {"candidate_id": int(candidate_id), "job_id": int(job_id), "questions": questions}
+
+
+def _write_run_match(job_id: int = None, actor_id: int = None, **_) -> Dict[str, Any]:
+    """为岗位运行候选人匹配并持久化结果。"""
+    from ..middleware.events import record_event
+    if not job_id:
+        return {"error": "缺少 job_id"}
+    job = Job.query.get(int(job_id))
+    if not job:
+        return {"error": f"岗位 {job_id} 不存在"}
+    ranked = MatchService().rank_for_job(int(job_id), top_n=10)
+    record_event("match.run", entity_id=int(job_id), entity_type="job",
+                 payload={"count": len(ranked)})
+    return {"job_id": int(job_id), "job_title": job.title, "ranking": ranked}
+
+
+# 写工具注册表：name / description / params / rbac(允许角色) / execute / summary(确认文案模板)
+_WRITE_TOOL_DEFS: List[Dict[str, Any]] = [
+    {
+        "name": "create_job",
+        "description": "创建一个新岗位。根据用户的自然语言描述，AI 会自动结构化 JD 并提取技能要求。",
+        "params": {"title": "str，必填，岗位名称", "jd_text": "str，必填，岗位描述/JD 原文"},
+        "rbac": ("recruiter", "manager", "admin"),
+        "execute": _write_create_job,
+        "summary": lambda a: f"创建岗位「{a.get('title', '?')}」",
+    },
+    {
+        "name": "move_pipeline",
+        "description": "把候选人推进到指定招聘流程阶段（pending/ai_screen/interview/offer/onboarded/rejected）。",
+        "params": {"candidate_id": "int，必填", "job_id": "int，必填", "stage": "str，必填，目标阶段"},
+        "rbac": ("recruiter", "manager", "admin", "interviewer"),
+        "execute": _write_move_pipeline,
+        "summary": lambda a: f"将候选人 #{a.get('candidate_id', '?')} 在岗位 #{a.get('job_id', '?')} 推进到「{a.get('stage', '?')}」阶段",
+    },
+    {
+        "name": "start_interview",
+        "description": "为候选人针对某岗位发起 AI 面试，生成面试题目。",
+        "params": {"candidate_id": "int，必填", "job_id": "int，必填", "count": "int，可选，题目数，默认5"},
+        "rbac": ("recruiter", "manager", "admin"),
+        "execute": _write_start_interview,
+        "summary": lambda a: f"为候选人 #{a.get('candidate_id', '?')} 发起岗位 #{a.get('job_id', '?')} 的 AI 面试",
+    },
+    {
+        "name": "run_match",
+        "description": "为指定岗位运行候选人智能匹配，计算排名并持久化匹配结果。",
+        "params": {"job_id": "int，必填，岗位ID"},
+        "rbac": ("recruiter", "manager", "admin"),
+        "execute": _write_run_match,
+        "summary": lambda a: f"为岗位 #{a.get('job_id', '?')} 运行候选人匹配",
+    },
+]
+
+_WRITE_TOOL_MAP: Dict[str, Dict[str, Any]] = {t["name"]: t for t in _WRITE_TOOL_DEFS}
+
+# 写工具元信息（供前端展示 + system prompt）
+WRITE_TOOLS: List[Dict[str, Any]] = [
+    {"name": t["name"], "description": t["description"], "params": t["params"],
+     "rbac": list(t["rbac"]), "write": True}
+    for t in _WRITE_TOOL_DEFS
+]
+
+
+def execute_write_tool(name: str, args: Dict[str, Any], user_id: int, role: str) -> Dict[str, Any]:
+    """在请求上下文内执行写工具（供 /api/agent/execute 调用）。做 RBAC 校验。"""
+    tool = _WRITE_TOOL_MAP.get(name)
+    if not tool:
+        return {"ok": False, "error": f"未知写工具：{name}"}
+    if role not in tool["rbac"]:
+        return {"ok": False, "error": f"当前角色「{role}」无权执行此操作"}
+    try:
+        clean_args = dict(args or {})
+        clean_args["actor_id"] = user_id
+        result = tool["execute"](**clean_args)
+        if isinstance(result, dict) and result.get("error"):
+            return {"ok": False, "error": result["error"]}
+        return {"ok": True, "result": result}
+    except Exception as e:
+        logger.exception("写工具 %s 执行失败", name)
+        return {"ok": False, "error": f"执行失败：{e}"}
+
+
+# =============================================================================
 # 3) LangGraph State 定义
 # =============================================================================
 class AgentState(TypedDict, total=False):
@@ -248,27 +392,42 @@ def _build_tools_desc() -> str:
     return "\n".join(lines)
 
 
+def _build_write_tools_desc() -> str:
+    """把写操作工具拼成给模型看的描述文本。"""
+    lines = []
+    for t in _WRITE_TOOL_DEFS:
+        params = json.dumps(t["params"], ensure_ascii=False) if t["params"] else "无参数"
+        lines.append(f"- {t['name']}: {t['description']} 参数: {params}")
+    return "\n".join(lines)
+
+
 def _build_decision_system_prompt(tool_results: List[Dict[str, Any]]) -> str:
     """构造 ReAct 决策步的 system prompt（要求 JSON 输出）。"""
     tools_desc = _build_tools_desc()
+    write_desc = _build_write_tools_desc()
     if tool_results:
         results_text = json.dumps(tool_results, ensure_ascii=False)
     else:
         results_text = "（暂无，尚未调用任何工具）"
     return (
-        "你是「智聘·招聘管理系统」的 AI 助手，可以调用工具查询候选人、岗位、匹配、"
-        "招聘流程、BI报表等系统数据，帮助 HR 和管理者用自然语言完成查询。\n\n"
+        "你是「智聘·招聘管理系统」的 AI 助手，既能查询数据，也能执行招聘操作，"
+        "帮助 HR 和管理者用自然语言完成工作。\n\n"
         "你采用 ReAct 模式：每一步都必须用 JSON 格式回复，决定下一步动作。\n\n"
-        f"可用工具：\n{tools_desc}\n\n"
+        f"【查询工具】（只读，可直接调用）：\n{tools_desc}\n\n"
+        f"【写操作工具】（会修改系统数据，必须经用户确认后才执行，你只能「提议」）：\n{write_desc}\n\n"
         f"已获得的工具结果：\n{results_text}\n\n"
         "决策规则：\n"
-        "1. 若已有信息足够回答用户问题，输出 action=\"final\"，并在 answer 字段给出简洁的中文回答。\n"
-        "2. 若还需要数据，输出 action=\"tool\"，在 tool 字段填工具名，args 字段填参数对象。\n"
-        "3. 不要重复调用已经得到结果的同名同参工具。\n\n"
-        "你必须只输出一个 JSON 对象（不要带 markdown 代码块），格式如下：\n"
-        '{"thought": "你的简短思考", "action": "tool", "tool": "工具名", "args": {"参数名": 值}}\n'
-        "或：\n"
-        '{"thought": "你的简短思考", "action": "final", "answer": "给用户的中文回答"}\n'
+        "1. 若需要查询数据，输出 action=\"tool\"，tool 填查询工具名，args 填参数。\n"
+        "2. 若用户意图是执行写操作（创建岗位、推进流程、发起面试、运行匹配），"
+        "先用查询工具确认必要的 ID 等信息，然后输出 action=\"propose_write\"，"
+        "在 tool 字段填写操作工具名，args 字段填完整参数对象。系统会向用户展示确认卡片，"
+        "用户确认后才真正执行——你不要假装已经执行成功。\n"
+        "3. 若信息足够直接回答（或写操作已提议），输出 action=\"final\"，answer 给简洁中文回答。\n"
+        "4. 不要重复调用已得到结果的同名同参工具。\n\n"
+        "你必须只输出一个 JSON 对象（不要带 markdown 代码块），格式之一：\n"
+        '{"thought": "思考", "action": "tool", "tool": "查询工具名", "args": {...}}\n'
+        '{"thought": "思考", "action": "propose_write", "tool": "写工具名", "args": {...}}\n'
+        '{"thought": "思考", "action": "final", "answer": "中文回答"}\n'
     )
 
 
@@ -328,6 +487,27 @@ class RecruitingAgent:
         thought = decision.get("thought")
         if thought:
             events.append({"type": "thought", "text": thought})
+
+        # 写操作：AI 只「提议」，发确认事件并结束循环，由前端确认后调 /agent/execute 执行
+        if decision.get("action") == "propose_write":
+            wt_name = decision.get("tool")
+            wt_args = decision.get("args") or {}
+            wt_def = _WRITE_TOOL_MAP.get(wt_name)
+            if wt_def:
+                try:
+                    summary = wt_def["summary"](wt_args)
+                except Exception:
+                    summary = f"执行 {wt_name}"
+                events.append({
+                    "type": "confirm_required",
+                    "tool": wt_name,
+                    "args": wt_args,
+                    "summary": summary,
+                })
+            else:
+                # 未知写工具，降级为普通回答
+                decision = {"action": "final",
+                            "answer": f"抱歉，我不能执行未知操作「{wt_name}」。"}
 
         state["_decision"] = decision
         state["iterations"] = state.get("iterations", 0) + 1
