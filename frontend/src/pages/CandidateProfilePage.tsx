@@ -13,8 +13,11 @@ import {
 import { api } from '../lib/api';
 import { formatDate } from '../lib/formatDate';
 import { useAsync } from '../lib/useAsync';
+import { useAuth } from '../lib/auth';
 import { Badge, Card, CardBody, CardHeader, CardTitle, Spinner, ErrorState } from '../components/ui';
 import { Reveal } from '../components/motion';
+import { PipelineProgress } from '../components/candidate/PipelineProgress';
+import { ReassignOwner } from '../components/candidate/ReassignOwner';
 import type { CandidateTag, ResumeJson } from '../types';
 
 // Cal.com 近黑配色 hex（recharts 不接受 tailwind 类）
@@ -353,6 +356,8 @@ export function CandidateProfilePage() {
   const { id } = useParams<{ id: string }>();
   const candidateId = Number(id);
   const isInvalidId = !id || Number.isNaN(candidateId);
+  const { role } = useAuth();
+  const canReassign = role === 'manager' || role === 'admin';
 
   // useAsync 无条件调用，fetch 函数在 id 无效时短路，不发送请求
   const { data, loading, error, reload } = useAsync(
@@ -474,6 +479,23 @@ export function CandidateProfilePage() {
           </Card>
         </div>
       </Reveal>
+
+      {/* 招聘进展 */}
+      <div className="mt-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>招聘进展</CardTitle>
+            {canReassign && (
+              <div className="mt-2">
+                <ReassignOwner candidateId={candidateId} />
+              </div>
+            )}
+          </CardHeader>
+          <CardBody>
+            <PipelineProgress candidateId={candidateId} />
+          </CardBody>
+        </Card>
+      </div>
     </div>
   );
 }

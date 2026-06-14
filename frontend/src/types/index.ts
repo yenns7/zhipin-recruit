@@ -333,3 +333,53 @@ export interface InterviewFeedbackInput {
   concerns?: string;
   note?: string;
 }
+
+// ---- Candidate pipeline context / journey (M4/M5) ----
+export interface CandidatePipelineItem {
+  job_id: number;
+  job_title: string;
+  stage: PipelineStage;
+  updated_at: string | null;
+}
+
+export interface CandidatePipelines {
+  candidate_id: number;
+  name_masked: string;
+  pipelines: CandidatePipelineItem[];
+}
+
+export interface JourneyTimelineStep {
+  stage: PipelineStage;
+  ts: string | null;
+  note: string | null;
+  updated_by_name: string | null;
+}
+
+export interface JourneyAiInterview {
+  id: number;
+  score: number | null;
+  pass: boolean | null;
+  created_at: string | null;
+}
+
+export interface JourneyFeedback {
+  id: number;
+  round: string | null;
+  score: number | null;
+  passed: boolean | null;
+  strengths: string | null;
+  concerns: string | null;
+  note: string | null;
+  interviewer_name: string | null;
+  created_at: string | null;
+}
+
+export interface CandidateJourney {
+  candidate_id: number;
+  name_masked: string;
+  job_id: number;
+  job_title: string | null;
+  timeline: JourneyTimelineStep[];
+  ai_interviews: JourneyAiInterview[];
+  feedback: JourneyFeedback[];
+}

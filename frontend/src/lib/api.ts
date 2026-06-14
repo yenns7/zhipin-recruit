@@ -9,6 +9,8 @@ import type {
   BiJobDetail,
   CandidateDetail,
   CandidateListItem,
+  CandidateJourney,
+  CandidatePipelines,
   CreateJobRequest,
   CreateJobResponse,
   InterviewFeedbackInput,
@@ -260,5 +262,22 @@ export const api = {
     payload: { role?: Role; is_active?: boolean },
   ): Promise<AdminUser> {
     return request(`/admin/users/${userId}`, { method: 'PATCH', body: payload });
+  },
+
+  // ---- Candidate pipeline context / journey / reassignment (M4/M5) ----
+  getCandidatePipelines(candidateId: number): Promise<CandidatePipelines> {
+    return request(`/candidates/${candidateId}/pipelines`);
+  },
+  getCandidateJourney(candidateId: number, jobId: number): Promise<CandidateJourney> {
+    return request(`/candidates/${candidateId}/journey?job_id=${jobId}`);
+  },
+  reassignCandidate(
+    candidateId: number,
+    ownerHrId: number,
+  ): Promise<{ candidate_id: number; owner_hr_id: number }> {
+    return request(`/candidates/${candidateId}/owner`, {
+      method: 'PATCH',
+      body: { owner_hr_id: ownerHrId },
+    });
   },
 };
