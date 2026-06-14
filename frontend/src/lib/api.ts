@@ -3,6 +3,7 @@
 // The JWT is read from localStorage and injected as a Bearer token.
 
 import type {
+  AdminUser,
   BiOverview,
   BiStaffDetail,
   BiJobDetail,
@@ -30,6 +31,7 @@ import type {
   RegisterRequest,
   RegisterResponse,
   ResumeUploadResponse,
+  Role,
 } from '../types';
 
 const API_BASE = '/api';
@@ -239,5 +241,16 @@ export const api = {
       method: 'POST',
       body: { old_password: oldPassword, new_password: newPassword },
     });
+  },
+
+  // ---- Admin (admin-only) ----
+  listUsers(): Promise<AdminUser[]> {
+    return request('/admin/users');
+  },
+  updateUser(
+    userId: number,
+    payload: { role?: Role; is_active?: boolean },
+  ): Promise<AdminUser> {
+    return request(`/admin/users/${userId}`, { method: 'PATCH', body: payload });
   },
 };

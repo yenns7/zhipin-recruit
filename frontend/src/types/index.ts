@@ -289,3 +289,13 @@ export interface MeResponse {
   email: string;
   role: Role;
 }
+
+// ---- Admin user management ----
+export interface AdminUser {
+  id: number;
+  name: string;
+  email: string;
+  role: Role;
+  is_active: boolean;
+  created_at: string | null;
+}

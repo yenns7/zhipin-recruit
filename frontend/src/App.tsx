@@ -25,6 +25,7 @@ import { PipelinePage } from './pages/PipelinePage';
 import { InterviewsPage } from './pages/InterviewsPage';
 import { InterviewReportPage } from './pages/InterviewReportPage';
 import { AgentPage } from './pages/AgentPage';
+import { UsersPage } from './pages/admin/UsersPage';
 import type { Role } from './types';
 
 // Gate for the authenticated app area.
@@ -123,6 +124,10 @@ function AppRoutes() {
           element={
             <RequireRole allow={['manager', 'admin']} element={<BiPage />} />
           }
+        />
+        <Route
+          path="/admin/users"
+          element={<RequireRole allow={['admin']} element={<UsersPage />} />}
         />
       </Route>
       <Route path="*" element={<HomeRedirect />} />
