@@ -1,4 +1,4 @@
-import hashlib
+import bcrypt
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, g
 import jwt
@@ -11,7 +11,14 @@ bp = Blueprint("auth", __name__)
 
 
 def _hash(pw: str) -> str:
-    return hashlib.sha256(pw.encode()).hexdigest()
+    return bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
+
+
+def _verify(pw: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(pw.encode(), hashed.encode())
+    except Exception:
+        return False
 
 
 @bp.post("/auth/register")
@@ -34,7 +41,7 @@ def register():
 def login():
     data = request.get_json()
     user = User.query.filter_by(email=data.get("email")).first()
-    if not user or user.password_hash != _hash(data.get("password", "")):
+    if not user or not _verify(data.get("password", ""), user.password_hash):
         return jsonify({"error": "Invalid credentials"}), 401
     exp = datetime.utcnow() + timedelta(hours=Config.JWT_EXPIRY_HOURS)
     token = jwt.encode(
@@ -70,7 +77,7 @@ def change_password():
     user = User.query.get(g.user_id)
     if not user:
         return jsonify({"error": "User not found"}), 404
-    if user.password_hash != _hash(old_pw):
+    if not _verify(old_pw, user.password_hash):
         return jsonify({"error": "旧密码不正确"}), 400
     user.password_hash = _hash(new_pw)
     db.session.commit()

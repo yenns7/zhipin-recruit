@@ -310,7 +310,7 @@ export function PipelinePage() {
             </label>
             <select
               id="job-select"
-              className="h-10 rounded-md border border-hairline bg-canvas px-3 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+              className="h-10 rounded-md border border-hairline bg-canvas px-3 text-sm text-ink transition-all duration-200 focus:border-ink focus:outline-none focus:shadow-apple-focus"
               value={effectiveJobId ?? ''}
               onChange={(e) => setSelectedJobId(Number(e.target.value))}
             >

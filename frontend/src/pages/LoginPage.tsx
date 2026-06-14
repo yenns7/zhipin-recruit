@@ -1,4 +1,4 @@
-// 登录 / 注册页。居中卡片，在登录与注册两种模式间切换。
+// 登录 / 注册页。Apple 风格 — 动态光晕背景 + 毛玻璃卡片。
 // 强化企业 HR 平台定位，仅限内部员工使用，不面向应聘者。
 
 import { useRef, useState, type FormEvent } from 'react';
@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { defaultRouteForRole } from '../lib/nav';
-import { Button, Card, Input, ErrorState, Select } from '../components/ui';
+import { Button, Input, ErrorState, Select } from '../components/ui';
 import { gsap, useGSAP, EASE, DUR, STAGGER } from '../lib/motion';
 import type { Role } from '../types';
 
@@ -33,7 +33,6 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // 进场动画：Logo 弹入 → 品牌文案 → 卡片 → 页脚，依次上浮。
   useGSAP(
     () => {
       const mm = gsap.matchMedia();
@@ -53,27 +52,27 @@ export function LoginPage() {
             autoAlpha: 0,
             scale: 0.5,
             duration: DUR.slow,
-            ease: EASE.back,
+            ease: EASE.apple,
           })
             .from(
               '[data-anim="brand"]',
-              { autoAlpha: 0, y: 12, duration: DUR.base, stagger: STAGGER.base },
-              '-=0.35'
+              { autoAlpha: 0, y: 12, duration: DUR.base, stagger: STAGGER.base, ease: EASE.apple },
+              '-=0.35',
             )
             .from(
               '[data-anim="card"]',
-              { autoAlpha: 0, y: 20, duration: DUR.base },
-              '-=0.25'
+              { autoAlpha: 0, y: 20, duration: DUR.base, ease: EASE.apple },
+              '-=0.25',
             )
             .from(
               '[data-anim="footer"]',
-              { autoAlpha: 0, y: 8, duration: DUR.fast },
-              '-=0.3'
+              { autoAlpha: 0, y: 8, duration: DUR.fast, ease: EASE.apple },
+              '-=0.3',
             );
-        }
+        },
       );
     },
-    { scope }
+    { scope },
   );
 
   async function handleSubmit(e: FormEvent) {
@@ -104,34 +103,41 @@ export function LoginPage() {
   return (
     <div
       ref={scope}
-      className="relative flex min-h-screen items-center justify-center overflow-hidden bg-surface-soft px-4"
+      className="relative flex min-h-screen items-center justify-center overflow-hidden px-4"
+      style={{ background: 'linear-gradient(135deg, #f8f9fa 0%, #e8ecf1 30%, #f0f4ff 60%, #f8f9fa 100%)' }}
     >
-      {/* 精致背景：柔和径向高光 + 细网格，避免纯色偏素 */}
+      {/* Animated ambient light blobs */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            'radial-gradient(60% 50% at 50% 0%, rgba(17,17,17,0.05) 0%, rgba(17,17,17,0) 70%)',
-        }}
+        className="pointer-events-none absolute -top-40 -left-20 h-[500px] w-[500px] animate-float rounded-full opacity-20"
+        style={{ background: 'radial-gradient(circle, #007AFF 0%, transparent 70%)', filter: 'blur(60px)' }}
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-[0.4]"
+        className="pointer-events-none absolute -bottom-40 -right-20 h-[500px] w-[500px] animate-float rounded-full opacity-15"
+        style={{ background: 'radial-gradient(circle, #AF52DE 0%, transparent 70%)', filter: 'blur(60px)', animationDelay: '2s' }}
+      />
+
+      {/* Subtle grid overlay */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 opacity-[0.15]"
         style={{
           backgroundImage:
-            'linear-gradient(rgba(17,17,17,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(17,17,17,0.025) 1px, transparent 1px)',
-          backgroundSize: '36px 36px',
+            'linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px)',
+          backgroundSize: '40px 40px',
           maskImage: 'radial-gradient(80% 60% at 50% 40%, #000 0%, transparent 100%)',
           WebkitMaskImage: 'radial-gradient(80% 60% at 50% 40%, #000 0%, transparent 100%)',
         }}
       />
+
       <div className="relative w-full max-w-sm">
-        {/* Logo + 品牌区 */}
+        {/* Logo + Brand */}
         <div className="mb-8 flex flex-col items-center">
           <div
             data-anim="logo"
-            className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-ink text-lg font-bold text-on-primary shadow-card-lg"
+            className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl text-lg font-bold text-white shadow-apple-lg"
+            style={{ background: 'linear-gradient(135deg, #007AFF, #5856D6)' }}
           >
             智
           </div>
@@ -143,8 +149,8 @@ export function LoginPage() {
           </p>
         </div>
 
-        <Card data-anim="card" className="p-6">
-          {/* 页内标题 */}
+        {/* Glass card */}
+        <div data-anim="card" className="glass-strong p-6">
           <h2 className="mb-5 text-base font-display text-ink">
             {mode === 'login' ? '登录工作台' : '创建账户'}
           </h2>
@@ -202,7 +208,7 @@ export function LoginPage() {
               {mode === 'login' ? '登录' : '创建账户'}
             </Button>
           </form>
-        </Card>
+        </div>
 
         <p data-anim="footer" className="mt-6 text-center text-sm text-muted">
           {mode === 'login' ? (
@@ -210,7 +216,7 @@ export function LoginPage() {
               还没有账户？{' '}
               <button
                 onClick={() => switchMode('register')}
-                className="font-medium text-ink hover:underline"
+                className="font-medium text-ink hover:underline transition-colors"
               >
                 去注册
               </button>
@@ -220,7 +226,7 @@ export function LoginPage() {
               已有账户？{' '}
               <button
                 onClick={() => switchMode('login')}
-                className="font-medium text-ink hover:underline"
+                className="font-medium text-ink hover:underline transition-colors"
               >
                 去登录
               </button>
