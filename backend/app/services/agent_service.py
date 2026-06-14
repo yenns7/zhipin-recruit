@@ -164,6 +164,59 @@ def _tool_count_summary(**_) -> Dict[str, Any]:
     }
 
 
+def _tool_web_search(query: str = "", max_results: int = 5, **_) -> Dict[str, Any]:
+    """联网搜索：调用 anysearch CLI 获取实时网络信息（薪资行情/技能趋势/公司背景等）。
+
+    通过 subprocess 调 anysearch_cli.py，匿名访问无需 Key。CLI 路径可用环境变量
+    ANYSEARCH_CLI 覆盖；默认指向用户 .claude/skills/anysearch。网络不通时返回明确提示。
+    """
+    import os
+    import subprocess
+    import shlex
+
+    query = (query or "").strip()
+    if not query:
+        return {"error": "搜索关键词不能为空"}
+    try:
+        max_results = max(1, min(int(max_results or 5), 10))
+    except (TypeError, ValueError):
+        max_results = 5
+
+    # CLI 路径：env 覆盖 > 默认用户目录
+    cli = os.getenv("ANYSEARCH_CLI")
+    if not cli:
+        default_cli = Path(os.path.expanduser("~")) / ".claude" / "skills" / "anysearch" / "scripts" / "anysearch_cli.py"
+        cli = str(default_cli)
+    if not Path(cli).exists():
+        return {"error": "联网搜索未配置（anysearch CLI 不存在），请设置 ANYSEARCH_CLI 环境变量"}
+
+    cmd = [sys.executable, cli, "search", query, "--max_results", str(max_results)]
+    try:
+        env = dict(os.environ, PYTHONIOENCODING="utf-8")
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=45, env=env,
+            encoding="utf-8", errors="ignore",
+        )
+        out = (proc.stdout or "").strip()
+        err = (proc.stderr or "").strip()
+        if not out:
+            msg = err or "无输出"
+            if "Connection" in msg or "Timeout" in msg or "timed out" in msg:
+                return {"error": "联网搜索服务暂时不可达（网络问题），请稍后重试"}
+            return {"error": f"搜索失败：{msg[:200]}"}
+        # CLI 可能返回 JSON 或 Markdown；尝试 JSON，失败则原样返回文本
+        try:
+            parsed = json.loads(out)
+            return {"query": query, "results": parsed}
+        except Exception:
+            return {"query": query, "results_text": out[:4000]}
+    except subprocess.TimeoutExpired:
+        return {"error": "联网搜索超时（45s），请稍后重试"}
+    except Exception as e:
+        logger.exception("web_search 失败")
+        return {"error": f"联网搜索执行失败：{e}"}
+
+
 # =============================================================================
 # 2) 工具注册表：name / description（给模型看）/ params（参数说明）/ execute
 # =============================================================================
@@ -209,6 +262,12 @@ _TOOL_DEFS: List[Dict[str, Any]] = [
         "description": "系统概览数字：候选人总数、岗位总数、面试总数、各流程阶段人数。无参数。",
         "params": {},
         "execute": _tool_count_summary,
+    },
+    {
+        "name": "web_search",
+        "description": "联网搜索实时网络信息（如市场薪资行情、技能趋势、公司背景、行业动态等系统内查不到的外部信息）。当用户问题需要系统数据库之外的最新信息时使用。",
+        "params": {"query": "str，必填，搜索关键词", "max_results": "int，可选，结果条数1-10，默认5"},
+        "execute": _tool_web_search,
     },
 ]
 
