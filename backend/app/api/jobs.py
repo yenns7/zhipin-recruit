@@ -134,6 +134,73 @@ def list_jobs():
     return jsonify([{"id": j.id, "title": j.title, "created_at": j.created_at.isoformat()} for j in jobs])
 
 
+@bp.get("/jobs/<int:job_id>")
+@require_auth
+def get_job(job_id):
+    """单个岗位详情，含结构化 JD。"""
+    job = Job.query.get_or_404(job_id)
+    return jsonify({
+        "id": job.id,
+        "title": job.title,
+        "jd_text": job.jd_text,
+        "structured": job.jd_structured or {},
+        "status": job.status,
+        "owner_hr_id": job.owner_hr_id,
+        "created_at": job.created_at.isoformat() if job.created_at else None,
+    })
+
+
+def _can_manage_job(job):
+    """岗位归属校验：owner 本人，或 manager/admin。"""
+    if g.role in ("manager", "admin"):
+        return True
+    return job.owner_hr_id == g.user_id
+
+
+@bp.put("/jobs/<int:job_id>")
+@require_auth
+def update_job(job_id):
+    """编辑岗位：改 title / jd_text（jd_text 变化时重新结构化）。"""
+    job = Job.query.get_or_404(job_id)
+    if not _can_manage_job(job):
+        return jsonify({"error": "无权编辑该岗位"}), 403
+    data = request.get_json() or {}
+    title = data.get("title")
+    jd_text = data.get("jd_text")
+    if title is not None:
+        title = str(title).strip()
+        if not title:
+            return jsonify({"error": "岗位名称不能为空"}), 400
+        job.title = title
+    if jd_text is not None:
+        jd_text = str(jd_text).strip()
+        if not jd_text:
+            return jsonify({"error": "JD 不能为空"}), 400
+        job.jd_text = jd_text
+        # JD 变了，重新结构化
+        from llm_client import LLMClient
+        job.jd_structured = _extract_jd_structured(LLMClient(), jd_text)
+    db.session.commit()
+    record_event("job.updated", entity_id=job.id, entity_type="job")
+    return jsonify({
+        "id": job.id, "title": job.title, "jd_text": job.jd_text,
+        "structured": job.jd_structured or {}, "status": job.status,
+    })
+
+
+@bp.post("/jobs/<int:job_id>/close")
+@require_auth
+def close_job(job_id):
+    """关闭/下线岗位（status=closed），不物理删除以保留历史与 BI 关联。"""
+    job = Job.query.get_or_404(job_id)
+    if not _can_manage_job(job):
+        return jsonify({"error": "无权关闭该岗位"}), 403
+    job.status = "closed"
+    db.session.commit()
+    record_event("job.closed", entity_id=job.id, entity_type="job")
+    return jsonify({"id": job.id, "status": job.status})
+
+
 @bp.post("/jobs/<int:job_id>/match")
 @require_auth
 def match_job(job_id):

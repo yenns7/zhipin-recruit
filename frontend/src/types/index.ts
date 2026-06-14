@@ -120,6 +120,17 @@ export interface JobListItem {
   created_at: string;
 }
 
+// Full job detail incl. structured JD and lifecycle status.
+export interface JobDetail {
+  id: number;
+  title: string;
+  jd_text: string;
+  structured: JobStructured;
+  status: string;
+  owner_hr_id?: number;
+  created_at?: string;
+}
+
 // ---- Matching ----
 export interface MatchResultItem {
   candidate_id: number;
@@ -229,4 +240,19 @@ export interface BiOverview {
 export interface BiStaffDetail {
   hr_id: number;
   funnel: BiFunnel;
+}
+
+// Single-job funnel detail.
+export interface BiJobDetail {
+  job_id: number;
+  job_title: string;
+  funnel: BiFunnel;
+}
+
+// ---- Account ----
+export interface MeResponse {
+  id: number;
+  name: string;
+  email: string;
+  role: Role;
 }

@@ -323,6 +323,24 @@ export function JobsPage() {
 
   const jobs = data ?? [];
 
+  // Close (take offline) a job after confirmation, then refresh the list.
+  const [closingId, setClosingId] = useState<number | null>(null);
+  const handleClose = useCallback(
+    async (jobId: number, title: string) => {
+      if (!window.confirm(`确认关闭岗位「${title}」？关闭后将从在招列表移除。`)) return;
+      setClosingId(jobId);
+      try {
+        await api.closeJob(jobId);
+        reload();
+      } catch (err) {
+        window.alert(err instanceof Error ? err.message : '关闭失败');
+      } finally {
+        setClosingId(null);
+      }
+    },
+    [reload]
+  );
+
   return (
     <div className="space-y-6">
       {/* Page header */}
@@ -401,12 +419,21 @@ export function JobsPage() {
                       {formatDate(job.created_at)}
                     </td>
                     <td className="px-5 py-3.5 text-right">
-                      <Link
-                        to={`/jobs/${job.id}/match`}
-                        className="text-xs font-medium text-ink hover:text-body hover:underline"
-                      >
-                        匹配候选人
-                      </Link>
+                      <div className="flex items-center justify-end gap-3">
+                        <Link
+                          to={`/jobs/${job.id}/match`}
+                          className="text-xs font-medium text-ink hover:text-body hover:underline"
+                        >
+                          匹配候选人
+                        </Link>
+                        <button
+                          onClick={() => handleClose(job.id, job.title)}
+                          disabled={closingId === job.id}
+                          className="text-xs font-medium text-muted hover:text-danger-600 disabled:opacity-50"
+                        >
+                          {closingId === job.id ? '关闭中…' : '关闭'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

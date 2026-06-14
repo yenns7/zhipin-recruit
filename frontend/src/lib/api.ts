@@ -5,6 +5,7 @@
 import type {
   BiOverview,
   BiStaffDetail,
+  BiJobDetail,
   CandidateDetail,
   CandidateListItem,
   CreateJobRequest,
@@ -15,10 +16,12 @@ import type {
   InterviewSubmitRequest,
   InterviewSubmitResponse,
   JobListItem,
+  JobDetail,
   JdClarifyResponse,
   LoginRequest,
   LoginResponse,
   MatchResponse,
+  MeResponse,
   PipelineCounts,
   PipelineMoveRequest,
   PipelineMoveResponse,
@@ -160,6 +163,18 @@ export const api = {
       body: { title, jd_text: jdText },
     });
   },
+  // Single job detail incl. structured JD.
+  getJob(jobId: number): Promise<JobDetail> {
+    return request(`/jobs/${jobId}`);
+  },
+  // Edit a job's title / JD (JD change re-runs structuring server-side).
+  updateJob(jobId: number, payload: { title?: string; jd_text?: string }): Promise<JobDetail> {
+    return request(`/jobs/${jobId}`, { method: 'PUT', body: payload });
+  },
+  // Close (take offline) a job — soft close, status=closed.
+  closeJob(jobId: number): Promise<{ id: number; status: string }> {
+    return request(`/jobs/${jobId}/close`, { method: 'POST' });
+  },
   listJobs(): Promise<JobListItem[]> {
     return request('/jobs');
   },
@@ -199,5 +214,20 @@ export const api = {
   },
   biStaff(hrId: number, days = 30): Promise<BiStaffDetail> {
     return request(`/bi/staff/${hrId}?days=${days}`);
+  },
+  // Single-job funnel — all roles.
+  biJob(jobId: number, days = 90): Promise<BiJobDetail> {
+    return request(`/bi/job/${jobId}?days=${days}`);
+  },
+
+  // ---- Account ----
+  getMe(): Promise<MeResponse> {
+    return request('/auth/me');
+  },
+  changePassword(oldPassword: string, newPassword: string): Promise<{ status: string }> {
+    return request('/auth/change-password', {
+      method: 'POST',
+      body: { old_password: oldPassword, new_password: newPassword },
+    });
   },
 };

@@ -1,13 +1,14 @@
 // Authenticated layout: left sidebar nav + top bar with user identity and logout.
 // 侧边栏导航项 stagger 进场、active 滑动高亮、底部角色身份卡；GSAP 克制精致动效。
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { LogOut, ArrowLeft } from 'lucide-react';
+import { LogOut, ArrowLeft, KeyRound } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { navItemsForRole } from '../lib/nav';
 import { cn } from '../lib/cn';
 import { Badge } from './ui';
+import { AccountSettings } from './AccountSettings';
 import { gsap, useGSAP, EASE, DUR, STAGGER } from '../lib/motion';
 import type { Role } from '../types';
 
@@ -41,6 +42,9 @@ export function AppShell() {
 
   const sidebarScope = useRef<HTMLElement>(null);
   const mainScope = useRef<HTMLDivElement>(null);
+
+  // 账户设置弹窗（修改密码）
+  const [showAccount, setShowAccount] = useState(false);
 
   // 顶级页（侧边栏直达的页面）不显示返回按钮；详情/子页才显示。
   const TOP_LEVEL_PATHS = new Set([
@@ -222,14 +226,23 @@ export function AppShell() {
               {role && <Badge tone="brand">{ROLE_LABELS[role]}</Badge>}
             </div>
             <button
-              onClick={handleLogout}
+              onClick={() => setShowAccount(true)}
               className="ml-2 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-surface-soft hover:text-ink"
+            >
+              <KeyRound className="h-4 w-4" />
+              修改密码
+            </button>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-surface-soft hover:text-ink"
             >
               <LogOut className="h-4 w-4" />
               退出登录
             </button>
           </div>
         </header>
+
+        {showAccount && <AccountSettings onClose={() => setShowAccount(false)} />}
 
         <main className="flex-1 overflow-y-auto p-6">
           <div ref={mainScope} className="mx-auto max-w-7xl">

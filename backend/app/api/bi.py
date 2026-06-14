@@ -8,7 +8,7 @@ from sqlalchemy import func
 bp = Blueprint("bi", __name__)
 
 
-def _funnel(hr_id=None, days=30):
+def _funnel(hr_id=None, days=30, job_id=None):
     cutoff = datetime.utcnow() - timedelta(days=days)
     q = db.session.query(
         PipelineStage.stage,
@@ -16,6 +16,8 @@ def _funnel(hr_id=None, days=30):
     ).filter(PipelineStage.ts >= cutoff)
     if hr_id:
         q = q.filter(PipelineStage.updated_by == hr_id)
+    if job_id:
+        q = q.filter(PipelineStage.job_id == job_id)
     rows = q.group_by(PipelineStage.stage).all()
     stages = {s: c for s, c in rows}
     top = stages.get("pending", 1) or 1
@@ -71,3 +73,14 @@ def staff_detail(hr_id):
     days = int(request.args.get("days", 30))
     funnel = _funnel(hr_id=hr_id, days=days)
     return jsonify({"hr_id": hr_id, "funnel": funnel})
+
+
+@bp.get("/bi/job/<int:job_id>")
+@require_auth
+def job_funnel(job_id):
+    """单岗位招聘漏斗：该岗位各阶段人数 + 转化率。所有登录角色可看。"""
+    from ..models import Job
+    job = Job.query.get_or_404(job_id)
+    days = int(request.args.get("days", 90))
+    funnel = _funnel(days=days, job_id=job_id)
+    return jsonify({"job_id": job_id, "job_title": job.title, "funnel": funnel})
