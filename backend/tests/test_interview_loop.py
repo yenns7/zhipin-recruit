@@ -31,3 +31,10 @@ def test_interviews_list_filtered_by_role(client, make_user, app):
     r = client.get("/api/interviews", headers=_auth(mgr_token))
     assert r.status_code == 200
     assert any(it["type"] == "feedback" for it in r.get_json())
+
+def test_feedback_requires_core_fields(client, make_user, app):
+    _, token = make_user("iv@x.com", role="interviewer")
+    jid, cid = _seed(app)
+    r = client.post("/api/interview/feedback", headers=_auth(token),
+                    json={"candidate_id": cid, "job_id": jid})  # missing round
+    assert r.status_code == 400

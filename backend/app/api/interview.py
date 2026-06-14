@@ -111,15 +111,18 @@ def list_feedback():
     if cid: q = q.filter_by(candidate_id=cid)
     if jid: q = q.filter_by(job_id=jid)
     rows = q.order_by(InterviewFeedback.id.desc()).all()
-    return jsonify([{
-        "id": f.id, "candidate_id": f.candidate_id, "job_id": f.job_id,
-        "round": f.round, "interviewer_id": f.interviewer_id,
-        "interviewer_name": (User.query.get(f.interviewer_id).name
-                             if User.query.get(f.interviewer_id) else None),
-        "score": f.score, "passed": f.passed,
-        "strengths": f.strengths, "concerns": f.concerns, "note": f.note,
-        "created_at": f.created_at.isoformat() if f.created_at else None,
-    } for f in rows])
+    out = []
+    for f in rows:
+        u = User.query.get(f.interviewer_id)
+        out.append({
+            "id": f.id, "candidate_id": f.candidate_id, "job_id": f.job_id,
+            "round": f.round, "interviewer_id": f.interviewer_id,
+            "interviewer_name": u.name if u else None,
+            "score": f.score, "passed": f.passed,
+            "strengths": f.strengths, "concerns": f.concerns, "note": f.note,
+            "created_at": f.created_at.isoformat() if f.created_at else None,
+        })
+    return jsonify(out)
 
 
 @bp.get("/interviews")
@@ -155,4 +158,5 @@ def list_interviews():
                       "job_title": jtitle(f.job_id), "score": f.score,
                       "pass": f.passed, "round": f.round,
                       "created_at": f.created_at.isoformat() if f.created_at else None})
+    items.sort(key=lambda it: it["created_at"] or "", reverse=True)
     return jsonify(items)
