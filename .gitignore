@@ -24,9 +24,10 @@ backend/instance/
 
 # ── Node / frontend ──────────────────────────────────────
 node_modules/
-frontend/dist/
 dist/
 .vite/
+# 保留前端构建产物，供 Flask 直接托管（克隆后无需 npm build）
+!frontend/dist/
 
 # ── Runtime uploads ──────────────────────────────────────
 backend/uploads/
