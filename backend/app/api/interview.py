@@ -45,6 +45,21 @@ def submit_interview():
     record_event("interview.scored", entity_id=candidate_id, entity_type="candidate",
                  payload={"job_id": job_id, "score": report["avg_score"],
                           "pass": report["pass_recommended"]})
+    # R2.1 回写流程：通过→一面；不通过→淘汰。未入流程先补 ai_screen 再推进。
+    from ..models import PipelineStage
+    last = (PipelineStage.query
+            .filter_by(candidate_id=candidate_id, job_id=job_id)
+            .order_by(PipelineStage.id.desc()).first())
+    passed = report["pass_recommended"]
+    if last is None:
+        db.session.add(PipelineStage(candidate_id=candidate_id, job_id=job_id,
+                                     stage="ai_screen", updated_by=g.user_id,
+                                     note="AI 预筛入流程"))
+    target = "interview_first" if passed else "rejected"
+    note = f"AI 预筛{'通过' if passed else '未通过'}，均分 {report['avg_score']}"
+    db.session.add(PipelineStage(candidate_id=candidate_id, job_id=job_id,
+                                 stage=target, updated_by=g.user_id, note=note))
+    db.session.commit()
     return jsonify({"interview_id": iv.id, "report": report})
 
 
