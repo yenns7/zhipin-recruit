@@ -46,19 +46,28 @@ def submit_interview():
                  payload={"job_id": job_id, "score": report["avg_score"],
                           "pass": report["pass_recommended"]})
     # R2.1 回写流程：通过→一面；不通过→淘汰。未入流程先补 ai_screen 再推进。
+    # 不回退、不重复写：若当前阶段已 ≥ interview_first，则通过分支不再追加。
     from ..models import PipelineStage
+    from .pipeline import STAGE_ORDER
     last = (PipelineStage.query
             .filter_by(candidate_id=candidate_id, job_id=job_id)
             .order_by(PipelineStage.id.desc()).first())
     passed = report["pass_recommended"]
-    if last is None:
+    cur_idx = STAGE_ORDER.index(last.stage) if (last and last.stage in STAGE_ORDER) else -1
+    first_idx = STAGE_ORDER.index("interview_first")
+
+    if passed and cur_idx >= first_idx:
+        # 已在一面或更靠后，AI 预筛不应让其回退或重复入轮——仅记录预筛分，不动阶段。
+        pass
+    else:
+        if last is None:
+            db.session.add(PipelineStage(candidate_id=candidate_id, job_id=job_id,
+                                         stage="ai_screen", updated_by=g.user_id,
+                                         note="AI 预筛入流程"))
+        target = "interview_first" if passed else "rejected"
+        note = f"AI 预筛{'通过' if passed else '未通过'}，均分 {report['avg_score']}"
         db.session.add(PipelineStage(candidate_id=candidate_id, job_id=job_id,
-                                     stage="ai_screen", updated_by=g.user_id,
-                                     note="AI 预筛入流程"))
-    target = "interview_first" if passed else "rejected"
-    note = f"AI 预筛{'通过' if passed else '未通过'}，均分 {report['avg_score']}"
-    db.session.add(PipelineStage(candidate_id=candidate_id, job_id=job_id,
-                                 stage=target, updated_by=g.user_id, note=note))
+                                     stage=target, updated_by=g.user_id, note=note))
     db.session.commit()
     return jsonify({"interview_id": iv.id, "report": report})
 
