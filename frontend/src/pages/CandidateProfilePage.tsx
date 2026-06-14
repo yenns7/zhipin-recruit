@@ -107,21 +107,46 @@ function ObjectList({ items }: { items: Record<string, unknown>[] }) {
   );
 }
 
-// 简历子字段中文标签（教育/工作经历条目内部）
+// 简历子字段中文标签（教育/工作经历条目内部）。键统一用小写匹配，做到大小写不敏感。
 const FIELD_LABELS: Record<string, string> = {
   school: '学校',
   degree: '学位',
   major: '专业',
   year: '年份',
+  years: '年限',
   duration: '时间',
+  period: '时间',
   company: '公司',
+  employer: '公司',
   position: '职位',
   title: '职位',
+  role: '职位',
   description: '描述',
+  responsibilities: '职责',
+  achievements: '成果',
   name: '名称',
   date: '日期',
+  start: '开始',
+  end: '结束',
   level: '水平',
+  proficiency: '熟练度',
+  location: '地点',
+  city: '城市',
+  gpa: 'GPA',
+  certification: '证书',
+  issuer: '颁发机构',
+  language: '语言',
 };
+
+// 大小写不敏感取中文标签；未知字段做基础美化（首字母大写、下划线转空格）而非裸键。
+function fieldLabel(key: string): string {
+  const hit = FIELD_LABELS[key.toLowerCase()];
+  if (hit) return hit;
+  return key
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 
 // 标题候选键（用作条目主标题）与副标题候选键
 const TITLE_KEYS = ['company', 'school', 'position', 'title', 'name'];
@@ -132,13 +157,20 @@ const DESC_KEYS = ['description', 'summary'];
 // 结构化条目卡片：主标题 + 时间徽章 + 副标题 + 描述 + 其余字段。
 // 取代原先把 school/degree/... 平铺成 "key: value" 的丑陋样式。
 function EntryCard({ data }: { data: Record<string, unknown> }) {
-  const pick = (keys: string[]) =>
-    keys.map((k) => data[k]).find((v) => typeof v === 'string' && v.trim());
+  const str = (k: string) => {
+    const v = data[k];
+    return typeof v === 'string' && v.trim() ? v.trim() : undefined;
+  };
+  const pick = (keys: string[]) => keys.map(str).find(Boolean);
 
-  const title = pick(TITLE_KEYS) as string | undefined;
-  const subtitle = pick(SUBTITLE_KEYS.filter((k) => data[k] !== title)) as string | undefined;
-  const period = pick(PERIOD_KEYS) as string | undefined;
-  const desc = pick(DESC_KEYS) as string | undefined;
+  const title = pick(TITLE_KEYS);
+  // 副标题：学位+专业 / 职位 等组合，避免 major 等字段被丢弃。
+  const subParts = SUBTITLE_KEYS
+    .filter((k) => str(k) && str(k) !== title)
+    .map(str);
+  const subtitle = Array.from(new Set(subParts)).join(' · ') || undefined;
+  const period = pick(PERIOD_KEYS);
+  const desc = pick(DESC_KEYS);
 
   const usedKeys = new Set([
     ...TITLE_KEYS, ...SUBTITLE_KEYS, ...PERIOD_KEYS, ...DESC_KEYS,
@@ -172,7 +204,7 @@ function EntryCard({ data }: { data: Record<string, unknown> }) {
         <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-2">
           {rest.map(([k, v]) => (
             <div key={k} className="flex gap-1.5 text-xs">
-              <dt className="shrink-0 text-muted-soft">{FIELD_LABELS[k] ?? k}</dt>
+              <dt className="shrink-0 text-muted-soft">{fieldLabel(k)}</dt>
               <dd className="text-body">{renderScalar(v)}</dd>
             </div>
           ))}
@@ -188,7 +220,7 @@ function SimpleKV({ data }: { data: Record<string, unknown> }) {
     <dl className="space-y-1.5">
       {Object.entries(data).map(([k, v]) => (
         <div key={k} className="flex gap-2 text-sm">
-          <dt className="shrink-0 font-medium text-muted">{FIELD_LABELS[k] ?? k}</dt>
+          <dt className="shrink-0 font-medium text-muted">{fieldLabel(k)}</dt>
           <dd className="text-ink">{renderScalar(v)}</dd>
         </div>
       ))}
