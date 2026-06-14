@@ -8,7 +8,8 @@ from ..models import PipelineStage, VALID_STAGES, Candidate, Job, User
 bp = Blueprint("pipeline", __name__)
 
 # 阶段顺序（用于"推进/回退"语义与前端排序）。rejected 是终态，不在主序列里。
-STAGE_ORDER = ["pending", "ai_screen", "interview", "offer", "onboarded"]
+STAGE_ORDER = ["pending", "ai_screen", "interview_first",
+               "interview_second", "interview_final", "offer", "onboarded"]
 
 
 def _latest_stage_subquery(job_id=None):
@@ -34,6 +35,7 @@ def move_stage():
     candidate_id = data.get("candidate_id")
     job_id = data.get("job_id")
     to_stage = data.get("stage")
+    note = data.get("note")
 
     if not candidate_id or not job_id or not to_stage:
         return jsonify({"error": "candidate_id, job_id, stage required"}), 400
@@ -61,11 +63,12 @@ def move_stage():
         job_id=job_id,
         stage=to_stage,
         updated_by=g.user_id,
+        note=note,
     )
     db.session.add(ps)
     db.session.commit()
     record_event("pipeline.moved", entity_id=candidate_id, entity_type="candidate",
-                 payload={"job_id": job_id, "from": from_stage, "to": to_stage})
+                 payload={"job_id": job_id, "from": from_stage, "to": to_stage, "note": note})
     if to_stage == "onboarded":
         record_event("candidate.onboarded", entity_id=candidate_id, entity_type="candidate",
                      payload={"job_id": job_id})
@@ -116,6 +119,7 @@ def get_board(job_id):
         "candidate_id": ps.candidate_id,
         "name_masked": cand.name_masked or f"候选人 {ps.candidate_id}",
         "stage": ps.stage,
+        "note": ps.note,
         "updated_at": ps.ts.isoformat() if ps.ts else None,
         "updated_by_name": user.name if user else None,
     } for ps, cand, user in rows]
@@ -149,5 +153,6 @@ def get_history(job_id, candidate_id):
         "stage": ps.stage,
         "ts": ps.ts.isoformat() if ps.ts else None,
         "updated_by_name": user.name if user else None,
+        "note": ps.note,
     } for ps, user in rows]
     return jsonify({"job_id": job_id, "candidate_id": candidate_id, "timeline": timeline})

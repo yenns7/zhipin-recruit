@@ -68,7 +68,11 @@ class Interview(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
-VALID_STAGES = {"pending", "ai_screen", "interview", "offer", "onboarded", "rejected"}
+VALID_STAGES = {
+    "pending", "ai_screen",
+    "interview_first", "interview_second", "interview_final",
+    "offer", "onboarded", "rejected",
+}
 
 
 class PipelineStage(db.Model):
@@ -78,6 +82,7 @@ class PipelineStage(db.Model):
     job_id = db.Column(db.Integer, db.ForeignKey("jobs.id"))
     stage = db.Column(db.String(50), nullable=False)
     updated_by = db.Column(db.Integer, db.ForeignKey("users.id"))
+    note = db.Column(db.Text)  # 本次阶段变更原因/备注，可空
     ts = db.Column(db.DateTime, default=datetime.utcnow)
 
 
