@@ -1,20 +1,33 @@
 import type { HTMLAttributes, ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 
+type CardVariant = 'default' | 'glass' | 'elevated' | 'flat';
+
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
+  variant?: CardVariant;
 }
 
-// Default: white canvas + hairline border + rounded-lg (12px) + shadow-card.
-// Transition is built in so pages adding hover:shadow-card-hover / hover:-translate-y
-// animate smoothly. For a flat feature/stat card, pass
-// className="bg-surface-card border-transparent shadow-none".
-export function Card({ className, children, ...props }: CardProps) {
+const variantStyles: Record<CardVariant, string> = {
+  default: 'rounded-lg border border-hairline bg-canvas shadow-card',
+  glass: 'glass',
+  elevated:
+    'rounded-apple border border-hairline bg-canvas shadow-apple-md hover:shadow-apple-lg hover:-translate-y-0.5',
+  flat: 'rounded-lg bg-surface-soft',
+};
+
+export function Card({
+  variant = 'default',
+  className,
+  children,
+  ...props
+}: CardProps) {
   return (
     <div
       className={cn(
-        'rounded-lg border border-hairline bg-canvas shadow-card transition-all duration-200',
-        className
+        'transition-all duration-300',
+        variantStyles[variant],
+        className,
       )}
       {...props}
     >

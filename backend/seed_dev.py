@@ -13,7 +13,7 @@ are pre-populated inline so NO LLM key is required.
 
 import sys
 import os
-import hashlib
+import bcrypt
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -35,7 +35,7 @@ app = create_app()
 
 
 def _hash(pw: str) -> str:
-    return hashlib.sha256(pw.encode()).hexdigest()
+    return bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
 
 
 def _dt(days_ago: int = 0, hours_ago: int = 0) -> datetime:

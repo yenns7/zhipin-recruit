@@ -1,5 +1,5 @@
-// Authenticated layout: left sidebar nav + top bar with user identity and logout.
-// 侧边栏导航项 stagger 进场、active 滑动高亮、底部角色身份卡；GSAP 克制精致动效。
+// Authenticated layout: Apple-style sidebar nav + top bar with user identity and logout.
+// 毛玻璃侧边栏、渐变 Logo、GSAP 克制动效。
 
 import { useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -20,7 +20,6 @@ const ROLE_LABELS: Record<Role, string> = {
   interviewer: '面试官',
 };
 
-// 每个角色一句话职责，展示在侧边栏底部身份卡，强化角色辨识。
 const ROLE_DUTY: Record<Role, string> = {
   recruiter: '简历 · 岗位 · 匹配 · AI 面试',
   manager: '团队漏斗 · 专员效能',
@@ -44,16 +43,13 @@ export function AppShell() {
   const sidebarScope = useRef<HTMLElement>(null);
   const mainScope = useRef<HTMLDivElement>(null);
 
-  // 账户设置弹窗（修改密码）
   const [showAccount, setShowAccount] = useState(false);
 
-  // 顶级页（侧边栏直达的页面）不显示返回按钮；详情/子页才显示。
   const TOP_LEVEL_PATHS = new Set([
     '/', '/agent', '/candidates', '/upload', '/jobs', '/pipeline', '/interviews', '/bi',
   ]);
   const isTopLevel = TOP_LEVEL_PATHS.has(location.pathname);
 
-  // 侧边栏首次挂载：Logo 弹入 → 导航项 stagger 上浮 → 身份卡淡入。
   useGSAP(
     () => {
       const mm = gsap.matchMedia();
@@ -73,7 +69,7 @@ export function AppShell() {
             autoAlpha: 0,
             scale: 0.6,
             duration: DUR.base,
-            ease: EASE.back,
+            ease: EASE.apple,
           })
             .from(
               '[data-shell="nav-item"]',
@@ -82,22 +78,21 @@ export function AppShell() {
                 x: -14,
                 duration: DUR.base,
                 stagger: STAGGER.base,
-                ease: EASE.out,
+                ease: EASE.apple,
               },
-              '-=0.2'
+              '-=0.2',
             )
             .from(
               '[data-shell="identity"]',
-              { autoAlpha: 0, y: 12, duration: DUR.base },
-              '-=0.25'
+              { autoAlpha: 0, y: 12, duration: DUR.base, ease: EASE.apple },
+              '-=0.25',
             );
-        }
+        },
       );
     },
-    { scope: sidebarScope }
+    { scope: sidebarScope },
   );
 
-  // 路由切换：主内容区淡入上浮（替换原 CSS fadeIn，节奏更统一）。
   useGSAP(
     () => {
       if (typeof window !== 'undefined' &&
@@ -108,10 +103,10 @@ export function AppShell() {
         autoAlpha: 0,
         y: 10,
         duration: DUR.base,
-        ease: EASE.out,
+        ease: EASE.apple,
       });
     },
-    { dependencies: [location.pathname], scope: mainScope }
+    { dependencies: [location.pathname], scope: mainScope },
   );
 
   function handleLogout() {
@@ -121,15 +116,21 @@ export function AppShell() {
 
   return (
     <div className="flex h-screen bg-surface-soft">
-      {/* Sidebar */}
+      {/* Sidebar — glass effect */}
       <aside
         ref={sidebarScope}
-        className="flex w-60 flex-col border-r border-hairline bg-canvas"
+        className="flex w-60 flex-col border-r border-glass-border"
+        style={{
+          background: 'rgba(255,255,255,0.85)',
+          backdropFilter: 'blur(20px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+        }}
       >
-        <div className="flex h-16 items-center gap-2 border-b border-hairline-soft px-5">
+        <div className="flex h-16 items-center gap-2 px-5" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
           <div
             data-shell="logo"
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink text-sm font-bold text-white shadow-card"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold text-white shadow-apple-sm"
+            style={{ background: 'linear-gradient(135deg, #007AFF, #5856D6)' }}
           >
             智
           </div>
@@ -148,19 +149,19 @@ export function AppShell() {
                 cn(
                   'group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-200',
                   isActive
-                    ? 'bg-surface-card text-ink font-semibold'
-                    : 'text-muted hover:bg-surface-soft hover:text-ink hover:translate-x-0.5'
+                    ? 'bg-surface-card text-ink font-semibold shadow-apple-xs'
+                    : 'text-muted hover:bg-surface-soft hover:text-ink hover:translate-x-0.5',
                 )
               }
             >
               {({ isActive }) => (
                 <>
-                  {/* active 左侧滑动指示条 */}
                   <span
                     className={cn(
-                      'absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-ink transition-all duration-300',
-                      isActive ? 'opacity-100' : 'opacity-0'
+                      'absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full transition-all duration-300',
+                      isActive ? 'opacity-100' : 'opacity-0',
                     )}
+                    style={{ background: 'linear-gradient(180deg, #007AFF, #5856D6)' }}
                   />
                   <item.icon
                     className="h-[18px] w-[18px] transition-transform duration-200 group-hover:scale-110"
@@ -173,14 +174,18 @@ export function AppShell() {
           ))}
         </nav>
 
-        {/* 底部角色身份卡 */}
+        {/* Identity card */}
         {role && (
           <div
             data-shell="identity"
-            className="m-3 rounded-lg border border-hairline-soft bg-surface-soft p-3"
+            className="glass-subtle m-3"
+            style={{ padding: '12px' }}
           >
             <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-ink text-xs font-semibold text-on-primary">
+              <div
+                className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold text-white"
+                style={{ background: 'linear-gradient(135deg, #007AFF, #5856D6)' }}
+              >
                 {initials(name ?? '')}
               </div>
               <div className="min-w-0 flex-1 leading-tight">
@@ -188,7 +193,7 @@ export function AppShell() {
                   {name}
                 </div>
                 <div className="mt-0.5">
-                  <Badge tone="brand">{ROLE_LABELS[role]}</Badge>
+                  <Badge tone="glass">{ROLE_LABELS[role]}</Badge>
                 </div>
               </div>
             </div>
@@ -201,8 +206,10 @@ export function AppShell() {
 
       {/* Main column */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-16 items-center justify-between border-b border-hairline bg-canvas px-6">
-          {/* 左侧：自然返回（基于浏览器历史；顶级页隐藏） */}
+        <header
+          className="flex h-16 items-center justify-between bg-canvas px-6"
+          style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}
+        >
           <div className="flex items-center">
             {!isTopLevel && (
               <button
@@ -218,13 +225,16 @@ export function AppShell() {
 
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-card text-xs font-semibold text-body">
+              <div
+                className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold text-white"
+                style={{ background: 'linear-gradient(135deg, #007AFF, #5856D6)' }}
+              >
                 {initials(name ?? '')}
               </div>
               <div className="leading-tight">
                 <div className="text-sm font-medium text-ink">{name}</div>
               </div>
-              {role && <Badge tone="brand">{ROLE_LABELS[role]}</Badge>}
+              {role && <Badge tone="glass">{ROLE_LABELS[role]}</Badge>}
             </div>
             <button
               onClick={() => setShowAccount(true)}

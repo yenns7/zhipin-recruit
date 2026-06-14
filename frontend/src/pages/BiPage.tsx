@@ -1,7 +1,5 @@
-// BI看板 — 团队整体漏斗 + 专员绩效对比（仅限经理/管理员）
-// 第一层: 团队总览（KPI、漏斗、专员对比）
-// 第二层: 单个专员漏斗下钻（点击专员行进入）
-// 第三层 (单职位候选人分布) 后端 /bi/job/{id} 本版本未实现，不在此页构建。
+// BI看板 — Apple Health/Fitness 风格数据看板。
+// 毛玻璃 KPI 卡片、渐变漏斗、光环仪表、GSAP 增强动效。
 
 import { useState } from 'react';
 import { api } from '../lib/api';
@@ -30,7 +28,6 @@ const DAYS_OPTIONS: { label: string; value: number }[] = [
   { label: '近 90 天', value: 90 },
 ];
 
-// 漏斗阶段（按流程顺序，淘汰单独展示）
 const FUNNEL_STAGES: { key: keyof Omit<BiFunnel, 'conversion_rate' | 'rejected'>; label: string }[] = [
   { key: 'pending', label: '待筛选' },
   { key: 'ai_screen', label: 'AI初筛' },
@@ -39,20 +36,19 @@ const FUNNEL_STAGES: { key: keyof Omit<BiFunnel, 'conversion_rate' | 'rejected'>
   { key: 'onboarded', label: '已入职' },
 ];
 
-// Cal.com 配色：近黑→中性灰阶梯（体现漏斗收窄），不使用靛蓝/紫
+// Apple 风格渐变配色
 const FUNNEL_COLORS: string[] = [
-  '#111111', // 待筛选：近黑
-  '#374151', // AI初筛：深灰
-  '#6b7280', // 面试：中灰
-  '#898989', // Offer：浅中灰
-  '#10b981', // 已入职：成功绿（克制使用，语义清晰）
+  '#007AFF',
+  '#5856D6',
+  '#AF52DE',
+  '#FF9500',
+  '#34C759',
 ];
-const REJECTED_COLOR = '#ef4444'; // 淘汰：danger 红
+const REJECTED_COLOR = '#FF3B30';
 
-// 专员对比条形图颜色
-const BAR_COLOR_RESUMES = '#111111';   // 简历量：近黑
-const BAR_COLOR_SCREENS = '#374151';   // 初筛量：深灰
-const BAR_COLOR_ONBOARDED = '#10b981'; // 入职数：成功绿
+const BAR_COLOR_RESUMES = '#007AFF';
+const BAR_COLOR_SCREENS = '#5856D6';
+const BAR_COLOR_ONBOARDED = '#34C759';
 
 // ─── 工具函数 ─────────────────────────────────────────────────────────────────
 
@@ -74,12 +70,18 @@ function teamAvgConversion(staff: BiStaffMember[]): number {
 
 // ─── 子组件 ───────────────────────────────────────────────────────────────────
 
-// KPI 卡片 — 单指标磁贴
-function KpiCard({ label, value, sub }: { label: string; value: ReactNode; sub?: string }) {
+// Apple 风格 KPI 卡片
+function KpiCard({ label, value, sub, accent }: { label: string; value: ReactNode; sub?: string; accent?: string }) {
   return (
-    <Card>
-      <CardBody>
-        <p className="text-xs font-medium text-muted uppercase tracking-wide mb-1">{label}</p>
+    <Card variant="elevated" className="overflow-hidden">
+      <CardBody className="relative">
+        {accent && (
+          <div
+            className="absolute -right-4 -top-4 h-16 w-16 rounded-full opacity-10"
+            style={{ background: accent }}
+          />
+        )}
+        <p className="text-xs font-medium text-muted uppercase tracking-wide mb-2">{label}</p>
         <p className="text-2xl font-display text-ink">{value}</p>
         {sub && <p className="mt-0.5 text-xs text-muted-soft">{sub}</p>}
       </CardBody>
@@ -94,8 +96,8 @@ function InlineBar({ value, max, color }: { value: number; max: number; color: s
     <div className="flex items-center gap-2 min-w-0">
       <div className="flex-1 h-2 rounded-full bg-surface-strong overflow-hidden min-w-0" style={{ minWidth: 40 }}>
         <div
-          className="h-full rounded-full transition-all"
-          style={{ width: `${width}%`, background: color }}
+          className="h-full rounded-full transition-all duration-700 ease-apple"
+          style={{ width: `${width}%`, background: `linear-gradient(90deg, ${color}dd, ${color})` }}
         />
       </div>
       <span className="text-xs tabular-nums text-body shrink-0 w-6 text-right">{value}</span>
@@ -124,20 +126,20 @@ function StaffTable({
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-hairline bg-surface-soft">
-            <th className="py-2 pr-4 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap">
+          <tr className="border-b border-hairline">
+            <th className="py-2.5 pr-4 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap">
               专员
             </th>
-            <th className="py-2 pr-6 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap" style={{ minWidth: 100 }}>
+            <th className="py-2.5 pr-6 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap" style={{ minWidth: 100 }}>
               简历量
             </th>
-            <th className="py-2 pr-6 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap" style={{ minWidth: 100 }}>
+            <th className="py-2.5 pr-6 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap" style={{ minWidth: 100 }}>
               初筛量
             </th>
-            <th className="py-2 pr-6 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap" style={{ minWidth: 100 }}>
+            <th className="py-2.5 pr-6 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap" style={{ minWidth: 100 }}>
               入职数
             </th>
-            <th className="py-2 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap">
+            <th className="py-2.5 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap">
               转化率
             </th>
           </tr>
@@ -147,12 +149,11 @@ function StaffTable({
             const conv = safeNum(s.conversion_rate);
             const aboveAvg = conv > avgConv;
             const atAvg = conv === avgConv;
-            // 高于均值 success，低于均值 danger，持平 ink
-            const convColor = aboveAvg ? '#10b981' : atAvg ? '#111111' : '#ef4444';
+            const convColor = aboveAvg ? '#34C759' : atAvg ? '#111111' : '#FF3B30';
             return (
               <tr
                 key={s.hr_id}
-                className="border-b border-hairline-soft hover:bg-surface-soft cursor-pointer transition-colors"
+                className="border-b border-hairline-soft transition-all duration-200 hover:bg-surface-soft hover:shadow-apple-sm cursor-pointer"
                 onClick={() => onSelect(s.hr_id)}
                 tabIndex={0}
                 role="button"
@@ -161,19 +162,19 @@ function StaffTable({
                   if (e.key === 'Enter' || e.key === ' ') onSelect(s.hr_id);
                 }}
               >
-                <td className="py-2.5 pr-4 font-medium text-ink whitespace-nowrap">
+                <td className="py-3 pr-4 font-medium text-ink whitespace-nowrap">
                   {s.name}
                 </td>
-                <td className="py-2.5 pr-6" style={{ minWidth: 100 }}>
+                <td className="py-3 pr-6" style={{ minWidth: 100 }}>
                   <InlineBar value={safeNum(s.resumes)} max={maxResumes} color={BAR_COLOR_RESUMES} />
                 </td>
-                <td className="py-2.5 pr-6" style={{ minWidth: 100 }}>
+                <td className="py-3 pr-6" style={{ minWidth: 100 }}>
                   <InlineBar value={safeNum(s.screens)} max={maxScreens} color={BAR_COLOR_SCREENS} />
                 </td>
-                <td className="py-2.5 pr-6" style={{ minWidth: 100 }}>
+                <td className="py-3 pr-6" style={{ minWidth: 100 }}>
                   <InlineBar value={safeNum(s.onboarded)} max={maxOnboarded} color={BAR_COLOR_ONBOARDED} />
                 </td>
-                <td className="py-2.5">
+                <td className="py-3">
                   <span
                     className="text-xs font-semibold tabular-nums"
                     style={{ color: convColor }}
@@ -202,12 +203,11 @@ function TeamOverview({
 }) {
   const { data, loading, error, reload } = useAsync(
     () => api.biOverview(days),
-    [days]
+    [days],
   );
 
   const [selectedHrId, setSelectedHrId] = useState<number | null>(null);
 
-  // 下钻状态优先渲染，确保 hooks 顺序不变
   if (selectedHrId !== null) {
     const staffMember = data?.staff.find((s) => s.hr_id === selectedHrId) ?? null;
     const avgConv = data ? teamAvgConversion(data.staff) : null;
@@ -223,8 +223,8 @@ function TeamOverview({
   }
 
   return (
-    <div>
-      {/* 标题栏 */}
+    <div className="space-y-6">
+      {/* Page Header */}
       <PageHeader
         title="数据看板"
         description="团队招聘漏斗与专员效能对比"
@@ -255,34 +255,38 @@ function TeamOverview({
 
       {!loading && !error && data && (
         <div className="space-y-6">
-          {/* KPI 指标行 */}
+          {/* KPI 指标行 — Apple 风格毛玻璃卡片 */}
           <Reveal as="div" className="grid grid-cols-2 gap-4 sm:grid-cols-4" stagger={0.07}>
             <KpiCard
-              label="在招专员数"
+              label="在招专员"
               value={<AnimatedNumber value={data.staff.length} />}
               sub="本期活跃"
+              accent="#007AFF"
             />
             <KpiCard
               label="本期入职"
               value={<AnimatedNumber value={safeNum(data.funnel.onboarded)} />}
               sub="已入职人数"
+              accent="#34C759"
             />
             <KpiCard
               label="整体转化率"
               value={<AnimatedNumber value={safeNum(data.funnel.conversion_rate)} decimals={1} suffix="%" />}
               sub="待筛选 → 入职"
+              accent="#AF52DE"
             />
             <KpiCard
               label="简历总量"
               value={<AnimatedNumber value={safeNum(data.funnel.pending)} />}
               sub="流入简历"
+              accent="#FF9500"
             />
           </Reveal>
 
           {/* 图表行 */}
           <Reveal as="div" className="grid grid-cols-1 gap-6 lg:grid-cols-2" stagger={0.1} y={20}>
-            {/* 团队招聘漏斗 — 自定义 SVG 梯形漏斗 */}
-            <Card>
+            {/* 团队招聘漏斗 */}
+            <Card variant="elevated">
               <CardHeader>
                 <CardTitle>团队招聘漏斗</CardTitle>
               </CardHeader>
@@ -291,7 +295,7 @@ function TeamOverview({
                   stages={FUNNEL_STAGES.map(({ key, label }, i) => ({
                     label,
                     value: safeNum(data.funnel[key]),
-                    color: FUNNEL_COLORS[i] ?? '#111111',
+                    color: FUNNEL_COLORS[i] ?? '#007AFF',
                   }))}
                   rejected={safeNum(data.funnel.rejected)}
                   rejectedColor={REJECTED_COLOR}
@@ -300,17 +304,20 @@ function TeamOverview({
             </Card>
 
             {/* 转化率仪表 + 阶段汇总 */}
-            <Card>
+            <Card variant="elevated">
               <CardHeader>
                 <CardTitle>转化总览</CardTitle>
               </CardHeader>
               <CardBody>
                 <div className="mb-5 flex justify-center">
-                  <ConversionRing percent={safeNum(data.funnel.conversion_rate)} />
+                  <ConversionRing
+                    percent={safeNum(data.funnel.conversion_rate)}
+                    color="#007AFF"
+                  />
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   {FUNNEL_STAGES.map(({ key, label }) => (
-                    <div key={key} className="rounded-lg bg-surface-soft px-3 py-2.5">
+                    <div key={key} className="rounded-xl bg-surface-soft px-3 py-2.5 transition-colors hover:bg-surface-card">
                       <p className="text-xs text-muted mb-0.5">{label}</p>
                       <p className="text-lg font-display text-ink">
                         <AnimatedNumber value={safeNum(data.funnel[key])} />
@@ -323,7 +330,7 @@ function TeamOverview({
           </Reveal>
 
           {/* 专员效能对比 */}
-          <Card>
+          <Card variant="elevated">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>专员效能对比</CardTitle>
@@ -363,7 +370,7 @@ function StaffDrilldown({
 }) {
   const { data, loading, error, reload } = useAsync(
     () => api.biStaff(hrId, days),
-    [hrId, days]
+    [hrId, days],
   );
 
   const name = staffMember?.name ?? `专员 #${hrId}`;
@@ -373,17 +380,17 @@ function StaffDrilldown({
   const atAvg = conv !== null && conv === avg;
 
   return (
-    <div>
-      {/* 返回导航 */}
+    <div className="animate-fade-in space-y-6">
+      {/* Back navigation */}
       <button
         onClick={onBack}
-        className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-ink focus:outline-none focus-visible:underline"
+        className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink transition-colors duration-200 focus:outline-none focus-visible:underline"
       >
         ← 返回团队总览
       </button>
 
-      {/* 专员标题 */}
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+      {/* Staff header */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-display text-ink">{name}</h1>
           <p className="mt-0.5 text-sm text-muted">专员漏斗详情 · 近 {days} 天</p>
@@ -396,13 +403,13 @@ function StaffDrilldown({
         )}
       </div>
 
-      {/* 专员 KPI 卡片（来自第一层数据） */}
+      {/* Staff KPI cards */}
       {staffMember && (
-        <Reveal as="div" className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4" stagger={0.07}>
-          <KpiCard label="简历量" value={<AnimatedNumber value={safeNum(staffMember.resumes)} />} />
-          <KpiCard label="初筛量" value={<AnimatedNumber value={safeNum(staffMember.screens)} />} />
-          <KpiCard label="入职数" value={<AnimatedNumber value={safeNum(staffMember.onboarded)} />} />
-          <KpiCard label="转化率" value={<AnimatedNumber value={safeNum(staffMember.conversion_rate)} decimals={1} suffix="%" />} />
+        <Reveal as="div" className="grid grid-cols-2 gap-4 sm:grid-cols-4" stagger={0.07}>
+          <KpiCard label="简历量" value={<AnimatedNumber value={safeNum(staffMember.resumes)} />} accent="#007AFF" />
+          <KpiCard label="初筛量" value={<AnimatedNumber value={safeNum(staffMember.screens)} />} accent="#5856D6" />
+          <KpiCard label="入职数" value={<AnimatedNumber value={safeNum(staffMember.onboarded)} />} accent="#34C759" />
+          <KpiCard label="转化率" value={<AnimatedNumber value={safeNum(staffMember.conversion_rate)} decimals={1} suffix="%" />} accent="#AF52DE" />
         </Reveal>
       )}
 
@@ -422,7 +429,7 @@ function StaffDrilldown({
       )}
 
       {!loading && !error && data && (
-        <Card>
+        <Card variant="elevated">
           <CardHeader>
             <CardTitle>个人招聘漏斗</CardTitle>
           </CardHeader>
@@ -432,7 +439,7 @@ function StaffDrilldown({
                 stages={FUNNEL_STAGES.map(({ key, label }, i) => ({
                   label,
                   value: safeNum(data.funnel[key]),
-                  color: FUNNEL_COLORS[i] ?? '#111111',
+                  color: FUNNEL_COLORS[i] ?? '#007AFF',
                 }))}
                 rejected={safeNum(data.funnel.rejected)}
                 rejectedColor={REJECTED_COLOR}
@@ -441,20 +448,21 @@ function StaffDrilldown({
                 <ConversionRing
                   percent={safeNum(data.funnel.conversion_rate)}
                   label="个人转化率"
-                  size={140}
+                  color="#007AFF"
+                  size={160}
                 />
               </div>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
               {FUNNEL_STAGES.map(({ key, label }) => (
-                <div key={key} className="rounded-lg bg-surface-soft px-3 py-2.5">
+                <div key={key} className="rounded-xl bg-surface-soft px-3 py-2.5 transition-colors hover:bg-surface-card">
                   <p className="text-xs text-muted mb-0.5">{label}</p>
                   <p className="text-xl font-display text-ink">
                     <AnimatedNumber value={safeNum(data.funnel[key])} />
                   </p>
                 </div>
               ))}
-              <div className="rounded-lg bg-danger-50 px-3 py-2.5">
+              <div className="rounded-xl bg-danger-50 px-3 py-2.5">
                 <p className="text-xs text-danger-600 mb-0.5">淘汰</p>
                 <p className="text-xl font-display text-danger-700">
                   <AnimatedNumber value={safeNum(data.funnel.rejected)} />
@@ -465,7 +473,7 @@ function StaffDrilldown({
         </Card>
       )}
 
-      <div className="mt-6">
+      <div className="pt-2">
         <Button variant="secondary" size="sm" onClick={onBack}>
           ← 返回团队总览
         </Button>

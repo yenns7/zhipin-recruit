@@ -7,12 +7,9 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   children: ReactNode;
 }
 
-// Shared native select, matching the Input primitive's height, border, and
-// neutral (non-blue) focus ring. Replaces the repeated inline <select>
-// className strings across forms (interview/pipeline/jobs/login).
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select(
   { label, error, className, id, children, ...props },
-  ref
+  ref,
 ) {
   const selectId = id || props.name;
   return (
@@ -30,9 +27,10 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
         id={selectId}
         className={cn(
           'h-10 w-full rounded-md border border-hairline bg-canvas px-3 text-sm text-ink',
-          'focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink',
-          error && 'border-danger-500 focus:border-danger-500 focus:ring-danger-500',
-          className
+          'transition-all duration-200',
+          'focus:border-ink focus:outline-none focus:shadow-apple-focus',
+          error && 'border-danger-500 focus:border-danger-500 focus:shadow-[0_0_0_3px_rgba(239,68,68,0.15)]',
+          className,
         )}
         {...props}
       >

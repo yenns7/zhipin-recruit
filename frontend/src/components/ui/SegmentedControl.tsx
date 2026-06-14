@@ -1,3 +1,4 @@
+import { useRef, useEffect, useState } from 'react';
 import { cn } from '../../lib/cn';
 
 interface SegmentOption<T extends string | number> {
@@ -13,9 +14,6 @@ interface SegmentedControlProps<T extends string | number> {
   className?: string;
 }
 
-// Cal.com nav-pill-group: capsule container with surface-soft bg + p-1.5 + rounded-full
-// Active segment: bg-canvas text-ink shadow-card
-// Inactive segment: text-muted hover:text-ink
 export function SegmentedControl<T extends string | number>({
   options,
   value,
@@ -23,16 +21,46 @@ export function SegmentedControl<T extends string | number>({
   size = 'md',
   className,
 }: SegmentedControlProps<T>) {
-  const sizeClasses = size === 'sm' ? 'px-3 py-1 text-xs' : 'px-3.5 py-1.5 text-sm';
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [indicatorStyle, setIndicatorStyle] = useState<{
+    width: number;
+    left: number;
+  }>({ width: 0, left: 0 });
+
+  const sizeClasses =
+    size === 'sm' ? 'px-3 py-1 text-xs' : 'px-3.5 py-1.5 text-sm';
+
+  // Update indicator position when value changes
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const activeIdx = options.findIndex((o) => o.value === value);
+    const buttons = container.querySelectorAll<HTMLButtonElement>('button');
+    const activeBtn = buttons[activeIdx];
+    if (activeBtn) {
+      const { offsetLeft, offsetWidth } = activeBtn;
+      setIndicatorStyle({ width: offsetWidth, left: offsetLeft });
+    }
+  }, [value, options]);
 
   return (
     <div
+      ref={containerRef}
       role="group"
       className={cn(
-        'inline-flex gap-1 rounded-full bg-surface-soft p-1.5',
-        className
+        'relative inline-flex gap-1 rounded-full bg-surface-soft p-1.5',
+        className,
       )}
     >
+      {/* Sliding indicator — Apple style */}
+      <div
+        className="absolute top-1.5 z-0 rounded-full bg-canvas shadow-apple-sm transition-all duration-300 ease-apple"
+        style={{
+          height: size === 'sm' ? 'calc(100% - 12px)' : 'calc(100% - 12px)',
+          width: `${indicatorStyle.width}px`,
+          transform: `translateX(${indicatorStyle.left}px)`,
+        }}
+      />
       {options.map((opt) => {
         const isActive = opt.value === value;
         return (
@@ -42,11 +70,9 @@ export function SegmentedControl<T extends string | number>({
             aria-pressed={isActive}
             onClick={() => onChange(opt.value)}
             className={cn(
-              'rounded-full font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1',
+              'relative z-10 rounded-full font-medium transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1',
               sizeClasses,
-              isActive
-                ? 'bg-canvas text-ink shadow-card'
-                : 'text-muted hover:text-ink'
+              isActive ? 'text-ink' : 'text-muted hover:text-ink',
             )}
           >
             {opt.label}

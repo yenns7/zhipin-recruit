@@ -1,5 +1,5 @@
 // 全站动效配置中心 — 统一缓动、时长与无障碍处理。
-// 所有 GSAP 动画都应从这里取参数，保证整站节奏一致（Cal.com 克制精致基调）。
+// 所有 GSAP 动画都应从这里取参数，保证整站节奏一致（Apple 精致基调）。
 
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
@@ -8,12 +8,17 @@ import { useGSAP } from '@gsap/react';
 gsap.registerPlugin(useGSAP);
 
 // ── 缓动曲线 ────────────────────────────────────────────────
-// 克制精致：以 power 系列为主，弹性仅用于 logo/徽章等点睛处。
 export const EASE = {
-  out: 'power3.out', // 通用进场
-  inOut: 'power2.inOut', // 过渡
-  soft: 'power1.out', // 细微位移
-  back: 'back.out(1.6)', // 弹入（logo、徽章）
+  out: 'power3.out',
+  inOut: 'power2.inOut',
+  soft: 'power1.out',
+  back: 'back.out(1.6)',
+  /** Apple spring curve — natural, bouncy but not exaggerated */
+  apple: 'cubic-bezier(0.16, 1, 0.3, 1)',
+  /** Stronger spring for scale-in animations */
+  spring: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+  /** Out expo — fast deceleration */
+  outExpo: 'cubic-bezier(0.19, 1, 0.22, 1)',
 } as const;
 
 // ── 时长（秒）──────────────────────────────────────────────
@@ -21,7 +26,10 @@ export const DUR = {
   fast: 0.32,
   base: 0.5,
   slow: 0.7,
-  number: 1.1, // 数字滚动
+  number: 1.1,
+  shimmer: 1.5,
+  /** Apple-style micro-interaction */
+  micro: 0.2,
 } as const;
 
 // ── stagger 节奏 ───────────────────────────────────────────
@@ -38,6 +46,42 @@ gsap.defaults({ duration: DUR.base, ease: EASE.out });
 export function prefersReducedMotion(): boolean {
   if (typeof window === 'undefined' || !window.matchMedia) return false;
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+// ── 工具函数 ────────────────────────────────────────────────
+
+/**
+ * 对容器内的元素批量 stagger 动画。
+ * 用法: staggerItems(containerRef.current, '[data-stagger]', 0.06)
+ */
+export function staggerItems(
+  container: HTMLElement | null,
+  selector: string,
+  stagger: number = STAGGER.base,
+): gsap.core.Timeline | null {
+  if (!container) return null;
+  const items = container.querySelectorAll<HTMLElement>(selector);
+  if (items.length === 0) return null;
+  const tl = gsap.timeline();
+  tl.from(items, {
+    autoAlpha: 0,
+    y: 16,
+    duration: DUR.base,
+    stagger,
+    ease: EASE.apple,
+  });
+  return tl;
+}
+
+/**
+ * 弹簧缩放动画（用于按钮/卡片按压反馈）
+ */
+export function springScale(
+  target: gsap.TweenTarget,
+  from: number = 0.95,
+  to: number = 1,
+): gsap.core.Tween {
+  return gsap.fromTo(target, { scale: from }, { scale: to, duration: DUR.micro, ease: EASE.spring });
 }
 
 export { gsap, useGSAP };

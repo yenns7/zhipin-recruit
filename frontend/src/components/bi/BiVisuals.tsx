@@ -1,12 +1,11 @@
-// BI 看板专用可视化组件 — 自定义 SVG 漏斗 + 环形转化率仪表。
-// 用 GSAP 做描绘/计数动画，比基础条形图更有冲击力（炫技核心）。
+// BI 看板专用可视化组件 — Apple 风格 SVG 漏斗 + 光环转化率仪表。
+// 渐变填充、GSAP 描绘/计数动画、光环拖尾效果。
 // 全部尊重 prefers-reduced-motion。
 
 import { useRef } from 'react';
 import { gsap, useGSAP, EASE, DUR, STAGGER } from '../../lib/motion';
 
-// ── 漏斗梯形图 ──────────────────────────────────────────────
-// 每个阶段画成一条横向梯形带，宽度随人数收窄，阶段间标注转化率。
+// ── 漏斗梯形图（Apple 风格 — 渐变填充）──────────────────────
 
 export interface FunnelStage {
   label: string;
@@ -16,7 +15,6 @@ export interface FunnelStage {
 
 interface FunnelDiagramProps {
   stages: FunnelStage[];
-  /** 淘汰人数（单独展示在底部）。 */
   rejected?: number;
   rejectedColor?: string;
 }
@@ -29,12 +27,11 @@ export function FunnelDiagram({
   const scope = useRef<HTMLDivElement>(null);
 
   const max = Math.max(...stages.map((s) => s.value), 1);
-  const W = 100; // viewBox 宽度（百分比坐标）
-  const rowH = 46; // 每阶段高度
-  const gap = 10; // 阶段间距（放转化率标注）
+  const W = 100;
+  const rowH = 48;
+  const gap = 10;
   const H = stages.length * rowH + (stages.length - 1) * gap;
 
-  // 每个阶段梯形的上下半宽（按人数比例）。
   const halfW = (v: number) => (Math.max(v, 0) / max) * (W / 2) * 0.92;
 
   const allZero = stages.every((s) => s.value === 0) && rejected === 0;
@@ -51,7 +48,7 @@ export function FunnelDiagram({
         },
         (ctx) => {
           const { reduce } = ctx.conditions as { reduce: boolean };
-          const bands = root.querySelectorAll<SVGGElement>('[data-band]');
+          const bands = root.querySelectorAll<SVGPolygonElement>('[data-band]');
           const labels = root.querySelectorAll<HTMLElement>('[data-flabel]');
           const convs = root.querySelectorAll<HTMLElement>('[data-conv]');
           if (reduce) {
@@ -63,33 +60,36 @@ export function FunnelDiagram({
             scaleX: 0,
             transformOrigin: 'center center',
             autoAlpha: 0,
-            duration: DUR.base,
-            ease: EASE.out,
+            duration: DUR.slow,
+            ease: EASE.apple,
             stagger: STAGGER.loose,
           })
             .from(
               labels,
-              { autoAlpha: 0, x: -8, duration: DUR.fast, stagger: STAGGER.loose },
-              '<0.1'
+              { autoAlpha: 0, x: -12, duration: DUR.base, stagger: STAGGER.loose, ease: EASE.apple },
+              '<0.1',
             )
             .from(
               convs,
-              { autoAlpha: 0, y: -6, duration: DUR.fast, stagger: STAGGER.loose },
-              '<0.05'
+              { autoAlpha: 0, y: -8, duration: DUR.base, stagger: STAGGER.loose, ease: EASE.apple },
+              '<0.05',
             );
-        }
+        },
       );
     },
-    { scope }
+    { scope },
   );
 
   if (allZero) {
     return (
-      <div className="flex h-[260px] items-center justify-center text-sm text-muted">
+      <div className="flex h-[280px] items-center justify-center text-sm text-muted">
         暂无数据
       </div>
     );
   }
+
+  // Generate gradient IDs for each stage
+  const gradientIds = stages.map((_s, i) => `funnel-grad-${i}`);
 
   return (
     <div ref={scope}>
@@ -97,16 +97,31 @@ export function FunnelDiagram({
         <svg
           viewBox={`0 0 ${W} ${H}`}
           width="100%"
-          height={H * 2.6}
+          height={H * 2.4}
           preserveAspectRatio="xMidYMid meet"
         >
+          <defs>
+            {stages.map((_s, i) => {
+              // Create a lighter variant for gradient top
+              const hex = _s.color;
+              const lighter = hex === '#111111' ? '#3a3a3a' :
+                hex === '#374151' ? '#4b5563' :
+                hex === '#6b7280' ? '#9ca3af' :
+                hex === '#898989' ? '#a8a8a8' : hex;
+              return (
+                <linearGradient key={gradientIds[i]} id={gradientIds[i]} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={lighter} stopOpacity="0.95" />
+                  <stop offset="100%" stopColor={hex} stopOpacity="0.88" />
+                </linearGradient>
+              );
+            })}
+          </defs>
           {stages.map((s, i) => {
             const next = stages[i + 1];
             const yTop = i * (rowH + gap);
             const topHalf = halfW(s.value);
             const botHalf = halfW(next ? next.value : s.value);
             const cx = W / 2;
-            // 梯形四角：上边按本阶段宽度，下边按下一阶段宽度（收窄感）。
             const pts = [
               [cx - topHalf, yTop],
               [cx + topHalf, yTop],
@@ -116,14 +131,18 @@ export function FunnelDiagram({
               .map((p) => p.join(','))
               .join(' ');
             return (
-              <g key={s.label} data-band>
-                <polygon points={pts} fill={s.color} opacity={0.92} />
-              </g>
+              <polygon
+                key={s.label}
+                data-band
+                points={pts}
+                fill={`url(#${gradientIds[i]})`}
+                rx="2"
+              />
             );
           })}
         </svg>
 
-        {/* 阶段标签 + 人数（绝对定位覆盖在梯形上） */}
+        {/* Stage labels + values */}
         <div className="pointer-events-none absolute inset-0">
           {stages.map((s, i) => {
             const topPct = ((i * (rowH + gap) + rowH / 2) / H) * 100;
@@ -134,10 +153,10 @@ export function FunnelDiagram({
                 className="absolute left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-baseline gap-1.5 whitespace-nowrap"
                 style={{ top: `${topPct}%` }}
               >
-                <span className="text-xs font-medium text-white/95 drop-shadow">
+                <span className="text-xs font-medium text-white/95 drop-shadow-sm">
                   {s.label}
                 </span>
-                <span className="font-display text-sm text-white tabular-nums drop-shadow">
+                <span className="font-display text-sm text-white tabular-nums drop-shadow-sm">
                   {s.value}
                 </span>
               </div>
@@ -145,7 +164,7 @@ export function FunnelDiagram({
           })}
         </div>
 
-        {/* 阶段间转化率标注（右侧） */}
+        {/* Conversion rate labels */}
         <div className="pointer-events-none absolute inset-0">
           {stages.slice(0, -1).map((s, i) => {
             const next = stages[i + 1];
@@ -158,7 +177,7 @@ export function FunnelDiagram({
                 className="absolute right-1 -translate-y-1/2"
                 style={{ top: `${topPct}%` }}
               >
-                <span className="rounded-full bg-surface-card px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-body">
+                <span className="rounded-full bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-body shadow-apple-sm">
                   {rate.toFixed(0)}%
                 </span>
               </div>
@@ -180,11 +199,9 @@ export function FunnelDiagram({
   );
 }
 
-// ── 环形转化率仪表 ──────────────────────────────────────────
-// SVG 圆环，GSAP 描边 + 中心数字计数。
+// ── 光环转化率仪表（Apple 风格 — 渐变光环 + 拖尾）───────────
 
 interface ConversionRingProps {
-  /** 0-100 的百分比。 */
   percent: number;
   label?: string;
   size?: number;
@@ -194,13 +211,13 @@ interface ConversionRingProps {
 export function ConversionRing({
   percent,
   label = '整体转化率',
-  size = 160,
-  color = '#111111',
+  size = 180,
+  color = '#007AFF',
 }: ConversionRingProps) {
   const scope = useRef<HTMLDivElement>(null);
   const numRef = useRef<HTMLSpanElement>(null);
 
-  const stroke = 12;
+  const stroke = 14;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const clamped = Math.max(0, Math.min(100, Number.isFinite(percent) ? percent : 0));
@@ -210,6 +227,7 @@ export function ConversionRing({
       const root = scope.current;
       if (!root) return;
       const arc = root.querySelector<SVGCircleElement>('[data-arc]');
+      const glow = root.querySelector<SVGCircleElement>('[data-glow]');
       const num = numRef.current;
       if (!arc || !num) return;
 
@@ -224,33 +242,51 @@ export function ConversionRing({
           const target = c - (clamped / 100) * c;
           if (reduce) {
             gsap.set(arc, { strokeDashoffset: target });
+            if (glow) gsap.set(glow, { strokeDashoffset: target });
             num.textContent = clamped.toFixed(1) + '%';
             return;
           }
-          gsap.fromTo(
+          const tl = gsap.timeline();
+          tl.fromTo(
             arc,
             { strokeDashoffset: c },
-            { strokeDashoffset: target, duration: DUR.slow, ease: EASE.inOut }
+            { strokeDashoffset: target, duration: DUR.slow * 1.2, ease: EASE.apple },
           );
+          if (glow) {
+            tl.fromTo(
+              glow,
+              { strokeDashoffset: c },
+              { strokeDashoffset: target, duration: DUR.slow * 1.2, ease: EASE.apple },
+              '<',
+            );
+          }
           const obj = { n: 0 };
           gsap.to(obj, {
             n: clamped,
-            duration: DUR.slow,
-            ease: EASE.out,
+            duration: DUR.slow * 1.2,
+            ease: EASE.outExpo,
             onUpdate: () => {
               num.textContent = obj.n.toFixed(1) + '%';
             },
           });
-        }
+        },
       );
     },
-    { dependencies: [clamped], scope }
+    { dependencies: [clamped], scope },
   );
 
   return (
     <div ref={scope} className="flex flex-col items-center justify-center">
       <div className="relative" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="-rotate-90">
+          <defs>
+            <linearGradient id="ring-grad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+              <stop offset="50%" stopColor={color} stopOpacity="0.8" />
+              <stop offset="100%" stopColor={color} stopOpacity="1" />
+            </linearGradient>
+          </defs>
+          {/* Track */}
           <circle
             cx={size / 2}
             cy={size / 2}
@@ -258,14 +294,31 @@ export function ConversionRing({
             fill="none"
             stroke="#e5e7eb"
             strokeWidth={stroke}
+            opacity={0.4}
           />
+          {/* Glow halo */}
+          <circle
+            data-glow
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke={color}
+            strokeWidth={stroke + 4}
+            strokeLinecap="round"
+            strokeDasharray={c}
+            strokeDashoffset={c}
+            opacity={0.15}
+            style={{ filter: 'blur(4px)' }}
+          />
+          {/* Main arc */}
           <circle
             data-arc
             cx={size / 2}
             cy={size / 2}
             r={r}
             fill="none"
-            stroke={color}
+            stroke={`url(#ring-grad)`}
             strokeWidth={stroke}
             strokeLinecap="round"
             strokeDasharray={c}
@@ -275,7 +328,7 @@ export function ConversionRing({
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span
             ref={numRef}
-            className="font-display text-2xl text-ink tabular-nums"
+            className="font-display text-3xl text-ink tabular-nums"
           >
             0.0%
           </span>

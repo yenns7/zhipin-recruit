@@ -184,7 +184,7 @@ function CreateJobForm({ onCreated }: CreateJobFormProps) {
   }
 
   return (
-    <Card>
+    <Card variant="elevated">
       <CardHeader>
         <CardTitle>{phase === 'edit' ? '新建岗位' : 'AI 澄清追问'}</CardTitle>
       </CardHeader>
@@ -354,7 +354,7 @@ export function JobsPage() {
 
       {/* AI 解析结果 after creation */}
       {lastCreated && (
-        <Card>
+        <Card variant="elevated">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -372,7 +372,7 @@ export function JobsPage() {
       )}
 
       {/* Job list */}
-      <Card>
+      <Card variant="elevated">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>岗位列表</CardTitle>

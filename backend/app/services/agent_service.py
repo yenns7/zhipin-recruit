@@ -89,11 +89,13 @@ def _tool_list_jobs(limit: int = 20, **_) -> Dict[str, Any]:
 
 
 def _tool_match_candidates_for_job(job_id: int, **_) -> Dict[str, Any]:
-    """给某岗位匹配候选人排名（复用 MatchService.rank_for_job）。"""
+    """给某岗位匹配候选人排名（计算匹配分，不持久化）。"""
     job = Job.query.get(int(job_id))
     if not job:
         return {"error": f"岗位 {job_id} 不存在"}
-    ranked = MatchService().rank_for_job(int(job_id), top_n=10)
+    # 使用纯计算模式（不写入 DB），rank_for_job(..., persist=False)
+    from .match_service import MatchService as MS
+    ranked = MS().rank_for_job_readonly(int(job_id), top_n=10)
     return {"job_id": int(job_id), "job_title": job.title, "ranking": ranked}
 
 
@@ -152,7 +154,7 @@ def _tool_get_bi_overview(days: int = 30, **_) -> Dict[str, Any]:
 def _tool_count_summary(**_) -> Dict[str, Any]:
     """系统概览数字：候选人/岗位/面试总数 + 各流程阶段人数。"""
     stage_rows = (
-        db.session.query(PipelineStage.stage, db.func.count(PipelineStage.id))
+        db.session.query(PipelineStage.stage, db.func.count(PipelineStage.candidate_id))
         .group_by(PipelineStage.stage)
         .all()
     )
@@ -293,9 +295,10 @@ def _write_create_job(title: str = "", jd_text: str = "", actor_id: int = None, 
     structured = _extract_jd_structured(llm, jd_text)
     job = Job(title=title, jd_text=jd_text, jd_structured=structured, owner_hr_id=actor_id)
     db.session.add(job)
-    db.session.commit()
+    db.session.flush()  # 先 flush 确保 job.id 可用，但不 commit
     from ..middleware.events import record_event
     record_event("job.created", entity_id=job.id, entity_type="job")
+    db.session.commit()  # 原子提交：job + event 一起成功或一起回滚
     return {"job_id": job.id, "title": job.title, "structured": structured}
 
 
