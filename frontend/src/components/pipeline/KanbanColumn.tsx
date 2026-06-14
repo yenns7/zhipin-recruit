@@ -7,7 +7,7 @@ interface KanbanColumnProps {
   stage: StageConfig;
   candidates: PipelineBoardCandidate[];
   busyId: number | null;
-  onMove: (candidateId: number, toStage: PipelineStage) => void;
+  onMove: (candidateId: number, toStage: PipelineStage, note?: string) => void;
 }
 
 export function KanbanColumn({ stage, candidates, busyId, onMove }: KanbanColumnProps) {

@@ -58,7 +58,7 @@ export function PipelinePage() {
   }, [candidates]);
 
   const handleMove = useCallback(
-    async (candidateId: number, toStage: PipelineStage) => {
+    async (candidateId: number, toStage: PipelineStage, note?: string) => {
       if (effectiveJobId === null) return;
       setBusyId(candidateId);
       setToast(null);
@@ -67,6 +67,7 @@ export function PipelinePage() {
           candidate_id: candidateId,
           job_id: effectiveJobId,
           stage: toStage,
+          note,
         });
         setToast(`${res.name_masked || '候选人'} 已更新至「${stageLabel(toStage)}」`);
         await boardAsync.reload();

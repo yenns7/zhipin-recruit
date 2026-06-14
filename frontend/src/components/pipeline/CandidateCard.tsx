@@ -12,15 +12,17 @@ import { Spinner } from '../ui';
 // 给定当前阶段，推算"推进到下一阶段"的目标（用于一键推进按钮）。
 const FORWARD: Partial<Record<PipelineStage, PipelineStage>> = {
   pending: 'ai_screen',
-  ai_screen: 'interview',
-  interview: 'offer',
+  ai_screen: 'interview_first',
+  interview_first: 'interview_second',
+  interview_second: 'interview_final',
+  interview_final: 'offer',
   offer: 'onboarded',
 };
 
 interface CandidateCardProps {
   candidate: PipelineBoardCandidate;
   busy: boolean;
-  onMove: (candidateId: number, toStage: PipelineStage) => void;
+  onMove: (candidateId: number, toStage: PipelineStage, note?: string) => void;
 }
 
 export function CandidateCard({ candidate, busy, onMove }: CandidateCardProps) {
@@ -28,6 +30,11 @@ export function CandidateCard({ candidate, busy, onMove }: CandidateCardProps) {
   const stage = STAGE_BY_KEY[candidate.stage];
   const next = FORWARD[candidate.stage];
   const isTerminal = candidate.stage === 'onboarded' || candidate.stage === 'rejected';
+
+  const move = (toStage: PipelineStage) => {
+    const note = window.prompt('变更备注（可留空）') ?? undefined;
+    onMove(candidate.candidate_id, toStage, note);
+  };
 
   return (
     <div className="rounded-lg border border-hairline bg-canvas px-3 py-2.5 shadow-sm transition-shadow hover:shadow-md">
@@ -56,7 +63,7 @@ export function CandidateCard({ candidate, busy, onMove }: CandidateCardProps) {
           <button
             type="button"
             disabled={busy}
-            onClick={() => onMove(candidate.candidate_id, next)}
+            onClick={() => move(next)}
             className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium ${stage.badgeBg} transition-opacity hover:opacity-80 disabled:opacity-50`}
           >
             {STAGE_BY_KEY[next].label}
@@ -69,7 +76,7 @@ export function CandidateCard({ candidate, busy, onMove }: CandidateCardProps) {
           <button
             type="button"
             disabled={busy}
-            onClick={() => onMove(candidate.candidate_id, 'rejected')}
+            onClick={() => move('rejected')}
             className="rounded-md px-2 py-1 text-[11px] font-medium text-danger-600 hover:bg-danger-50 disabled:opacity-50"
           >
             淘汰
@@ -100,7 +107,7 @@ export function CandidateCard({ candidate, busy, onMove }: CandidateCardProps) {
                     disabled={s.key === candidate.stage}
                     onClick={() => {
                       setPicking(false);
-                      onMove(candidate.candidate_id, s.key);
+                      move(s.key);
                     }}
                     className={`flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-xs hover:bg-surface-soft disabled:cursor-default disabled:opacity-40 ${
                       s.key === candidate.stage ? 'font-semibold text-ink' : 'text-body'

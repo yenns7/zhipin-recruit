@@ -6,7 +6,9 @@ export type Role = 'recruiter' | 'manager' | 'admin' | 'interviewer';
 export type PipelineStage =
   | 'pending'
   | 'ai_screen'
-  | 'interview'
+  | 'interview_first'
+  | 'interview_second'
+  | 'interview_final'
   | 'offer'
   | 'onboarded'
   | 'rejected';
@@ -202,6 +204,7 @@ export interface PipelineMoveRequest {
   candidate_id: number;
   job_id: number;
   stage: PipelineStage;
+  note?: string;
 }
 
 export interface PipelineMoveResponse {
@@ -222,6 +225,7 @@ export interface PipelineBoardCandidate {
   stage: PipelineStage;
   updated_at: string | null;
   updated_by_name: string | null;
+  note?: string | null;
 }
 
 // Full board payload for one job: candidates bucketed by their current stage.
@@ -237,6 +241,7 @@ export interface PipelineHistoryStep {
   stage: PipelineStage;
   ts: string | null;
   updated_by_name: string | null;
+  note?: string | null;
 }
 
 export interface PipelineHistory {
