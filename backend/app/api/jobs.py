@@ -250,3 +250,84 @@ def match_job(job_id):
     results = svc.rank_for_job(job_id)
     record_event("match.run", entity_id=job_id, entity_type="job", payload={"count": len(results)})
     return jsonify({"job_id": job_id, "results": results})
+
+
+@bp.post("/jobs/<int:job_id>/batch-pipeline")
+@require_auth
+def batch_add_to_pipeline(job_id):
+    if g.role not in ("recruiter", "manager", "admin"):
+        return jsonify({"error": "Forbidden"}), 403
+
+    data = request.get_json() or {}
+    raw_ids = data.get("candidate_ids")
+    if not isinstance(raw_ids, list) or len(raw_ids) == 0:
+        return jsonify({"error": "candidate_ids required"}), 400
+
+    job = Job.query.get_or_404(job_id)
+
+    candidate_ids = []
+    seen = set()
+    for raw_id in raw_ids:
+        try:
+            candidate_id = int(raw_id)
+        except (TypeError, ValueError):
+            continue
+        if candidate_id > 0 and candidate_id not in seen:
+            candidate_ids.append(candidate_id)
+            seen.add(candidate_id)
+
+    if not candidate_ids:
+        return jsonify({"error": "candidate_ids required"}), 400
+
+    from ..models import Candidate, PipelineStage
+
+    existing_ids = {
+        row[0]
+        for row in db.session.query(PipelineStage.candidate_id)
+        .filter(PipelineStage.job_id == job.id, PipelineStage.candidate_id.in_(candidate_ids))
+        .distinct()
+        .all()
+    }
+    valid_ids = {
+        row[0]
+        for row in db.session.query(Candidate.id)
+        .filter(Candidate.id.in_(candidate_ids))
+        .all()
+    }
+
+    added = 0
+    skipped_existing = 0
+    skipped_missing = 0
+    for candidate_id in candidate_ids:
+        if candidate_id not in valid_ids:
+            skipped_missing += 1
+            continue
+        if candidate_id in existing_ids:
+            skipped_existing += 1
+            continue
+        db.session.add(PipelineStage(
+            candidate_id=candidate_id,
+            job_id=job.id,
+            stage="pending",
+            updated_by=g.user_id,
+            note="批量加入匹配流程",
+        ))
+        added += 1
+
+    db.session.commit()
+    record_event(
+        "pipeline.batch_add",
+        entity_id=job.id,
+        entity_type="job",
+        payload={
+            "added": added,
+            "skipped_existing": skipped_existing,
+            "skipped_missing": skipped_missing,
+        },
+    )
+    return jsonify({
+        "job_id": job.id,
+        "added": added,
+        "skipped_existing": skipped_existing,
+        "skipped_missing": skipped_missing,
+    })

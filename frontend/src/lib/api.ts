@@ -7,6 +7,7 @@ import type {
   AdminUser,
   AuditLogQuery,
   AuditLogResponse,
+  BatchAddToPipelineResponse,
   BiOverview,
   BiStaffDetail,
   BiJobDetail,
@@ -226,6 +227,15 @@ export const api = {
   // use this RESTful, job-scoped method.
   matchJob(jobId: number): Promise<MatchResponse> {
     return request(`/jobs/${jobId}/match`, { method: 'POST' });
+  },
+  batchAddToPipeline(
+    jobId: number,
+    candidateIds: number[],
+  ): Promise<BatchAddToPipelineResponse> {
+    return request(`/jobs/${jobId}/batch-pipeline`, {
+      method: 'POST',
+      body: { candidate_ids: candidateIds },
+    });
   },
   // Thin alias kept only for backend compatibility (POST /match with job_id in
   // the body). Prefer matchJob above; do not build new pages on this.

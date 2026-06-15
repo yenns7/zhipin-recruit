@@ -1,6 +1,6 @@
 // 岗位匹配页 — 展示与当前岗位匹配的候选人排名及标签分析，并可一键将候选人加入招聘流程。
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, Users } from 'lucide-react';
 import { api } from '../lib/api';
@@ -50,18 +50,35 @@ function MatchRow({
   jobId,
   joinState,
   onJoin,
+  selected,
+  onToggleSelect,
+  disabled,
 }: {
   rank: number;
   item: MatchResultItem;
   jobId: number;
   joinState: 'idle' | 'joining' | 'joined' | 'error';
   onJoin: (candidateId: number) => void;
+  selected: boolean;
+  onToggleSelect: (candidateId: number) => void;
+  disabled: boolean;
 }) {
   const matched = Array.isArray(item.matched_tags) ? item.matched_tags : [];
   const missing = Array.isArray(item.missing_tags) ? item.missing_tags : [];
+  const canSelect = joinState !== 'joined' && !disabled;
 
   return (
     <tr className="border-b border-hairline-soft transition-colors hover:bg-surface-soft last:border-0">
+      <td className="px-5 py-3.5 w-10">
+        <input
+          type="checkbox"
+          checked={selected}
+          disabled={!canSelect}
+          onChange={() => onToggleSelect(item.candidate_id)}
+          aria-label={`选择 ${item.name_masked}`}
+          className="h-4 w-4 rounded border-hairline text-ink focus:ring-ink disabled:opacity-40"
+        />
+      </td>
       {/* Rank */}
       <td className="px-5 py-3.5 w-10">
         <span className="text-sm font-medium text-muted-soft">{rank}</span>
@@ -172,13 +189,65 @@ export function JobMatchPage() {
   const [joinStates, setJoinStates] = useState<
     Record<number, 'idle' | 'joining' | 'joined' | 'error'>
   >({});
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [batchStatus, setBatchStatus] = useState<'idle' | 'adding' | 'done' | 'error'>('idle');
+  const [batchMessage, setBatchMessage] = useState<string | null>(null);
+
   const existingPipelineIds = useMemo(
     () => new Set((pipelineAsync.data?.candidates ?? []).map((c) => c.candidate_id)),
     [pipelineAsync.data],
   );
+  const sortedResults = useMemo(
+    () => [...(data?.results ?? [])].sort((a, b) => b.score - a.score),
+    [data],
+  );
+  const joinedCandidateIds = useMemo(() => {
+    const ids = new Set(existingPipelineIds);
+    Object.entries(joinStates).forEach(([candidateId, state]) => {
+      if (state === 'joined') ids.add(Number(candidateId));
+    });
+    return ids;
+  }, [existingPipelineIds, joinStates]);
+  const selectableResults = useMemo(
+    () => sortedResults.filter((item) => !joinedCandidateIds.has(item.candidate_id)),
+    [joinedCandidateIds, sortedResults],
+  );
+  const allSelected =
+    selectableResults.length > 0 &&
+    selectableResults.every((item) => selectedIds.has(item.candidate_id));
+  const someSelected = selectedIds.size > 0;
+
+  const toggleSelect = useCallback((candidateId: number) => {
+    if (joinedCandidateIds.has(candidateId)) return;
+    setBatchStatus('idle');
+    setBatchMessage(null);
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(candidateId)) {
+        next.delete(candidateId);
+      } else {
+        next.add(candidateId);
+      }
+      return next;
+    });
+  }, [joinedCandidateIds]);
+
+  const toggleSelectAll = useCallback(() => {
+    setBatchStatus('idle');
+    setBatchMessage(null);
+    setSelectedIds(() => {
+      if (allSelected) return new Set();
+      return new Set(selectableResults.map((item) => item.candidate_id));
+    });
+  }, [allSelected, selectableResults]);
 
   async function handleJoin(candidateId: number) {
     setJoinStates((prev) => ({ ...prev, [candidateId]: 'joining' }));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(candidateId);
+      return next;
+    });
     try {
       await api.movePipeline({
         candidate_id: candidateId,
@@ -189,6 +258,30 @@ export function JobMatchPage() {
       void pipelineAsync.reload();
     } catch {
       setJoinStates((prev) => ({ ...prev, [candidateId]: 'error' }));
+    }
+  }
+
+  async function handleBatchAdd() {
+    const ids = Array.from(selectedIds).filter((candidateId) => !joinedCandidateIds.has(candidateId));
+    if (ids.length === 0) return;
+    setBatchStatus('adding');
+    setBatchMessage(null);
+    try {
+      const result = await api.batchAddToPipeline(jobId, ids);
+      setJoinStates((prev) => {
+        const next = { ...prev };
+        ids.forEach((candidateId) => {
+          next[candidateId] = 'joined';
+        });
+        return next;
+      });
+      setSelectedIds(new Set());
+      setBatchStatus('done');
+      setBatchMessage(`成功加入 ${result.added} 位，已存在 ${result.skipped_existing} 位`);
+      void pipelineAsync.reload();
+    } catch (err) {
+      setBatchStatus('error');
+      setBatchMessage(err instanceof Error ? err.message : '批量加入失败');
     }
   }
 
@@ -252,8 +345,7 @@ export function JobMatchPage() {
 
       {/* Results */}
       {!loading && !error && data && (() => {
-        // Sort defensively by score descending (backend already sorts, but be safe).
-        const results = [...(data.results ?? [])].sort((a, b) => b.score - a.score);
+        const results = sortedResults;
 
         if (results.length === 0) {
           return (
@@ -270,15 +362,50 @@ export function JobMatchPage() {
         return (
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <CardTitle>匹配结果</CardTitle>
-                <span className="text-xs text-muted-soft">共 {results.length} 位候选人</span>
+                <div className="flex flex-wrap items-center justify-end gap-3">
+                  {batchMessage && (
+                    <span
+                      className={
+                        batchStatus === 'error'
+                          ? 'text-xs font-medium text-danger-600'
+                          : 'text-xs font-medium text-success-600'
+                      }
+                    >
+                      {batchMessage}
+                    </span>
+                  )}
+                  {someSelected && (
+                    <span className="text-xs text-muted-soft">已选 {selectedIds.size} 位</span>
+                  )}
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={!someSelected || batchStatus === 'adding'}
+                    loading={batchStatus === 'adding'}
+                    onClick={handleBatchAdd}
+                  >
+                    批量加入流程
+                  </Button>
+                  <span className="text-xs text-muted-soft">共 {results.length} 位候选人</span>
+                </div>
               </div>
             </CardHeader>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-hairline-soft bg-surface-soft text-left text-xs font-medium uppercase tracking-wide text-muted">
+                    <th className="px-5 py-3 w-10">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        disabled={selectableResults.length === 0 || batchStatus === 'adding'}
+                        onChange={toggleSelectAll}
+                        aria-label="选择全部未加入候选人"
+                        className="h-4 w-4 rounded border-hairline text-ink focus:ring-ink disabled:opacity-40"
+                      />
+                    </th>
                     <th className="px-5 py-3 w-10">排名</th>
                     <th className="px-5 py-3">候选人</th>
                     <th className="px-5 py-3">匹配度</th>
@@ -299,6 +426,9 @@ export function JobMatchPage() {
                         (existingPipelineIds.has(item.candidate_id) ? 'joined' : 'idle')
                       }
                       onJoin={handleJoin}
+                      selected={selectedIds.has(item.candidate_id)}
+                      onToggleSelect={toggleSelect}
+                      disabled={batchStatus === 'adding'}
                     />
                   ))}
                 </Reveal>

@@ -201,6 +201,13 @@ export interface MatchResponse {
   results: MatchResultItem[];
 }
 
+export interface BatchAddToPipelineResponse {
+  job_id: number;
+  added: number;
+  skipped_existing: number;
+  skipped_missing: number;
+}
+
 // ---- Interview ----
 export interface InterviewStartRequest {
   candidate_id: number;
