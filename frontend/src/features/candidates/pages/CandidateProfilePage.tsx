@@ -10,15 +10,15 @@ import {
   PolarRadiusAxis,
   ResponsiveContainer,
 } from 'recharts';
-import { api } from '../lib/api';
-import { formatDate } from '../lib/formatDate';
-import { useAsync } from '../lib/useAsync';
-import { useAuth } from '../lib/auth';
-import { Badge, Card, CardBody, CardHeader, CardTitle, Spinner, ErrorState } from '../components/ui';
-import { Reveal } from '../components/motion';
-import { PipelineProgress } from '../components/candidate/PipelineProgress';
-import { ReassignOwner } from '../components/candidate/ReassignOwner';
-import type { CandidateTag, ResumeJson } from '../types';
+import { candidatesApi as api } from '../api';
+import { formatDate } from '../../../lib/formatDate';
+import { useAsync } from '../../../lib/useAsync';
+import { useAuth } from '../../../lib/auth';
+import { Badge, Card, CardBody, CardHeader, CardTitle, Spinner, ErrorState } from '../../../components/ui';
+import { Reveal } from '../../../components/motion';
+import { PipelineProgress } from '../../../components/candidate/PipelineProgress';
+import { ReassignOwner } from '../../../components/candidate/ReassignOwner';
+import type { CandidateSourceInfo, CandidateTag, ResumeJson } from '../types';
 
 // Cal.com 近黑配色 hex（recharts 不接受 tailwind 类）
 const RADAR_STROKE = '#111111';
@@ -350,6 +350,56 @@ function ResumeJsonView({ resumeJson }: { resumeJson: ResumeJson }) {
   );
 }
 
+function SourceInfoCard({ source }: { source: CandidateSourceInfo | null | undefined }) {
+  if (!source) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>来源信息</CardTitle>
+        </CardHeader>
+        <CardBody>
+          <p className="text-sm text-muted-soft">暂无来源记录</p>
+        </CardBody>
+      </Card>
+    );
+  }
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>来源信息</CardTitle>
+      </CardHeader>
+      <CardBody>
+        <dl className="space-y-2 text-sm">
+          <div>
+            <dt className="text-xs text-muted">来源渠道</dt>
+            <dd className="font-medium text-ink">{source.channel || '未填写'}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">目标岗位</dt>
+            <dd className="text-body">{source.target_job_title || '未关联'}</dd>
+          </div>
+          {source.referrer && (
+            <div>
+              <dt className="text-xs text-muted">推荐人</dt>
+              <dd className="text-body">{source.referrer}</dd>
+            </div>
+          )}
+          {source.note && (
+            <div>
+              <dt className="text-xs text-muted">备注</dt>
+              <dd className="text-body">{source.note}</dd>
+            </div>
+          )}
+          <div>
+            <dt className="text-xs text-muted">上传批次</dt>
+            <dd className="text-body">#{source.batch_id}</dd>
+          </div>
+        </dl>
+      </CardBody>
+    </Card>
+  );
+}
+
 // ---- 主页面 ----
 
 export function CandidateProfilePage() {
@@ -411,7 +461,7 @@ export function CandidateProfilePage() {
 
   if (!data) return null;
 
-  const { name_masked, resume_json, tags, created_at } = data;
+  const { name_masked, resume_json, tags, created_at, source } = data;
   const hasTags = tags && tags.length > 0;
   const useRadar = hasTags && tags.length >= 3;
 
@@ -446,22 +496,25 @@ export function CandidateProfilePage() {
 
       <Reveal as="div" className="grid grid-cols-1 gap-6 lg:grid-cols-3" stagger={0.1} y={20}>
         {/* 左栏 — 技能评估 */}
-        <div className="lg:col-span-1">
-          <Card>
-            <CardHeader>
-              <CardTitle>{useRadar ? '技能雷达' : '技能评分'}</CardTitle>
-            </CardHeader>
-            <CardBody>
-              {!hasTags ? (
-                <p className="text-sm text-muted-soft">暂无技能标签</p>
-              ) : useRadar ? (
-                <TagRadarChart tags={tags} />
-              ) : (
-                <TagBars tags={tags} />
-              )}
-            </CardBody>
-          </Card>
-        </div>
+	        <div className="lg:col-span-1">
+	          <div className="space-y-4">
+	            <Card>
+	              <CardHeader>
+	                <CardTitle>{useRadar ? '技能雷达' : '技能评分'}</CardTitle>
+	              </CardHeader>
+	              <CardBody>
+	                {!hasTags ? (
+	                  <p className="text-sm text-muted-soft">暂无技能标签</p>
+	                ) : useRadar ? (
+	                  <TagRadarChart tags={tags} />
+	                ) : (
+	                  <TagBars tags={tags} />
+	                )}
+	              </CardBody>
+	            </Card>
+	            <SourceInfoCard source={source} />
+	          </div>
+	        </div>
 
         {/* 右栏 — 简历详情 */}
         <div className="lg:col-span-2">

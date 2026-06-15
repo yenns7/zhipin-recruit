@@ -1,5 +1,5 @@
 // 看板单列：一个阶段的标题、当前人数，以及该阶段下的候选人卡片。
-import type { PipelineBoardCandidate, PipelineStage } from '../../types';
+import type { CandidateDispositionInput, PipelineBoardCandidate, PipelineStage } from '../../types';
 import type { StageConfig } from '../../lib/pipelineStages';
 import { CandidateCard } from './CandidateCard';
 
@@ -8,10 +8,23 @@ interface KanbanColumnProps {
   candidates: PipelineBoardCandidate[];
   busyId: number | null;
   jobId: number;
-  onMove: (candidateId: number, toStage: PipelineStage, note?: string) => void;
+  highlightedCandidateId: number | null;
+  onMove: (
+    candidateId: number,
+    toStage: PipelineStage,
+    note?: string,
+    disposition?: CandidateDispositionInput,
+  ) => void;
 }
 
-export function KanbanColumn({ stage, candidates, busyId, jobId, onMove }: KanbanColumnProps) {
+export function KanbanColumn({
+  stage,
+  candidates,
+  busyId,
+  jobId,
+  highlightedCandidateId,
+  onMove,
+}: KanbanColumnProps) {
   return (
     <div
       className={`flex min-h-[200px] flex-col rounded-xl border ${stage.border} ${stage.bg} px-3 py-3`}
@@ -40,6 +53,7 @@ export function KanbanColumn({ stage, candidates, busyId, jobId, onMove }: Kanba
               candidate={c}
               busy={busyId === c.candidate_id}
               jobId={jobId}
+              highlighted={highlightedCandidateId === c.candidate_id}
               onMove={onMove}
             />
           ))

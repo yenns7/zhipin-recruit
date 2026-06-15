@@ -3,6 +3,7 @@ from ..middleware.auth import require_auth, require_role
 from ..middleware.events import record_event
 from .. import db
 from ..models import User
+from ..services.agent_service import get_agent_architecture_dashboard
 
 bp = Blueprint("admin", __name__)
 VALID_ROLES = {"recruiter", "interviewer", "manager", "admin"}
@@ -18,6 +19,13 @@ def list_users():
         "is_active": u.is_active,
         "created_at": u.created_at.isoformat() if u.created_at else None,
     } for u in users])
+
+
+@bp.get("/admin/ai-architecture")
+@require_auth
+@require_role("admin")
+def ai_architecture():
+    return jsonify(get_agent_architecture_dashboard())
 
 
 @bp.patch("/admin/users/<int:user_id>")

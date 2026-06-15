@@ -30,10 +30,61 @@ def create_app(config=None):
 
     with app.app_context():
         db.create_all()
+        _ensure_job_metadata_columns()
+        _ensure_workflow_enhancement_columns()
 
     _register_frontend(app)
 
     return app
+
+
+def _ensure_job_metadata_columns():
+    """Lightweight compatibility for existing local SQLite databases."""
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(db.engine)
+    if "jobs" not in inspector.get_table_names():
+        return
+
+    columns = {column["name"] for column in inspector.get_columns("jobs")}
+    additions = {
+        "city": "ALTER TABLE jobs ADD COLUMN city VARCHAR(80) DEFAULT ''",
+        "department": "ALTER TABLE jobs ADD COLUMN department VARCHAR(120) DEFAULT ''",
+        "job_code": "ALTER TABLE jobs ADD COLUMN job_code VARCHAR(80) DEFAULT ''",
+    }
+
+    changed = False
+    for name, statement in additions.items():
+        if name not in columns:
+            db.session.execute(text(statement))
+            changed = True
+
+    if changed:
+        db.session.commit()
+
+
+def _ensure_workflow_enhancement_columns():
+    """Lightweight compatibility for enhancement fields on existing SQLite DBs."""
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(db.engine)
+    if "candidates" not in inspector.get_table_names():
+        return
+
+    candidate_columns = {column["name"] for column in inspector.get_columns("candidates")}
+    changed = False
+    if "upload_batch_id" not in candidate_columns:
+        db.session.execute(text("ALTER TABLE candidates ADD COLUMN upload_batch_id INTEGER"))
+        changed = True
+
+    if "interview_feedback" in inspector.get_table_names():
+        feedback_columns = {column["name"] for column in inspector.get_columns("interview_feedback")}
+        if "evaluation_json" not in feedback_columns:
+            db.session.execute(text("ALTER TABLE interview_feedback ADD COLUMN evaluation_json JSON"))
+            changed = True
+
+    if changed:
+        db.session.commit()
 
 
 def _register_frontend(app):

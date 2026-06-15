@@ -1,8 +1,8 @@
 // 岗位管理页 — 新建岗位 + 岗位列表。
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Briefcase } from 'lucide-react';
+import { Briefcase, Plus, X } from 'lucide-react';
 import { api } from '../lib/api';
 import { formatDate } from '../lib/formatDate';
 import { useAsync } from '../lib/useAsync';
@@ -104,10 +104,14 @@ function StructuredResult({ structured }: { structured: JobStructured }) {
 
 interface CreateJobFormProps {
   onCreated: (result: CreateJobResponse) => void;
+  onCancel: () => void;
 }
 
-function CreateJobForm({ onCreated }: CreateJobFormProps) {
+function CreateJobForm({ onCreated, onCancel }: CreateJobFormProps) {
   const [title, setTitle] = useState('');
+  const [city, setCity] = useState('');
+  const [department, setDepartment] = useState('');
+  const [jobCode, setJobCode] = useState('');
   const [jdText, setJdText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -137,11 +141,17 @@ function CreateJobForm({ onCreated }: CreateJobFormProps) {
     try {
       const result = await api.createJob({
         title: title.trim(),
+        city: city.trim(),
+        department: department.trim(),
+        job_code: jobCode.trim(),
         jd_text: jdText.trim(),
         clarifications,
       });
       onCreated(result);
       setTitle('');
+      setCity('');
+      setDepartment('');
+      setJobCode('');
       setJdText('');
       resetFlow();
     } catch (err) {
@@ -186,7 +196,23 @@ function CreateJobForm({ onCreated }: CreateJobFormProps) {
   return (
     <Card variant="elevated">
       <CardHeader>
-        <CardTitle>{phase === 'edit' ? '新建岗位' : 'AI 澄清追问'}</CardTitle>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <CardTitle>{phase === 'edit' ? '新建岗位' : 'AI 澄清追问'}</CardTitle>
+            <p className="mt-1 text-xs text-muted">
+              偶发创建入口，保存后会自动回到岗位列表
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={clarifying || submitting}
+            className="rounded-md p-2 text-muted hover:bg-surface-soft hover:text-ink disabled:opacity-50"
+            aria-label="收起新增岗位"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </CardHeader>
       <CardBody>
         {phase === 'edit' ? (
@@ -200,6 +226,32 @@ function CreateJobForm({ onCreated }: CreateJobFormProps) {
               disabled={clarifying || submitting}
               required
             />
+            <div className="grid gap-3 md:grid-cols-3">
+              <Input
+                label="城市"
+                name="city"
+                placeholder="例：上海"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                disabled={clarifying || submitting}
+              />
+              <Input
+                label="部门"
+                name="department"
+                placeholder="例：技术部"
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+                disabled={clarifying || submitting}
+              />
+              <Input
+                label="岗位编号"
+                name="job_code"
+                placeholder="例：SH-BE-001"
+                value={jobCode}
+                onChange={(e) => setJobCode(e.target.value)}
+                disabled={clarifying || submitting}
+              />
+            </div>
             <div className="w-full">
               <label
                 htmlFor="jd_text"
@@ -309,6 +361,9 @@ function CreateJobForm({ onCreated }: CreateJobFormProps) {
 
 export function JobsPage() {
   const { data, loading, error, reload } = useAsync(() => api.listJobs(), []);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [cityFilter, setCityFilter] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('');
 
   // Latest created job result — shown inline after creation
   const [lastCreated, setLastCreated] = useState<CreateJobResponse | null>(null);
@@ -316,12 +371,31 @@ export function JobsPage() {
   const handleCreated = useCallback(
     (result: CreateJobResponse) => {
       setLastCreated(result);
+      setShowCreateForm(false);
       reload();
     },
     [reload]
   );
 
-  const jobs = data ?? [];
+  const jobs = useMemo(() => data ?? [], [data]);
+  const cityOptions = useMemo(
+    () => Array.from(new Set(jobs.map((job) => job.city).filter(Boolean))).sort(),
+    [jobs]
+  );
+  const departmentOptions = useMemo(
+    () => Array.from(new Set(jobs.map((job) => job.department).filter(Boolean))).sort(),
+    [jobs]
+  );
+  const filteredJobs = useMemo(
+    () =>
+      jobs.filter((job) => {
+        const cityMatches = !cityFilter || job.city === cityFilter;
+        const departmentMatches = !departmentFilter || job.department === departmentFilter;
+        return cityMatches && departmentMatches;
+      }),
+    [cityFilter, departmentFilter, jobs]
+  );
+  const hasActiveFilters = cityFilter !== '' || departmentFilter !== '';
 
   // Close (take offline) a job after confirmation, then refresh the list.
   const [closingId, setClosingId] = useState<number | null>(null);
@@ -346,11 +420,36 @@ export function JobsPage() {
       {/* Page header */}
       <PageHeader
         title="岗位管理"
-        description="创建招聘岗位并查看 AI 解析的技能要求"
+        description="查看在招岗位、运行候选人匹配，必要时再新增岗位"
+        actions={
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => setShowCreateForm((v) => !v)}
+            variant={showCreateForm ? 'secondary' : 'primary'}
+          >
+            {showCreateForm ? (
+              <>
+                <X className="h-4 w-4" />
+                收起
+              </>
+            ) : (
+              <>
+                <Plus className="h-4 w-4" />
+                新增岗位
+              </>
+            )}
+          </Button>
+        }
       />
 
       {/* Create form */}
-      <CreateJobForm onCreated={handleCreated} />
+      {showCreateForm && (
+        <CreateJobForm
+          onCreated={handleCreated}
+          onCancel={() => setShowCreateForm(false)}
+        />
+      )}
 
       {/* AI 解析结果 after creation */}
       {lastCreated && (
@@ -359,7 +458,11 @@ export function JobsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>AI 解析结果</CardTitle>
-                <p className="mt-0.5 text-xs text-muted">岗位：{lastCreated.title}</p>
+                <p className="mt-0.5 text-xs text-muted">
+                  岗位：{lastCreated.title}
+                  {lastCreated.city ? ` · ${lastCreated.city}` : ''}
+                  {lastCreated.department ? ` · ${lastCreated.department}` : ''}
+                </p>
               </div>
               <Button variant="ghost" size="sm" onClick={() => setLastCreated(null)} aria-label="关闭解析结果">✕</Button>
             </div>
@@ -374,10 +477,46 @@ export function JobsPage() {
       {/* Job list */}
       <Card variant="elevated">
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>岗位列表</CardTitle>
-            {!loading && (
-              <span className="text-xs text-muted-soft">共 {jobs.length} 个岗位</span>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <CardTitle>岗位列表</CardTitle>
+              {!loading && (
+                <p className="mt-1 text-xs text-muted-soft">
+                  {hasActiveFilters
+                    ? `筛选后 ${filteredJobs.length} 个 / 共 ${jobs.length} 个岗位`
+                    : `共 ${jobs.length} 个岗位`}
+                </p>
+              )}
+            </div>
+            {!loading && jobs.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={cityFilter}
+                  onChange={(e) => setCityFilter(e.target.value)}
+                  className="h-9 rounded-md border border-hairline bg-canvas px-3 text-xs font-medium text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+                  aria-label="按城市筛选岗位"
+                >
+                  <option value="">全部城市</option>
+                  {cityOptions.map((cityName) => (
+                    <option key={cityName} value={cityName}>
+                      {cityName}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={departmentFilter}
+                  onChange={(e) => setDepartmentFilter(e.target.value)}
+                  className="h-9 rounded-md border border-hairline bg-canvas px-3 text-xs font-medium text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+                  aria-label="按部门筛选岗位"
+                >
+                  <option value="">全部部门</option>
+                  {departmentOptions.map((departmentName) => (
+                    <option key={departmentName} value={departmentName}>
+                      {departmentName}
+                    </option>
+                  ))}
+                </select>
+              </div>
             )}
           </div>
         </CardHeader>
@@ -394,26 +533,48 @@ export function JobsPage() {
           <EmptyState
             icon={Briefcase}
             title="暂无岗位"
-            description="使用上方表单新建第一个招聘岗位"
+            description="点击右上角「新增岗位」创建第一个招聘岗位"
           />
+        ) : filteredJobs.length === 0 ? (
+          <CardBody>
+            <EmptyState
+              icon={Briefcase}
+              title="没有符合筛选条件的岗位"
+              description="切换城市或部门筛选后再查看"
+            />
+          </CardBody>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-hairline-soft bg-surface-soft text-left text-xs font-medium uppercase tracking-wide text-muted">
+                  <th className="px-5 py-3">岗位编号</th>
                   <th className="px-5 py-3">岗位名称</th>
+                  <th className="px-5 py-3">城市</th>
+                  <th className="px-5 py-3">部门</th>
                   <th className="px-5 py-3">创建时间</th>
                   <th className="px-5 py-3 text-right">操作</th>
                 </tr>
               </thead>
               <Reveal as="tbody" className="divide-y divide-hairline-soft" stagger={0.05} y={12}>
-                {jobs.map((job) => (
+                {filteredJobs.map((job) => (
                   <tr
                     key={job.id}
                     className="transition-colors hover:bg-surface-soft"
                   >
                     <td className="px-5 py-3.5">
+                      <span className="font-mono text-xs text-muted">
+                        {job.job_code || `JOB-${job.id}`}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5">
                       <span className="font-medium text-ink">{job.title}</span>
+                    </td>
+                    <td className="px-5 py-3.5 text-muted">
+                      {job.city || '未设置'}
+                    </td>
+                    <td className="px-5 py-3.5 text-muted">
+                      {job.department || '未设置'}
                     </td>
                     <td className="px-5 py-3.5 text-muted">
                       {formatDate(job.created_at)}
@@ -425,6 +586,12 @@ export function JobsPage() {
                           className="text-xs font-medium text-ink hover:text-body hover:underline"
                         >
                           匹配候选人
+                        </Link>
+                        <Link
+                          to={`/pipeline?job=${job.id}`}
+                          className="text-xs font-medium text-muted hover:text-ink hover:underline"
+                        >
+                          查看招聘流程
                         </Link>
                         <button
                           onClick={() => handleClose(job.id, job.title)}

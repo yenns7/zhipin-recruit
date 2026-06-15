@@ -6,6 +6,7 @@ from ..middleware.events import record_event
 from ..services.match_service import MatchService
 from .. import db
 from ..models import Job
+from .access import assigned_job_ids_for_interviewer
 
 BASE_AGENT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "base_agent"
 if str(BASE_AGENT_DIR) not in sys.path:
@@ -52,6 +53,34 @@ def _extract_jd_structured(llm, jd_text):
         return _json.loads(m.group()) if m else {}
     except Exception:
         return {}
+
+
+def _clean_optional(value, max_len):
+    if value is None:
+        return ""
+    return str(value).strip()[:max_len]
+
+
+def _job_list_payload(job):
+    return {
+        "id": job.id,
+        "title": job.title,
+        "city": job.city or "",
+        "department": job.department or "",
+        "job_code": job.job_code or "",
+        "created_at": job.created_at.isoformat(),
+    }
+
+
+def _job_detail_payload(job):
+    payload = _job_list_payload(job)
+    payload.update({
+        "jd_text": job.jd_text,
+        "structured": job.jd_structured or {},
+        "status": job.status,
+        "owner_hr_id": job.owner_hr_id,
+    })
+    return payload
 
 
 @bp.post("/jobs/clarify")
@@ -117,6 +146,9 @@ def create_job():
 
     job = Job(
         title=data["title"],
+        city=_clean_optional(data.get("city"), 80),
+        department=_clean_optional(data.get("department"), 120),
+        job_code=_clean_optional(data.get("job_code"), 80),
         jd_text=jd_text,
         jd_structured=structured,
         owner_hr_id=g.user_id,
@@ -124,14 +156,25 @@ def create_job():
     db.session.add(job)
     db.session.commit()
     record_event("job.created", entity_id=job.id, entity_type="job")
-    return jsonify({"id": job.id, "title": job.title, "structured": structured}), 201
+    return jsonify({
+        "id": job.id,
+        "title": job.title,
+        "city": job.city or "",
+        "department": job.department or "",
+        "job_code": job.job_code or "",
+        "structured": structured,
+    }), 201
 
 
 @bp.get("/jobs")
 @require_auth
 def list_jobs():
-    jobs = Job.query.filter_by(status="active").all()
-    return jsonify([{"id": j.id, "title": j.title, "created_at": j.created_at.isoformat()} for j in jobs])
+    q = Job.query.filter_by(status="active")
+    if g.role == "interviewer":
+        assigned_ids = assigned_job_ids_for_interviewer(g.user_id)
+        q = q.filter(Job.id.in_(assigned_ids or [-1]))
+    jobs = q.all()
+    return jsonify([_job_list_payload(j) for j in jobs])
 
 
 @bp.get("/jobs/<int:job_id>")
@@ -139,15 +182,9 @@ def list_jobs():
 def get_job(job_id):
     """单个岗位详情，含结构化 JD。"""
     job = Job.query.get_or_404(job_id)
-    return jsonify({
-        "id": job.id,
-        "title": job.title,
-        "jd_text": job.jd_text,
-        "structured": job.jd_structured or {},
-        "status": job.status,
-        "owner_hr_id": job.owner_hr_id,
-        "created_at": job.created_at.isoformat() if job.created_at else None,
-    })
+    if g.role == "interviewer" and job.id not in assigned_job_ids_for_interviewer(g.user_id):
+        return jsonify({"error": "Forbidden"}), 403
+    return jsonify(_job_detail_payload(job))
 
 
 def _can_manage_job(job):
@@ -160,7 +197,7 @@ def _can_manage_job(job):
 @bp.put("/jobs/<int:job_id>")
 @require_auth
 def update_job(job_id):
-    """编辑岗位：改 title / jd_text（jd_text 变化时重新结构化）。"""
+    """编辑岗位：改基础信息 / JD（jd_text 变化时重新结构化）。"""
     job = Job.query.get_or_404(job_id)
     if not _can_manage_job(job):
         return jsonify({"error": "无权编辑该岗位"}), 403
@@ -180,12 +217,15 @@ def update_job(job_id):
         # JD 变了，重新结构化
         from llm_client import LLMClient
         job.jd_structured = _extract_jd_structured(LLMClient(), jd_text)
+    if "city" in data:
+        job.city = _clean_optional(data.get("city"), 80)
+    if "department" in data:
+        job.department = _clean_optional(data.get("department"), 120)
+    if "job_code" in data:
+        job.job_code = _clean_optional(data.get("job_code"), 80)
     db.session.commit()
     record_event("job.updated", entity_id=job.id, entity_type="job")
-    return jsonify({
-        "id": job.id, "title": job.title, "jd_text": job.jd_text,
-        "structured": job.jd_structured or {}, "status": job.status,
-    })
+    return jsonify(_job_detail_payload(job))
 
 
 @bp.post("/jobs/<int:job_id>/close")
@@ -204,6 +244,8 @@ def close_job(job_id):
 @bp.post("/jobs/<int:job_id>/match")
 @require_auth
 def match_job(job_id):
+    if g.role not in ("recruiter", "manager", "admin"):
+        return jsonify({"error": "Forbidden"}), 403
     svc = MatchService()
     results = svc.rank_for_job(job_id)
     record_event("match.run", entity_id=job_id, entity_type="job", payload={"count": len(results)})

@@ -2,16 +2,15 @@
 
 import {
   LayoutDashboard,
-  Users,
-  Upload,
   Briefcase,
   KanbanSquare,
   BarChart3,
   Bot,
   Sparkles,
-  ShieldCheck,
+  Settings,
   type LucideIcon,
 } from 'lucide-react';
+import { featureNavItems } from '../app/featureRegistry';
 import type { Role } from '../types';
 
 export interface NavItem {
@@ -37,13 +36,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Sparkles,
     roles: ['recruiter', 'manager', 'admin', 'interviewer'],
   },
-  {
-    to: '/candidates',
-    label: '候选人',
-    icon: Users,
-    roles: ['recruiter', 'manager', 'admin', 'interviewer'],
-  },
-  { to: '/upload', label: '简历上传', icon: Upload, roles: ALL_STAFF },
+  ...featureNavItems,
   { to: '/jobs', label: '岗位管理', icon: Briefcase, roles: ALL_STAFF },
   {
     to: '/pipeline',
@@ -53,7 +46,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     to: '/interviews',
-    label: '面试记录',
+    label: '面试中心',
     icon: Bot,
     roles: ['recruiter', 'interviewer', 'manager', 'admin'],
   },
@@ -64,9 +57,9 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ['manager', 'admin'],
   },
   {
-    to: '/admin/users',
-    label: '用户管理',
-    icon: ShieldCheck,
+    to: '/admin/settings',
+    label: '系统设置',
+    icon: Settings,
     roles: ['admin'],
   },
 ];

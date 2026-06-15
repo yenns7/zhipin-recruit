@@ -1,11 +1,148 @@
+from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify, g
 from ..middleware.auth import require_auth
 from ..middleware.events import record_event
 from ..services.interview_service import PreScreenService
 from .. import db
-from ..models import Interview, Job
+from ..models import Interview, InterviewAssignment, Job
+from .access import interviewer_has_assignment
 
 bp = Blueprint("interview", __name__)
+
+
+INTERVIEW_ROUNDS = {"interview_first", "interview_second", "interview_final"}
+
+
+def _parse_datetime(value):
+    if not value:
+        return None
+    raw = str(value).replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
+def _normalize_for_compare(value):
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _sanitize_evaluation(value):
+    if not isinstance(value, dict):
+        return {}
+    evaluation = {}
+    for key, raw_score in value.items():
+        name = str(key or "").strip()[:40]
+        if not name:
+            continue
+        try:
+            score = int(raw_score)
+        except (TypeError, ValueError):
+            continue
+        evaluation[name] = min(5, max(1, score))
+    return evaluation
+
+
+def _resume_info(candidate):
+    resume = candidate.resume_json or {}
+    if not isinstance(resume, dict):
+        return {}
+    info = resume.get("extracted_info") or {}
+    return info if isinstance(info, dict) else {}
+
+
+def _top_candidate_tags(candidate, limit=5):
+    tags = sorted(
+        [tag for tag in candidate.tags if tag.tag],
+        key=lambda tag: (-(tag.score or 0), tag.tag),
+    )
+    return [tag.tag for tag in tags[:limit]]
+
+
+def _build_interview_guide(candidate, job, round_name):
+    info = _resume_info(candidate)
+    skills = _top_candidate_tags(candidate)
+    summary = str(info.get("summary") or "").strip()
+    jd_text = f"{job.title} {job.jd_text or ''}"
+    focus = []
+    if round_name == "interview_final":
+        focus.extend(["最终匹配度", "入职动机", "团队协作与稳定性"])
+    elif round_name == "interview_second":
+        focus.extend(["岗位深度能力", "项目复盘", "跨团队推动"])
+    else:
+        focus.extend(["岗位基础匹配", "核心技能验证", "项目真实性"])
+    focus.extend(skills[:3])
+    focus = list(dict.fromkeys([item for item in focus if item]))[:6]
+
+    questions = []
+    for skill in skills[:4]:
+        questions.append(f"请结合过往项目说明你如何使用或验证「{skill}」能力？")
+    if "用户研究" in jd_text and "用户研究" not in skills:
+        questions.append("请举例说明你如何从用户研究中提炼产品机会，并推动落地？")
+    if "数据" in jd_text and not any("数据" in skill for skill in skills):
+        questions.append("请讲一个你用数据分析影响产品决策的案例。")
+    if summary:
+        questions.append(f"简历提到「{summary[:32]}」，请展开讲最能代表你能力的项目。")
+    questions.extend([
+        "最近一个完整项目中，你负责的关键决策是什么，结果如何衡量？",
+        "如果入职该岗位，前三个月你会优先验证哪些问题？",
+    ])
+    questions = list(dict.fromkeys(questions))[:8]
+
+    return {
+        "candidate_id": candidate.id,
+        "job_id": job.id,
+        "round": round_name,
+        "focus": focus,
+        "questions": questions,
+        "risks": [
+            "确认简历核心项目是否为本人主导",
+            "追问岗位关键能力与实际产出的对应关系",
+            "对评分分歧点做事实澄清",
+        ],
+        "required_checks": ["面试结论", "是否推进下一轮", "关键优势与顾虑"],
+    }
+
+
+def _assignment_payload(item):
+    from ..models import Candidate, InterviewFeedback, User
+
+    candidate = Candidate.query.get(item.candidate_id)
+    job = Job.query.get(item.job_id)
+    interviewer = User.query.get(item.interviewer_id)
+    creator = User.query.get(item.created_by) if item.created_by else None
+    feedback_submitted = InterviewFeedback.query.filter_by(
+        candidate_id=item.candidate_id,
+        job_id=item.job_id,
+        round=item.round,
+        interviewer_id=item.interviewer_id,
+    ).first() is not None
+    scheduled_at = _normalize_for_compare(item.scheduled_at)
+    is_overdue = bool(
+        scheduled_at and scheduled_at < datetime.utcnow() and not feedback_submitted
+    )
+    return {
+        "id": item.id,
+        "candidate_id": item.candidate_id,
+        "name_masked": candidate.name_masked if candidate else None,
+        "job_id": item.job_id,
+        "job_title": job.title if job else None,
+        "round": item.round,
+        "interviewer_id": item.interviewer_id,
+        "interviewer_name": interviewer.name if interviewer else None,
+        "scheduled_at": item.scheduled_at.isoformat() if item.scheduled_at else None,
+        "location": item.location or "",
+        "note": item.note or "",
+        "status": item.status or "scheduled",
+        "feedback_submitted": feedback_submitted,
+        "is_overdue": is_overdue,
+        "created_by_name": creator.name if creator else None,
+        "created_at": item.created_at.isoformat() if item.created_at else None,
+    }
 
 
 @bp.post("/interview/start")
@@ -87,19 +224,56 @@ def get_report(interview_id):
     })
 
 
+@bp.get("/interview/guide")
+@require_auth
+def interview_guide():
+    from ..models import Candidate
+
+    candidate_id = request.args.get("candidate_id", type=int)
+    job_id = request.args.get("job_id", type=int)
+    round_name = request.args.get("round") or "interview_first"
+    if not candidate_id or not job_id:
+        return jsonify({"error": "candidate_id and job_id required"}), 400
+    if round_name not in INTERVIEW_ROUNDS:
+        return jsonify({"error": "无效面试轮次"}), 400
+
+    candidate = Candidate.query.get_or_404(candidate_id)
+    job = Job.query.get_or_404(job_id)
+    if g.role == "recruiter" and candidate.owner_hr_id != g.user_id:
+        return jsonify({"error": "Forbidden"}), 403
+    if g.role == "interviewer" and not interviewer_has_assignment(g.user_id, candidate_id, job_id, round_name):
+        return jsonify({"error": "Forbidden"}), 403
+    return jsonify(_build_interview_guide(candidate, job, round_name))
+
+
 @bp.post("/interview/feedback")
 @require_auth
 def submit_feedback():
-    from ..models import InterviewFeedback
+    from ..models import Candidate, InterviewFeedback
     data = request.get_json() or {}
     required = ("candidate_id", "job_id", "round")
     if not all(data.get(k) for k in required):
         return jsonify({"error": "candidate_id, job_id, round required"}), 400
+    candidate = Candidate.query.get(data["candidate_id"])
+    if candidate is None:
+        return jsonify({"error": "候选人不存在"}), 404
+    if Job.query.get(data["job_id"]) is None:
+        return jsonify({"error": "岗位不存在"}), 404
+    if g.role == "recruiter" and candidate.owner_hr_id != g.user_id:
+        return jsonify({"error": "Forbidden"}), 403
+    if g.role == "interviewer" and not interviewer_has_assignment(
+        g.user_id,
+        data["candidate_id"],
+        data["job_id"],
+        data["round"],
+    ):
+        return jsonify({"error": "Forbidden"}), 403
     fb = InterviewFeedback(
         candidate_id=data["candidate_id"], job_id=data["job_id"],
         round=data["round"], interviewer_id=g.user_id,
         score=data.get("score"), passed=data.get("passed"),
         strengths=data.get("strengths"), concerns=data.get("concerns"),
+        evaluation_json=_sanitize_evaluation(data.get("evaluation")),
         note=data.get("note"))
     db.session.add(fb)
     db.session.commit()
@@ -117,6 +291,8 @@ def list_feedback():
     cid = request.args.get("candidate_id", type=int)
     jid = request.args.get("job_id", type=int)
     q = InterviewFeedback.query
+    if g.role == "interviewer":
+        q = q.filter_by(interviewer_id=g.user_id)
     if cid: q = q.filter_by(candidate_id=cid)
     if jid: q = q.filter_by(job_id=jid)
     rows = q.order_by(InterviewFeedback.id.desc()).all()
@@ -128,6 +304,7 @@ def list_feedback():
             "round": f.round, "interviewer_id": f.interviewer_id,
             "interviewer_name": u.name if u else None,
             "score": f.score, "passed": f.passed,
+            "evaluation": f.evaluation_json or {},
             "strengths": f.strengths, "concerns": f.concerns, "note": f.note,
             "created_at": f.created_at.isoformat() if f.created_at else None,
         })
@@ -138,7 +315,7 @@ def list_feedback():
 @require_auth
 def list_interviews():
     """面试记录列表：AI 面试 + 面试官反馈，按角色过滤。"""
-    from ..models import Interview, InterviewFeedback, Candidate, Job
+    from ..models import Interview, InterviewFeedback, Candidate, Job, User
     items = []
     ai_q = Interview.query
     fb_q = InterviewFeedback.query
@@ -154,18 +331,106 @@ def list_interviews():
         c = Candidate.query.get(cid); return c.name_masked if c else None
     def jtitle(jid):
         j = Job.query.get(jid); return j.title if j else None
+    def uname(uid):
+        u = User.query.get(uid); return u.name if u else None
 
     for iv in ai_q.order_by(Interview.id.desc()).all():
         items.append({"id": iv.id, "type": "ai", "candidate_id": iv.candidate_id,
                       "name_masked": cname(iv.candidate_id), "job_id": iv.job_id,
                       "job_title": jtitle(iv.job_id), "score": iv.score,
                       "pass": iv.pass_recommended, "round": None,
+                      "interviewer_id": None, "interviewer_name": None,
+                      "evaluation": None,
+                      "strengths": None, "concerns": None, "note": None,
                       "created_at": iv.created_at.isoformat() if iv.created_at else None})
     for f in fb_q.order_by(InterviewFeedback.id.desc()).all():
         items.append({"id": f.id, "type": "feedback", "candidate_id": f.candidate_id,
                       "name_masked": cname(f.candidate_id), "job_id": f.job_id,
                       "job_title": jtitle(f.job_id), "score": f.score,
                       "pass": f.passed, "round": f.round,
+                      "interviewer_id": f.interviewer_id,
+                      "interviewer_name": uname(f.interviewer_id),
+                      "evaluation": f.evaluation_json or {},
+                      "strengths": f.strengths, "concerns": f.concerns, "note": f.note,
                       "created_at": f.created_at.isoformat() if f.created_at else None})
     items.sort(key=lambda it: it["created_at"] or "", reverse=True)
     return jsonify(items)
+
+
+@bp.get("/interview/interviewers")
+@require_auth
+def list_interviewers():
+    from ..models import User
+
+    users = (User.query
+             .filter(User.is_active.is_(True), User.role.in_(["interviewer", "manager", "admin"]))
+             .order_by(User.name.asc())
+             .all())
+    return jsonify([{"id": u.id, "name": u.name, "role": u.role} for u in users])
+
+
+@bp.get("/interview/assignments")
+@require_auth
+def list_assignments():
+    from ..models import Candidate
+
+    q = InterviewAssignment.query
+    if g.role == "interviewer":
+        q = q.filter_by(interviewer_id=g.user_id)
+    elif g.role == "recruiter":
+        own_ids = [c.id for c in Candidate.query.filter_by(owner_hr_id=g.user_id).all()]
+        q = q.filter(InterviewAssignment.candidate_id.in_(own_ids or [-1]))
+
+    job_id = request.args.get("job_id", type=int)
+    candidate_id = request.args.get("candidate_id", type=int)
+    if job_id:
+        q = q.filter_by(job_id=job_id)
+    if candidate_id:
+        q = q.filter_by(candidate_id=candidate_id)
+
+    rows = q.order_by(InterviewAssignment.scheduled_at.asc(), InterviewAssignment.id.desc()).all()
+    return jsonify([_assignment_payload(item) for item in rows])
+
+
+@bp.post("/interview/assignments")
+@require_auth
+def create_assignment():
+    from ..models import Candidate, User
+
+    if g.role not in ("recruiter", "manager", "admin"):
+        return jsonify({"error": "Forbidden"}), 403
+    data = request.get_json() or {}
+    required = ("candidate_id", "job_id", "round", "interviewer_id")
+    if not all(data.get(k) for k in required):
+        return jsonify({"error": "candidate_id, job_id, round, interviewer_id required"}), 400
+    if data["round"] not in INTERVIEW_ROUNDS:
+        return jsonify({"error": "无效面试轮次"}), 400
+    candidate = Candidate.query.get(data["candidate_id"])
+    if candidate is None:
+        return jsonify({"error": "候选人不存在"}), 404
+    if g.role == "recruiter" and candidate.owner_hr_id != g.user_id:
+        return jsonify({"error": "Forbidden"}), 403
+    if Job.query.get(data["job_id"]) is None:
+        return jsonify({"error": "岗位不存在"}), 404
+    interviewer = User.query.get(data["interviewer_id"])
+    if interviewer is None or interviewer.role not in ("interviewer", "manager", "admin"):
+        return jsonify({"error": "面试官不存在或角色不正确"}), 400
+
+    assignment = InterviewAssignment(
+        candidate_id=data["candidate_id"],
+        job_id=data["job_id"],
+        round=data["round"],
+        interviewer_id=data["interviewer_id"],
+        scheduled_at=_parse_datetime(data.get("scheduled_at")),
+        location=str(data.get("location") or "")[:240],
+        note=str(data.get("note") or ""),
+        status=str(data.get("status") or "scheduled")[:40],
+        created_by=g.user_id,
+    )
+    db.session.add(assignment)
+    db.session.commit()
+    record_event("interview.assigned", entity_id=assignment.candidate_id,
+                 entity_type="candidate",
+                 payload={"job_id": assignment.job_id, "round": assignment.round,
+                          "interviewer_id": assignment.interviewer_id})
+    return jsonify(_assignment_payload(assignment)), 201

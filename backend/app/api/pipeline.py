@@ -1,15 +1,41 @@
+from datetime import date
 from flask import Blueprint, request, jsonify, g
 from sqlalchemy import func
 from ..middleware.auth import require_auth
 from ..middleware.events import record_event
 from .. import db
-from ..models import PipelineStage, VALID_STAGES, Candidate, Job, User
+from ..models import Candidate, CandidateDisposition, Job, OfferRecord, PipelineStage, VALID_STAGES, User
+from .access import assigned_candidate_ids_for_interviewer, interviewer_has_assignment
 
 bp = Blueprint("pipeline", __name__)
 
 # 阶段顺序（用于"推进/回退"语义与前端排序）。rejected 是终态，不在主序列里。
 STAGE_ORDER = ["pending", "ai_screen", "interview_first",
                "interview_second", "interview_final", "offer", "onboarded"]
+
+
+def _parse_date(value):
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
+
+
+def _offer_payload(offer):
+    if offer is None:
+        return None
+    return {
+        "id": offer.id,
+        "candidate_id": offer.candidate_id,
+        "job_id": offer.job_id,
+        "salary_range": offer.salary_range or "",
+        "onboard_date": offer.onboard_date.isoformat() if offer.onboard_date else None,
+        "approval_status": offer.approval_status or "draft",
+        "note": offer.note or "",
+        "updated_at": offer.updated_at.isoformat() if offer.updated_at else None,
+    }
 
 
 def _latest_stage_subquery(job_id=None):
@@ -48,6 +74,8 @@ def move_stage():
     job = Job.query.get(job_id)
     if job is None:
         return jsonify({"error": "岗位不存在"}), 404
+    if g.role == "interviewer" and not interviewer_has_assignment(g.user_id, candidate_id, job_id):
+        return jsonify({"error": "Forbidden"}), 403
 
     # 当前阶段（用于事件记录与返回，便于前端给出"从 X 到 Y"的反馈）
     prev = (
@@ -72,6 +100,28 @@ def move_stage():
     if to_stage == "onboarded":
         record_event("candidate.onboarded", entity_id=candidate_id, entity_type="candidate",
                      payload={"job_id": job_id})
+    if to_stage == "rejected" and isinstance(data.get("disposition"), dict):
+        disposition_data = data["disposition"]
+        tags = disposition_data.get("tags") or []
+        if isinstance(tags, str):
+            tags = [t.strip() for t in tags.split(",") if t.strip()]
+        elif not isinstance(tags, list):
+            tags = []
+        disposition = CandidateDisposition(
+            candidate_id=candidate_id,
+            job_id=job_id,
+            reason=str(disposition_data.get("reason") or "")[:240],
+            enter_talent_pool=bool(disposition_data.get("enter_talent_pool", True)),
+            next_contact_at=_parse_date(disposition_data.get("next_contact_at")),
+            tags=[str(t).strip()[:60] for t in tags if str(t).strip()][:12],
+            note=str(disposition_data.get("note") or ""),
+            created_by=g.user_id,
+        )
+        db.session.add(disposition)
+        db.session.commit()
+        record_event("candidate.disposition", entity_id=candidate_id, entity_type="candidate",
+                     payload={"job_id": job_id, "reason": disposition.reason,
+                              "enter_talent_pool": disposition.enter_talent_pool})
     return jsonify({
         "status": "ok",
         "stage": to_stage,
@@ -112,8 +162,11 @@ def get_board(job_id):
         .join(latest, PipelineStage.id == latest.c.max_id)
         .join(Candidate, Candidate.id == PipelineStage.candidate_id)
         .outerjoin(User, User.id == PipelineStage.updated_by)
-        .all()
     )
+    if g.role == "interviewer":
+        assigned_ids = assigned_candidate_ids_for_interviewer(g.user_id)
+        rows = rows.filter(Candidate.id.in_(assigned_ids or [-1]))
+    rows = rows.all()
 
     candidates = [{
         "candidate_id": ps.candidate_id,
@@ -141,6 +194,8 @@ def get_board(job_id):
 @require_auth
 def get_history(job_id, candidate_id):
     """单个候选人在某岗位的阶段流转时间线（按时间正序）。"""
+    if g.role == "interviewer" and not interviewer_has_assignment(g.user_id, candidate_id, job_id):
+        return jsonify({"error": "Forbidden"}), 403
     rows = (
         db.session.query(PipelineStage, User)
         .outerjoin(User, User.id == PipelineStage.updated_by)
@@ -156,3 +211,50 @@ def get_history(job_id, candidate_id):
         "note": ps.note,
     } for ps, user in rows]
     return jsonify({"job_id": job_id, "candidate_id": candidate_id, "timeline": timeline})
+
+
+@bp.get("/pipeline/<int:job_id>/offer/<int:candidate_id>")
+@require_auth
+def get_offer(job_id, candidate_id):
+    if g.role == "interviewer" and not interviewer_has_assignment(g.user_id, candidate_id, job_id):
+        return jsonify({"error": "Forbidden"}), 403
+    offer = (OfferRecord.query
+             .filter_by(candidate_id=candidate_id, job_id=job_id)
+             .order_by(OfferRecord.id.desc())
+             .first())
+    return jsonify(_offer_payload(offer) or {
+        "candidate_id": candidate_id,
+        "job_id": job_id,
+        "salary_range": "",
+        "onboard_date": None,
+        "approval_status": "draft",
+        "note": "",
+    })
+
+
+@bp.put("/pipeline/<int:job_id>/offer/<int:candidate_id>")
+@require_auth
+def save_offer(job_id, candidate_id):
+    if g.role == "interviewer":
+        return jsonify({"error": "Forbidden"}), 403
+    if Candidate.query.get(candidate_id) is None:
+        return jsonify({"error": "候选人不存在"}), 404
+    if Job.query.get(job_id) is None:
+        return jsonify({"error": "岗位不存在"}), 404
+    data = request.get_json() or {}
+    offer = (OfferRecord.query
+             .filter_by(candidate_id=candidate_id, job_id=job_id)
+             .order_by(OfferRecord.id.desc())
+             .first())
+    if offer is None:
+        offer = OfferRecord(candidate_id=candidate_id, job_id=job_id, created_by=g.user_id)
+        db.session.add(offer)
+
+    offer.salary_range = str(data.get("salary_range") or "")[:120]
+    offer.onboard_date = _parse_date(data.get("onboard_date"))
+    offer.approval_status = str(data.get("approval_status") or "draft")[:40]
+    offer.note = str(data.get("note") or "")
+    db.session.commit()
+    record_event("offer.saved", entity_id=candidate_id, entity_type="candidate",
+                 payload={"job_id": job_id, "approval_status": offer.approval_status})
+    return jsonify(_offer_payload(offer))

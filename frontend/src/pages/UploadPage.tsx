@@ -6,7 +6,8 @@ import { useMemo, useRef, useState, type ChangeEvent, type DragEvent } from 'rea
 
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
-import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Spinner, ErrorState } from '../components/ui';
+import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Spinner, ErrorState, Input, Select } from '../components/ui';
+import { useAsync } from '../lib/useAsync';
 import type { ResumeUploadResultItem } from '../types';
 
 const ACCEPTED = ['.pdf', '.doc', '.docx', '.zip'];
@@ -55,9 +56,17 @@ export function UploadPage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [results, setResults] = useState<ResumeUploadResultItem[] | null>(null);
+  const [lastBatchId, setLastBatchId] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [sourceOpen, setSourceOpen] = useState(false);
+  const [sourceChannel, setSourceChannel] = useState('');
+  const [sourceLink, setSourceLink] = useState('');
+  const [referrer, setReferrer] = useState('');
+  const [targetJobId, setTargetJobId] = useState('');
+  const [sourceNote, setSourceNote] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const jobsAsync = useAsync(() => api.listJobs(), []);
   // 计数器追踪 drag 状态，防止指针移过子元素时闪烁
   const dragCounter = useRef(0);
 
@@ -106,6 +115,7 @@ export function UploadPage() {
   function reset() {
     setSelectedFiles([]);
     setResults(null);
+    setLastBatchId(null);
     setUploadError(null);
   }
 
@@ -115,8 +125,15 @@ export function UploadPage() {
     setUploadError(null);
     setResults(null);
     try {
-      const res = await api.uploadResumes(selectedFiles);
+      const res = await api.uploadResumes(selectedFiles, {
+        source_channel: sourceChannel.trim(),
+        source_link: sourceLink.trim(),
+        referrer: referrer.trim(),
+        target_job_id: targetJobId ? Number(targetJobId) : null,
+        source_note: sourceNote.trim(),
+      });
       setResults(res.results);
+      setLastBatchId(res.batch_id ?? null);
       setSelectedFiles([]);
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : '上传失败，请重试');
@@ -151,6 +168,75 @@ export function UploadPage() {
           拖拽或选择 PDF / Word 简历，或上传 ZIP 压缩包批量导入，AI 自动解析并提取技能标签。
         </p>
       </div>
+
+      {/* 来源信息：不影响上传主流程，需要追踪渠道时再展开填写 */}
+      <Card className="mb-6">
+        <CardHeader>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <CardTitle>来源信息</CardTitle>
+              <p className="mt-1 text-xs text-muted-soft">
+                可选填写；本次上传的简历会归入同一个上传批次
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setSourceOpen((v) => !v)}
+            >
+              {sourceOpen ? '收起' : '展开'}
+            </Button>
+          </div>
+        </CardHeader>
+        {sourceOpen && (
+          <CardBody>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Input
+                label="来源渠道"
+                name="source_channel"
+                placeholder="例：BOSS直聘 / 猎聘 / 内推"
+                value={sourceChannel}
+                onChange={(e) => setSourceChannel(e.target.value)}
+              />
+              <Input
+                label="来源链接"
+                name="source_link"
+                placeholder="候选人主页或沟通链接"
+                value={sourceLink}
+                onChange={(e) => setSourceLink(e.target.value)}
+              />
+              <Input
+                label="推荐人"
+                name="referrer"
+                placeholder="内推人或推荐来源"
+                value={referrer}
+                onChange={(e) => setReferrer(e.target.value)}
+              />
+              <Select
+                label="目标岗位"
+                name="target_job_id"
+                value={targetJobId}
+                onChange={(e) => setTargetJobId(e.target.value)}
+              >
+                <option value="">暂不关联岗位</option>
+                {(jobsAsync.data ?? []).map((job) => (
+                  <option key={job.id} value={job.id}>
+                    {job.title}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <textarea
+              className="mt-3 w-full rounded-md border border-hairline bg-canvas px-3 py-2 text-sm text-ink placeholder:text-muted-soft focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+              rows={2}
+              placeholder="备注：例如搜索关键词、沟通背景、批次说明"
+              value={sourceNote}
+              onChange={(e) => setSourceNote(e.target.value)}
+            />
+          </CardBody>
+        )}
+      </Card>
 
       {/* 拖拽上传区 */}
       <Card className="mb-6">
@@ -309,14 +395,15 @@ export function UploadPage() {
               </Button>
             </div>
             {/* 汇总统计 */}
-            {summary && (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <Badge tone="success">成功 {summary.ok}</Badge>
+	            {summary && (
+	              <div className="mt-3 flex flex-wrap items-center gap-2">
+	                <Badge tone="success">成功 {summary.ok}</Badge>
                 {summary.skipped > 0 && <Badge tone="warning">跳过 {summary.skipped}</Badge>}
                 {summary.error > 0 && <Badge tone="danger">失败 {summary.error}</Badge>}
-                <span className="text-xs text-muted-soft">共 {results.length} 条</span>
-              </div>
-            )}
+	                <span className="text-xs text-muted-soft">共 {results.length} 条</span>
+	                {lastBatchId && <Badge tone="neutral">上传批次 #{lastBatchId}</Badge>}
+	              </div>
+	            )}
           </CardHeader>
           <CardBody className="p-0">
             {results.length === 0 ? (

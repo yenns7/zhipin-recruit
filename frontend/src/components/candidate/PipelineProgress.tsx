@@ -5,6 +5,8 @@ import { formatDate } from '../../lib/formatDate';
 import { Spinner, Badge } from '../ui';
 import { stageLabel } from '../../lib/pipelineStages';
 import type { CandidateJourney, PipelineStage } from '../../types';
+import { DecisionSummaryPanel } from './DecisionSummaryPanel';
+import { InterviewGuidePanel } from '../interview/InterviewGuidePanel';
 
 function JourneyDetail({ candidateId, jobId }: { candidateId: number; jobId: number }) {
   const { data, loading, error } = useAsync<CandidateJourney | null>(
@@ -14,8 +16,19 @@ function JourneyDetail({ candidateId, jobId }: { candidateId: number; jobId: num
   if (loading) return <div className="py-3"><Spinner size="sm" /></div>;
   if (error) return <p className="py-2 text-sm text-danger-600">{error.message}</p>;
   if (!data) return null;
+  const interviewStep = data.timeline
+    .slice()
+    .reverse()
+    .find((step) => step.stage.startsWith('interview_'));
+  const guideRound = (interviewStep?.stage ?? 'interview_first') as PipelineStage;
+  const showGuide = Boolean(interviewStep || data.feedback.length > 0);
+
   return (
     <div className="space-y-4 border-t border-hairline pt-3">
+      <DecisionSummaryPanel summary={data.decision_summary} />
+      {showGuide && (
+        <InterviewGuidePanel candidateId={candidateId} jobId={jobId} round={guideRound} />
+      )}
       <div>
         <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">阶段时间线</p>
         <ol className="space-y-1.5">
@@ -60,6 +73,43 @@ function JourneyDetail({ candidateId, jobId }: { candidateId: number; jobId: num
                 </div>
                 {f.strengths && <p className="mt-1 text-xs text-body">优势：{f.strengths}</p>}
                 {f.concerns && <p className="text-xs text-body">顾虑：{f.concerns}</p>}
+                {Object.keys(f.evaluation).length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {Object.entries(f.evaluation).map(([dimension, value]) => (
+                      <Badge key={dimension} tone="neutral">
+                        {dimension} {value}/5
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {data.dispositions.length > 0 && (
+        <div>
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">淘汰沉淀</p>
+          <div className="space-y-2">
+            {data.dispositions.map((d) => (
+              <div key={d.id} className="rounded-md border border-danger-100 bg-danger-50 px-3 py-2 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-ink">{d.reason || '未填写原因'}</span>
+                  <Badge tone={d.enter_talent_pool ? 'success' : 'neutral'}>
+                    {d.enter_talent_pool ? '进入人才池' : '不入人才池'}
+                  </Badge>
+                </div>
+                {d.next_contact_at && (
+                  <p className="mt-1 text-xs text-muted">未来可联系：{formatDate(d.next_contact_at)}</p>
+                )}
+                {d.tags.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {d.tags.map((tag) => (
+                      <Badge key={tag} tone="neutral">{tag}</Badge>
+                    ))}
+                  </div>
+                )}
+                {d.note && <p className="mt-1 text-xs text-body">{d.note}</p>}
               </div>
             ))}
           </div>

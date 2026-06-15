@@ -15,13 +15,14 @@ class ResumeBatchService:
     def __init__(self):
         self.parser = ResumeParser()
 
-    def parse_and_save(self, file_path: str, owner_hr_id: int) -> Candidate:
+    def parse_and_save(self, file_path: str, owner_hr_id: int, upload_batch_id: int = None) -> Candidate:
         """解析单份简历，存入数据库，返回 Candidate 对象"""
         result = self.parser.parse_resume(file_path)
         info = result.get("extracted_info", {})
 
         candidate = Candidate(
             owner_hr_id=owner_hr_id,
+            upload_batch_id=upload_batch_id,
             name_masked=info.get("name", "")[:100] if info.get("name") else "",
             email_masked=info.get("email", "")[:100] if info.get("email") else "",
             phone_masked=info.get("phone", "")[:30] if info.get("phone") else "",

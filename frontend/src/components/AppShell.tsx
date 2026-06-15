@@ -10,6 +10,7 @@ import { cn } from '../lib/cn';
 import { Badge } from './ui';
 import { AccountSettings } from './AccountSettings';
 import { AgentChatProvider } from '../lib/agentChat';
+import { featureTopLevelPaths } from '../app/featureRegistry';
 import { gsap, useGSAP, EASE, DUR, STAGGER } from '../lib/motion';
 import type { Role } from '../types';
 
@@ -57,7 +58,14 @@ export function AppShell() {
   const [showAccount, setShowAccount] = useState(false);
 
   const TOP_LEVEL_PATHS = new Set([
-    '/', '/agent', '/candidates', '/upload', '/jobs', '/pipeline', '/interviews', '/bi',
+    '/',
+    '/agent',
+    ...featureTopLevelPaths,
+    '/jobs',
+    '/pipeline',
+    '/interviews',
+    '/bi',
+    '/admin/settings',
   ]);
   const isTopLevel = TOP_LEVEL_PATHS.has(location.pathname);
 

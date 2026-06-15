@@ -3,6 +3,7 @@
 // The JWT is read from localStorage and injected as a Bearer token.
 
 import type {
+  AdminAiArchitecture,
   AdminUser,
   BiOverview,
   BiStaffDetail,
@@ -14,7 +15,11 @@ import type {
   CreateJobRequest,
   CreateJobResponse,
   InterviewFeedbackInput,
+  InterviewAssignment,
+  InterviewAssignmentInput,
+  InterviewGuide,
   InterviewListItem,
+  InterviewerOption,
   InterviewRecord,
   InterviewStartRequest,
   InterviewStartResponse,
@@ -27,6 +32,7 @@ import type {
   LoginResponse,
   MatchResponse,
   MeResponse,
+  OfferRecord,
   PipelineBoard,
   PipelineHistory,
   PipelineCounts,
@@ -148,9 +154,25 @@ export const api = {
   },
 
   // ---- Resume / Candidates ----
-  uploadResumes(files: File[]): Promise<ResumeUploadResponse> {
+  uploadResumes(
+    files: File[],
+    source?: {
+      source_channel?: string;
+      source_link?: string;
+      referrer?: string;
+      target_job_id?: number | null;
+      source_note?: string;
+    },
+  ): Promise<ResumeUploadResponse> {
     const form = new FormData();
     files.forEach((f) => form.append('files', f));
+    if (source) {
+      Object.entries(source).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && String(value).trim() !== '') {
+          form.append(key, String(value));
+        }
+      });
+    }
     return request('/resume/upload', { method: 'POST', formData: form });
   },
   getCandidate(candidateId: number): Promise<CandidateDetail> {
@@ -213,6 +235,18 @@ export const api = {
   submitFeedback(payload: InterviewFeedbackInput): Promise<{ id: number; status: string }> {
     return request('/interview/feedback', { method: 'POST', body: payload });
   },
+  listInterviewers(): Promise<InterviewerOption[]> {
+    return request('/interview/interviewers');
+  },
+  listInterviewAssignments(): Promise<InterviewAssignment[]> {
+    return request('/interview/assignments');
+  },
+  createInterviewAssignment(payload: InterviewAssignmentInput): Promise<InterviewAssignment> {
+    return request('/interview/assignments', { method: 'POST', body: payload });
+  },
+  getInterviewGuide(candidateId: number, jobId: number, round: string): Promise<InterviewGuide> {
+    return request(`/interview/guide?candidate_id=${candidateId}&job_id=${jobId}&round=${round}`);
+  },
 
   // ---- Pipeline ----
   movePipeline(payload: PipelineMoveRequest): Promise<PipelineMoveResponse> {
@@ -228,6 +262,12 @@ export const api = {
   // Stage-transition timeline for one candidate in one job.
   getPipelineHistory(jobId: number, candidateId: number): Promise<PipelineHistory> {
     return request(`/pipeline/${jobId}/history/${candidateId}`);
+  },
+  getOfferRecord(jobId: number, candidateId: number): Promise<OfferRecord> {
+    return request(`/pipeline/${jobId}/offer/${candidateId}`);
+  },
+  saveOfferRecord(jobId: number, candidateId: number, payload: Partial<OfferRecord>): Promise<OfferRecord> {
+    return request(`/pipeline/${jobId}/offer/${candidateId}`, { method: 'PUT', body: payload });
   },
 
   // ---- BI (manager/admin only) ----
@@ -262,6 +302,9 @@ export const api = {
     payload: { role?: Role; is_active?: boolean },
   ): Promise<AdminUser> {
     return request(`/admin/users/${userId}`, { method: 'PATCH', body: payload });
+  },
+  getAdminAiArchitecture(): Promise<AdminAiArchitecture> {
+    return request('/admin/ai-architecture');
   },
 
   // ---- Candidate pipeline context / journey / reassignment (M4/M5) ----

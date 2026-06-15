@@ -1,8 +1,8 @@
 // 岗位匹配页 — 展示与当前岗位匹配的候选人排名及标签分析，并可一键将候选人加入招聘流程。
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Users } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Users } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAsync } from '../lib/useAsync';
 import {
@@ -47,11 +47,13 @@ function ScoreBadge({ score }: { score: number }) {
 function MatchRow({
   rank,
   item,
+  jobId,
   joinState,
   onJoin,
 }: {
   rank: number;
   item: MatchResultItem;
+  jobId: number;
   joinState: 'idle' | 'joining' | 'joined' | 'error';
   onJoin: (candidateId: number) => void;
 }) {
@@ -113,7 +115,20 @@ function MatchRow({
       {/* Join pipeline action */}
       <td className="px-5 py-3.5 text-right">
         {joinState === 'joined' ? (
-          <span className="text-xs font-medium text-success-600">已加入流程</span>
+          <div className="flex items-center justify-end gap-2">
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-success-600">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              已加入流程
+            </span>
+            <Link
+              to={`/pipeline?job=${jobId}&candidate=${item.candidate_id}`}
+              aria-label="查看流程"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-hairline bg-canvas px-3 text-sm font-semibold text-ink transition-colors hover:bg-surface-soft hover:border-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
+            >
+              去招聘流程查看
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
         ) : (
           <Button
             variant="secondary"
@@ -145,11 +160,22 @@ export function JobMatchPage() {
         : api.matchJob(jobId),
     [jobId, isInvalidId]
   );
+  const pipelineAsync = useAsync(
+    () =>
+      isInvalidId
+        ? Promise.resolve(null)
+        : api.getPipelineBoard(jobId),
+    [jobId, isInvalidId],
+  );
 
   // Per-candidate "join pipeline" state, keyed by candidate id.
   const [joinStates, setJoinStates] = useState<
     Record<number, 'idle' | 'joining' | 'joined' | 'error'>
   >({});
+  const existingPipelineIds = useMemo(
+    () => new Set((pipelineAsync.data?.candidates ?? []).map((c) => c.candidate_id)),
+    [pipelineAsync.data],
+  );
 
   async function handleJoin(candidateId: number) {
     setJoinStates((prev) => ({ ...prev, [candidateId]: 'joining' }));
@@ -160,6 +186,7 @@ export function JobMatchPage() {
         stage: 'pending',
       });
       setJoinStates((prev) => ({ ...prev, [candidateId]: 'joined' }));
+      void pipelineAsync.reload();
     } catch {
       setJoinStates((prev) => ({ ...prev, [candidateId]: 'error' }));
     }
@@ -266,7 +293,11 @@ export function JobMatchPage() {
                       key={item.candidate_id}
                       rank={i + 1}
                       item={item}
-                      joinState={joinStates[item.candidate_id] ?? 'idle'}
+                      jobId={jobId}
+                      joinState={
+                        joinStates[item.candidate_id] ??
+                        (existingPipelineIds.has(item.candidate_id) ? 'joined' : 'idle')
+                      }
                       onJoin={handleJoin}
                     />
                   ))}

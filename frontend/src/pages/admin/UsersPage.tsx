@@ -12,7 +12,7 @@ const ROLE_LABEL: Record<Role, string> = {
   recruiter: '招聘专员', interviewer: '面试官', manager: '经理', admin: '管理员',
 };
 
-export function UsersPage() {
+export function UsersManagementContent() {
   const { data, loading, error, reload } = useAsync(() => api.listUsers(), []);
   const [busyId, setBusyId] = useState<number | null>(null);
 
@@ -28,8 +28,7 @@ export function UsersPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="用户管理" description="管理团队成员的角色与账号状态" />
+    <>
       {loading && <div className="flex justify-center py-20"><Spinner size="lg" /></div>}
       {!loading && error && <ErrorState message={error.message} onRetry={reload} />}
       {!loading && !error && (
@@ -88,6 +87,15 @@ export function UsersPage() {
           </div>
         </Card>
       )}
+    </>
+  );
+}
+
+export function UsersPage() {
+  return (
+    <div className="space-y-6">
+      <PageHeader title="用户管理" description="管理团队成员的角色与账号状态" />
+      <UsersManagementContent />
     </div>
   );
 }

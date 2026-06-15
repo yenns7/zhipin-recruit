@@ -1,8 +1,8 @@
 // 招聘流程看板页 — 按岗位以看板形式展示每位候选人的当前阶段，
 // 并支持就地变更候选人状态（推进 / 淘汰 / 跳转任意阶段）与加入新候选人。
 
-import { useCallback, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { KanbanSquare } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAsync } from '../lib/useAsync';
@@ -14,15 +14,22 @@ import {
   PageHeader,
   Card,
 } from '../components/ui';
-import type { PipelineStage, PipelineBoardCandidate } from '../types';
+import type { CandidateDispositionInput, PipelineStage, PipelineBoardCandidate } from '../types';
 import { STAGES, stageLabel } from '../lib/pipelineStages';
 import { KanbanColumn } from '../components/pipeline/KanbanColumn';
 import { AddToPipeline } from '../components/pipeline/AddToPipeline';
 import { Reveal } from '../components/motion';
 
 export function PipelinePage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const jobParam = Number(searchParams.get('job'));
+  const candidateParam = Number(searchParams.get('candidate'));
+  const requestedJobId = Number.isFinite(jobParam) && jobParam > 0 ? jobParam : null;
+  const highlightedCandidateId =
+    Number.isFinite(candidateParam) && candidateParam > 0 ? candidateParam : null;
+
   const jobsAsync = useAsync(() => api.listJobs(), []);
-  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+  const [selectedJobId, setSelectedJobId] = useState<number | null>(requestedJobId);
 
   const effectiveJobId =
     selectedJobId ??
@@ -39,7 +46,17 @@ export function PipelinePage() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  const candidates: PipelineBoardCandidate[] = boardAsync.data?.candidates ?? [];
+  const candidates: PipelineBoardCandidate[] = useMemo(
+    () => boardAsync.data?.candidates ?? [],
+    [boardAsync.data],
+  );
+  const highlightedCandidate = highlightedCandidateId
+    ? candidates.find((c) => c.candidate_id === highlightedCandidateId)
+    : null;
+
+  useEffect(() => {
+    setSelectedJobId(requestedJobId);
+  }, [requestedJobId]);
 
   // 已在本岗位流程中的候选人 id 集合（供"加入流程"排除）。
   const existingIds = useMemo(
@@ -58,7 +75,12 @@ export function PipelinePage() {
   }, [candidates]);
 
   const handleMove = useCallback(
-    async (candidateId: number, toStage: PipelineStage, note?: string) => {
+    async (
+      candidateId: number,
+      toStage: PipelineStage,
+      note?: string,
+      disposition?: CandidateDispositionInput,
+    ) => {
       if (effectiveJobId === null) return;
       setBusyId(candidateId);
       setToast(null);
@@ -68,6 +90,7 @@ export function PipelinePage() {
           job_id: effectiveJobId,
           stage: toStage,
           note,
+          disposition,
         });
         setToast(`${res.name_masked || '候选人'} 已更新至「${stageLabel(toStage)}」`);
         await boardAsync.reload();
@@ -80,12 +103,24 @@ export function PipelinePage() {
     [effectiveJobId, boardAsync],
   );
 
+  const handleJobChange = useCallback(
+    (jobId: number) => {
+      setSelectedJobId(jobId);
+      setSearchParams({ job: String(jobId) });
+    },
+    [setSearchParams],
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="招聘流程"
         description="以看板查看每位候选人所处阶段，并就地推进、淘汰或调整其状态"
       />
+
+      <div className="rounded-md border border-hairline bg-surface-soft px-4 py-3 text-sm text-muted">
+        岗位 → 匹配候选人 → 加入流程 → 安排面试 → 面试反馈 → Offer / 淘汰沉淀
+      </div>
 
       {jobsAsync.loading && (
         <div className="flex items-center gap-2 text-sm text-muted">
@@ -127,7 +162,7 @@ export function PipelinePage() {
                 id="job-select"
                 className="h-10 rounded-md border border-hairline bg-canvas px-3 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
                 value={effectiveJobId ?? ''}
-                onChange={(e) => setSelectedJobId(Number(e.target.value))}
+                onChange={(e) => handleJobChange(Number(e.target.value))}
               >
                 {(jobsAsync.data ?? []).map((j) => (
                   <option key={j.id} value={j.id}>
@@ -164,6 +199,13 @@ export function PipelinePage() {
             </div>
           )}
 
+          {highlightedCandidate && (
+            <div className="rounded-md border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700">
+              已定位到 {highlightedCandidate.name_masked}。下一步可在卡片上推进到「AI 初筛」、
+              「一面」，或选择「淘汰」结束流程。
+            </div>
+          )}
+
           {/* 看板 */}
           {!boardAsync.loading && boardAsync.error && (
             <ErrorState message={boardAsync.error.message} onRetry={boardAsync.reload} />
@@ -182,6 +224,7 @@ export function PipelinePage() {
                   candidates={byStage[s.key] ?? []}
                   busyId={busyId}
                   jobId={effectiveJobId!}
+                  highlightedCandidateId={highlightedCandidateId}
                   onMove={handleMove}
                 />
               ))}

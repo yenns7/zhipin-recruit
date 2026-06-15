@@ -15,10 +15,9 @@ import { AppShell } from './components/AppShell';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { defaultRouteForRole } from './lib/nav';
+import { featureRoutes } from './app/featureRegistry';
 import { BiPage } from './pages/BiPage';
-import { CandidatesPage } from './pages/CandidatesPage';
 import { UploadPage } from './pages/UploadPage';
-import { CandidateProfilePage } from './pages/CandidateProfilePage';
 import { JobsPage } from './pages/JobsPage';
 import { JobMatchPage } from './pages/JobMatchPage';
 import { PipelinePage } from './pages/PipelinePage';
@@ -27,6 +26,8 @@ import { InterviewsPage } from './pages/InterviewsPage';
 import { InterviewReportPage } from './pages/InterviewReportPage';
 import { AgentPage } from './pages/AgentPage';
 import { UsersPage } from './pages/admin/UsersPage';
+import { AiArchitecturePage } from './pages/admin/AiArchitecturePage';
+import { SystemSettingsPage } from './pages/admin/SystemSettingsPage';
 import type { Role } from './types';
 
 // Gate for the authenticated app area.
@@ -64,8 +65,17 @@ function AppRoutes() {
       <Route element={<RequireAuth />}>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/agent" element={<AgentPage />} />
-        <Route path="/candidates" element={<CandidatesPage />} />
-        <Route path="/candidates/:id" element={<CandidateProfilePage />} />
+        {featureRoutes.map((route) => (
+          <Route
+            key={route.path}
+            path={route.path}
+            element={
+              route.roles
+                ? <RequireRole allow={route.roles} element={route.element} />
+                : route.element
+            }
+          />
+        ))}
         <Route
           path="/upload"
           element={
@@ -138,6 +148,14 @@ function AppRoutes() {
         <Route
           path="/admin/users"
           element={<RequireRole allow={['admin']} element={<UsersPage />} />}
+        />
+        <Route
+          path="/admin/settings"
+          element={<RequireRole allow={['admin']} element={<SystemSettingsPage />} />}
+        />
+        <Route
+          path="/admin/ai-architecture"
+          element={<RequireRole allow={['admin']} element={<AiArchitecturePage />} />}
         />
       </Route>
       <Route path="*" element={<HomeRedirect />} />

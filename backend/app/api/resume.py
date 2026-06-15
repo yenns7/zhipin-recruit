@@ -33,18 +33,18 @@ def _is_resume(filename):
     return _ext(filename) in RESUME_EXTS
 
 
-def _process_resume(svc, fpath, display_name, results):
+def _process_resume(svc, fpath, display_name, results, upload_batch_id=None):
     """解析单份简历并入库，把结果（成功/失败）追加到 results。
     display_name 用于结果展示（zip 内文件会带 "xxx.zip → 文件名" 前缀）。"""
     try:
-        candidate = svc.parse_and_save(fpath, owner_hr_id=g.user_id)
+        candidate = svc.parse_and_save(fpath, owner_hr_id=g.user_id, upload_batch_id=upload_batch_id)
         record_event("resume.uploaded", entity_id=candidate.id, entity_type="candidate")
         results.append({"file": display_name, "status": "ok", "candidate_id": candidate.id})
     except Exception as e:
         results.append({"file": display_name, "status": "error", "reason": str(e)})
 
 
-def _process_zip(svc, zip_path, zip_display_name, folder, results):
+def _process_zip(svc, zip_path, zip_display_name, folder, results, upload_batch_id=None):
     """安全解压 zip，逐个解析其中的 pdf/doc/docx 简历。
     安全防护：
       - 防 zip 炸弹：限制条目数、单文件与总解压大小。
@@ -146,7 +146,13 @@ def _process_zip(svc, zip_path, zip_display_name, folder, results):
                     continue
 
                 # 解析入库，结果标明来源 zip
-                _process_resume(svc, str(out_path), f"{zip_display_name} → {base}", results)
+                _process_resume(
+                    svc,
+                    str(out_path),
+                    f"{zip_display_name} → {base}",
+                    results,
+                    upload_batch_id=upload_batch_id,
+                )
                 processed += 1
 
             # zip 内没有任何可处理的简历
@@ -174,6 +180,24 @@ def upload():
     folder = current_app.config.get("UPLOAD_FOLDER", "/tmp/hi_uploads")
     Path(folder).mkdir(parents=True, exist_ok=True)
 
+    from ..models import UploadBatch, Job
+
+    target_job_id = request.form.get("target_job_id", type=int)
+    if target_job_id and Job.query.get(target_job_id) is None:
+        return jsonify({"error": "目标岗位不存在"}), 400
+
+    batch = UploadBatch(
+        owner_hr_id=g.user_id,
+        source_channel=(request.form.get("source_channel") or "").strip()[:120],
+        source_link=(request.form.get("source_link") or "").strip(),
+        referrer=(request.form.get("referrer") or "").strip()[:120],
+        target_job_id=target_job_id,
+        note=(request.form.get("source_note") or request.form.get("note") or "").strip(),
+    )
+    db.session.add(batch)
+    db.session.commit()
+    record_event("resume.upload_batch.created", entity_id=batch.id, entity_type="upload_batch")
+
     svc = ResumeBatchService()
     results = []
     for f in files:
@@ -190,7 +214,7 @@ def upload():
 
         if _ext(f.filename) == "zip":
             # zip：解压后逐个解析其中的简历
-            _process_zip(svc, fpath, f.filename, folder, results)
+            _process_zip(svc, fpath, f.filename, folder, results, upload_batch_id=batch.id)
             # 原始 zip 不再需要，删除（解压出的简历文件已单独保留）
             try:
                 os.remove(fpath)
@@ -198,10 +222,10 @@ def upload():
                 pass
         else:
             # 普通简历文件，逐个解析
-            _process_resume(svc, fpath, f.filename, results)
+            _process_resume(svc, fpath, f.filename, results, upload_batch_id=batch.id)
 
     # total 改为实际产生的简历结果条数（zip 会展开成多条）
-    return jsonify({"total": len(results), "results": results}), 202
+    return jsonify({"batch_id": batch.id, "total": len(results), "results": results}), 202
 
 
 @bp.get("/resume/<int:candidate_id>")
@@ -212,10 +236,36 @@ def get_resume(candidate_id):
     # 专员只能看自己负责的
     if g.role == "recruiter" and c.owner_hr_id != g.user_id:
         return jsonify({"error": "Forbidden"}), 403
+    if g.role == "interviewer":
+        from .access import interviewer_has_assignment
+        if not interviewer_has_assignment(g.user_id, candidate_id):
+            return jsonify({"error": "Forbidden"}), 403
     return jsonify({
         "id": c.id,
         "name_masked": c.name_masked,
         "resume_json": c.resume_json,
         "tags": [{"tag": t.tag, "score": t.score} for t in c.tags],
+        "source": _candidate_source_payload(c),
         "created_at": c.created_at.isoformat(),
     })
+
+
+def _candidate_source_payload(candidate):
+    from ..models import Job, UploadBatch
+
+    if not candidate.upload_batch_id:
+        return None
+    batch = UploadBatch.query.get(candidate.upload_batch_id)
+    if batch is None:
+        return None
+    target_job = Job.query.get(batch.target_job_id) if batch.target_job_id else None
+    return {
+        "batch_id": batch.id,
+        "channel": batch.source_channel or "",
+        "source_link": batch.source_link or "",
+        "referrer": batch.referrer or "",
+        "target_job_id": batch.target_job_id,
+        "target_job_title": target_job.title if target_job else None,
+        "note": batch.note or "",
+        "created_at": batch.created_at.isoformat() if batch.created_at else None,
+    }

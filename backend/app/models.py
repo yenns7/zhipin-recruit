@@ -17,6 +17,7 @@ class Candidate(db.Model):
     __tablename__ = "candidates"
     id = db.Column(db.Integer, primary_key=True)
     owner_hr_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    upload_batch_id = db.Column(db.Integer, db.ForeignKey("upload_batches.id"))
     name_masked = db.Column(db.String(100))
     email_masked = db.Column(db.String(100))
     phone_masked = db.Column(db.String(30))
@@ -25,6 +26,18 @@ class Candidate(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     tags = db.relationship("CandidateTag", backref="candidate", cascade="all,delete-orphan")
     stages = db.relationship("PipelineStage", backref="candidate")
+
+
+class UploadBatch(db.Model):
+    __tablename__ = "upload_batches"
+    id = db.Column(db.Integer, primary_key=True)
+    owner_hr_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    source_channel = db.Column(db.String(120), default="")
+    source_link = db.Column(db.Text)
+    referrer = db.Column(db.String(120), default="")
+    target_job_id = db.Column(db.Integer, db.ForeignKey("jobs.id"))
+    note = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 class CandidateTag(db.Model):
@@ -39,6 +52,9 @@ class Job(db.Model):
     __tablename__ = "jobs"
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
+    city = db.Column(db.String(80), default="")
+    department = db.Column(db.String(120), default="")
+    job_code = db.Column(db.String(80), default="")
     jd_text = db.Column(db.Text, nullable=False)
     jd_structured = db.Column(db.JSON)
     owner_hr_id = db.Column(db.Integer, db.ForeignKey("users.id"))
@@ -86,6 +102,49 @@ class PipelineStage(db.Model):
     ts = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class CandidateDisposition(db.Model):
+    __tablename__ = "candidate_dispositions"
+    id = db.Column(db.Integer, primary_key=True)
+    candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id"), nullable=False)
+    job_id = db.Column(db.Integer, db.ForeignKey("jobs.id"), nullable=False)
+    reason = db.Column(db.String(240), default="")
+    enter_talent_pool = db.Column(db.Boolean, default=True, nullable=False)
+    next_contact_at = db.Column(db.Date)
+    tags = db.Column(db.JSON)
+    note = db.Column(db.Text)
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id"))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class OfferRecord(db.Model):
+    __tablename__ = "offer_records"
+    id = db.Column(db.Integer, primary_key=True)
+    candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id"), nullable=False)
+    job_id = db.Column(db.Integer, db.ForeignKey("jobs.id"), nullable=False)
+    salary_range = db.Column(db.String(120), default="")
+    onboard_date = db.Column(db.Date)
+    approval_status = db.Column(db.String(40), default="draft")
+    note = db.Column(db.Text)
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id"))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class InterviewAssignment(db.Model):
+    __tablename__ = "interview_assignments"
+    id = db.Column(db.Integer, primary_key=True)
+    candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id"), nullable=False)
+    job_id = db.Column(db.Integer, db.ForeignKey("jobs.id"), nullable=False)
+    round = db.Column(db.String(30), nullable=False)
+    interviewer_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    scheduled_at = db.Column(db.DateTime)
+    location = db.Column(db.String(240), default="")
+    note = db.Column(db.Text)
+    status = db.Column(db.String(40), default="scheduled")
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id"))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class Event(db.Model):
     __tablename__ = "events"
     id = db.Column(db.Integer, primary_key=True)
@@ -118,5 +177,6 @@ class InterviewFeedback(db.Model):
     passed = db.Column(db.Boolean)
     strengths = db.Column(db.Text)
     concerns = db.Column(db.Text)
+    evaluation_json = db.Column(db.JSON)
     note = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

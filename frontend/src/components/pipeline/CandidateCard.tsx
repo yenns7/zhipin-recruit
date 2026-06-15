@@ -4,11 +4,14 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, User } from 'lucide-react';
-import type { PipelineBoardCandidate, PipelineStage } from '../../types';
+import type { CandidateDispositionInput, PipelineBoardCandidate, PipelineStage } from '../../types';
 import { STAGES, STAGE_BY_KEY } from '../../lib/pipelineStages';
 import { formatDate } from '../../lib/formatDate';
+import { cn } from '../../lib/cn';
 import { Spinner } from '../ui';
 import { FeedbackForm } from '../interview/FeedbackForm';
+import { OfferDrawer } from './OfferDrawer';
+import { RejectionDispositionForm } from './RejectionDispositionForm';
 
 // 给定当前阶段，推算"推进到下一阶段"的目标（用于一键推进按钮）。
 const FORWARD: Partial<Record<PipelineStage, PipelineStage>> = {
@@ -24,12 +27,26 @@ interface CandidateCardProps {
   candidate: PipelineBoardCandidate;
   busy: boolean;
   jobId: number;
-  onMove: (candidateId: number, toStage: PipelineStage, note?: string) => void;
+  highlighted: boolean;
+  onMove: (
+    candidateId: number,
+    toStage: PipelineStage,
+    note?: string,
+    disposition?: CandidateDispositionInput,
+  ) => void | Promise<void>;
 }
 
-export function CandidateCard({ candidate, busy, jobId, onMove }: CandidateCardProps) {
+export function CandidateCard({
+  candidate,
+  busy,
+  jobId,
+  highlighted,
+  onMove,
+}: CandidateCardProps) {
   const [picking, setPicking] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [showDisposition, setShowDisposition] = useState(false);
+  const [showOffer, setShowOffer] = useState(false);
   const atInterview =
     candidate.stage === 'interview_first' ||
     candidate.stage === 'interview_second' ||
@@ -44,7 +61,12 @@ export function CandidateCard({ candidate, busy, jobId, onMove }: CandidateCardP
   };
 
   return (
-    <div className="rounded-lg border border-hairline bg-canvas px-3 py-2.5 shadow-sm transition-shadow hover:shadow-md">
+    <div
+      className={cn(
+        'rounded-lg border border-hairline bg-canvas px-3 py-2.5 shadow-sm transition-all hover:shadow-md',
+        highlighted && 'ring-2 ring-brand-500 ring-offset-2 ring-offset-canvas',
+      )}
+    >
       <div className="flex items-start justify-between gap-2">
         <Link
           to={`/candidates/${candidate.candidate_id}`}
@@ -83,23 +105,43 @@ export function CandidateCard({ candidate, busy, jobId, onMove }: CandidateCardP
           <button
             type="button"
             disabled={busy}
-            onClick={() => move('rejected')}
+            onClick={() => setShowDisposition((v) => !v)}
             className="rounded-md px-2 py-1 text-[11px] font-medium text-danger-600 hover:bg-danger-50 disabled:opacity-50"
           >
-            淘汰
+            {showDisposition ? '收起淘汰' : '淘汰'}
+          </button>
+        )}
+
+        {candidate.stage === 'offer' && (
+          <button
+            type="button"
+            disabled={busy}
+            aria-label="Offer 信息"
+            onClick={() => setShowOffer((v) => !v)}
+            className="rounded-md px-2 py-1 text-[11px] font-medium text-success-700 hover:bg-success-50 disabled:opacity-50"
+          >
+            记录 Offer
           </button>
         )}
 
         {/* 录入评分：仅在面试阶段展示 */}
         {atInterview && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => setShowFeedback((v) => !v)}
-            className="rounded-md px-2 py-1 text-[11px] font-medium text-muted hover:bg-surface-soft disabled:opacity-50"
-          >
-            {showFeedback ? '收起' : '录入评分'}
-          </button>
+          <>
+            <Link
+              to={`/interviews?job=${jobId}&candidate=${candidate.candidate_id}`}
+              className="rounded-md px-2 py-1 text-[11px] font-medium text-ink hover:bg-surface-soft"
+            >
+              去面试中心
+            </Link>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setShowFeedback((v) => !v)}
+              className="rounded-md px-2 py-1 text-[11px] font-medium text-muted hover:bg-surface-soft disabled:opacity-50"
+            >
+              {showFeedback ? '收起' : '录入评分'}
+            </button>
+          </>
         )}
 
         {/* 更多：跳到任意阶段 */}
@@ -142,15 +184,32 @@ export function CandidateCard({ candidate, busy, jobId, onMove }: CandidateCardP
         </div>
       </div>
 
+      {showDisposition && (
+        <RejectionDispositionForm
+          busy={busy}
+          onCancel={() => setShowDisposition(false)}
+          onSubmit={async (disposition, note) => {
+            await onMove(candidate.candidate_id, 'rejected', note, disposition);
+            setShowDisposition(false);
+          }}
+        />
+      )}
+
       {/* 内联评分表单 */}
       {atInterview && showFeedback && (
         <div className="mt-2">
           <FeedbackForm
             candidateId={candidate.candidate_id}
             jobId={jobId}
+            initialRound={candidate.stage}
+            onMove={(toStage, note) => onMove(candidate.candidate_id, toStage, note)}
             onSubmitted={() => setShowFeedback(false)}
           />
         </div>
+      )}
+
+      {candidate.stage === 'offer' && showOffer && (
+        <OfferDrawer candidateId={candidate.candidate_id} jobId={jobId} />
       )}
     </div>
   );

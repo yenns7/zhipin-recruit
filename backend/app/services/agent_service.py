@@ -409,6 +409,70 @@ WRITE_TOOLS: List[Dict[str, Any]] = [
 ]
 
 
+def get_agent_architecture_dashboard() -> Dict[str, Any]:
+    """Admin-facing read-only description of the AI assistant prompt and powers."""
+    return {
+        "title": "AI 提示词与后端架构看板",
+        "purpose": "给管理员查看 AI 助手的系统提示词、可调用工具、写操作边界与后端接入方式。",
+        "system_prompt": _build_decision_system_prompt([]),
+        "read_tools": TOOLS,
+        "write_tools": WRITE_TOOLS,
+        "architecture": [
+            {
+                "name": "前端 AI 助手页",
+                "description": "展示对话、思考过程、工具调用结果；遇到写操作时展示确认卡片。",
+                "files": ["frontend/src/pages/AgentPage.tsx", "frontend/src/lib/agent.ts"],
+            },
+            {
+                "name": "后端智能体入口",
+                "description": "提供工具列表、流式对话、用户确认后的写操作执行接口。",
+                "files": ["backend/app/api/agent.py"],
+            },
+            {
+                "name": "智能体编排与工具",
+                "description": "用 ReAct 流程决定调用查询工具、提议写操作，工具内部通过 SQLAlchemy 访问招聘数据库。",
+                "files": ["backend/app/services/agent_service.py"],
+            },
+            {
+                "name": "数据库层",
+                "description": "AI 助手不直接写 SQL，而是通过固定工具读取 Candidate、Job、Interview、PipelineStage 等模型。",
+                "files": ["backend/app/models.py"],
+            },
+        ],
+        "permission_model": {
+            "database_access": True,
+            "read_tools_available_to_authenticated_users": True,
+            "read_scope_note": (
+                "当前 AI 助手对话接口只要求登录；查询工具本身没有按角色或归属人再过滤，"
+                "因此登录用户可通过 AI 助手查询较宽范围的招聘数据。"
+            ),
+            "write_requires_confirmation": True,
+            "write_scope_note": (
+                "AI 只能提议写操作；用户点击确认后，/api/agent/execute 再按写工具 RBAC 执行。"
+            ),
+            "cannot_do": [
+                "不能修改代码或前端页面",
+                "不能修改数据库表结构",
+                "不能管理用户账号",
+                "不能删除候选人、岗位或面试记录",
+                "不能执行未注册的任意后端函数",
+            ],
+        },
+        "safeguards": [
+            "对话接口需要登录 token",
+            "写操作先生成确认卡片，用户确认后才执行",
+            "写工具有角色白名单",
+            "ReAct 最多迭代 5 步，避免无限循环调用工具",
+            "所有工具固定注册，AI 不能临时创造新工具",
+        ],
+        "recommended_next_steps": [
+            "把 AI 助手查询工具也接入角色权限和候选人归属过滤",
+            "把管理员看板标注为只读审计页",
+            "给 AI 助手查询行为增加审计日志",
+        ],
+    }
+
+
 def execute_write_tool(name: str, args: Dict[str, Any], user_id: int, role: str) -> Dict[str, Any]:
     """在请求上下文内执行写工具（供 /api/agent/execute 调用）。做 RBAC 校验。"""
     tool = _WRITE_TOOL_MAP.get(name)
