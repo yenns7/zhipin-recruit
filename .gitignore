@@ -26,8 +26,7 @@ backend/instance/
 node_modules/
 dist/
 .vite/
-# 保留前端构建产物，供 Flask 直接托管（克隆后无需 npm build）
-!frontend/dist/
+# 前端构建产物不纳入版本库；部署前运行 `cd frontend && npm run build` 生成。
 
 # ── Runtime uploads ──────────────────────────────────────
 backend/uploads/
