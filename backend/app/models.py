@@ -178,6 +178,36 @@ class Notification(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class Conversation(db.Model):
+    __tablename__ = "conversations"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    title = db.Column(db.String(200), default="新对话")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    messages = db.relationship(
+        "ConversationMessage",
+        backref="conversation",
+        cascade="all,delete-orphan",
+        order_by="ConversationMessage.id",
+    )
+
+
+class ConversationMessage(db.Model):
+    __tablename__ = "conversation_messages"
+    id = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(
+        db.Integer,
+        db.ForeignKey("conversations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    role = db.Column(db.String(20), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    tool_calls = db.Column(db.JSON)
+    thoughts = db.Column(db.JSON)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class InterviewFeedback(db.Model):
     __tablename__ = "interview_feedback"
     id = db.Column(db.Integer, primary_key=True)

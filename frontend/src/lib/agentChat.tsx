@@ -6,11 +6,25 @@
 import {
   createContext,
   useContext,
+  useEffect,
+  useCallback,
   useRef,
   useState,
   type ReactNode,
   type MutableRefObject,
 } from 'react';
+import { getToken } from './api';
+
+const STORAGE_KEY_CONV = 'zhipin:agent:conversation_id';
+
+export interface ConversationMessageItem {
+  id: number;
+  role: 'user' | 'assistant';
+  content: string;
+  tool_calls?: Array<{ tool: string; args: Record<string, unknown>; result?: unknown }> | null;
+  thoughts?: string[] | null;
+  created_at: string | null;
+}
 
 // ---- 对话视图模型（AgentPage 与本 Context 共用）----
 
@@ -62,16 +76,116 @@ interface AgentChatValue {
   // 跨渲染保留的引用
   abortRef: MutableRefObject<AbortController | null>;
   toolSeqRef: MutableRefObject<number>;
+  conversationId: number | null;
+  setConversationId: (id: number | null) => void;
+  loadConversationMessages: (id: number) => Promise<ConversationMessageItem[]>;
+  hydrateMessagesFromDb: (dbMessages: ConversationMessageItem[]) => void;
 }
 
 const AgentChatContext = createContext<AgentChatValue | undefined>(undefined);
+
+function readStoredConversationId(): number | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CONV);
+    if (!raw) return null;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredConversationId(id: number | null) {
+  try {
+    if (id === null) {
+      localStorage.removeItem(STORAGE_KEY_CONV);
+    } else {
+      localStorage.setItem(STORAGE_KEY_CONV, String(id));
+    }
+  } catch {
+    // localStorage may be unavailable in private contexts.
+  }
+}
+
+async function authFetch<T>(url: string): Promise<T> {
+  const token = getToken();
+  const response = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) {
+    throw new Error(`请求失败 (HTTP ${response.status})`);
+  }
+  return response.json() as Promise<T>;
+}
 
 export function AgentChatProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
+  const [conversationId, setConversationIdState] = useState<number | null>(
+    () => readStoredConversationId(),
+  );
   const abortRef = useRef<AbortController | null>(null);
   const toolSeqRef = useRef(0);
+
+  const setConversationId = useCallback((id: number | null) => {
+    setConversationIdState(id);
+    writeStoredConversationId(id);
+  }, []);
+
+  const loadConversationMessages = useCallback(
+    async (id: number): Promise<ConversationMessageItem[]> => {
+      const data = await authFetch<{ messages: ConversationMessageItem[] }>(
+        `/api/agent/conversations/${id}`,
+      );
+      return data.messages ?? [];
+    },
+    [],
+  );
+
+  const hydrateMessagesFromDb = useCallback((dbMessages: ConversationMessageItem[]) => {
+    const restored: Message[] = dbMessages.map((message, index) => {
+      if (message.role === 'user') {
+        return { kind: 'user', id: index + 1, text: message.content };
+      }
+      return {
+        kind: 'assistant',
+        id: index + 1,
+        thoughts: message.thoughts ?? [],
+        toolCalls: (message.tool_calls ?? []).map((call, callIndex) => ({
+          id: callIndex + 1,
+          tool: call.tool,
+          args: call.args ?? {},
+          result: call.result,
+        })),
+        answer: message.content,
+        status: 'done',
+      };
+    });
+    setMessages(restored);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const stored = readStoredConversationId();
+    if (!stored) return;
+    loadConversationMessages(stored)
+      .then((dbMessages) => {
+        if (!cancelled) {
+          setConversationIdState(stored);
+          hydrateMessagesFromDb(dbMessages);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setConversationId(null);
+          setMessages([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrateMessagesFromDb, loadConversationMessages, setConversationId]);
 
   return (
     <AgentChatContext.Provider
@@ -84,6 +198,10 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         setStreaming,
         abortRef,
         toolSeqRef,
+        conversationId,
+        setConversationId,
+        loadConversationMessages,
+        hydrateMessagesFromDb,
       }}
     >
       {children}

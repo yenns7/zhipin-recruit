@@ -45,6 +45,7 @@ export interface AgentToolsResponse {
 
 // Discriminated union of every SSE event the chat endpoint can emit.
 export type AgentEvent =
+  | { type: 'conversation_started'; id: number }
   | { type: 'thought'; text: string }
   | { type: 'tool_call'; tool: string; args: Record<string, unknown> }
   | { type: 'tool_result'; tool: string; result: unknown }
@@ -116,6 +117,7 @@ export async function executeWriteTool(
 export interface StreamChatParams {
   message: string;
   history: ChatTurn[];
+  conversationId?: number | null;
   signal?: AbortSignal;
 }
 
@@ -124,17 +126,19 @@ export interface StreamChatParams {
 // Parsing handles SSE chunks that split mid-event across reads by buffering the
 // trailing partial block until the next chunk completes it.
 export async function streamChat(
-  { message, history, signal }: StreamChatParams,
+  { message, history, conversationId, signal }: StreamChatParams,
   onEvent: (event: AgentEvent) => void
 ): Promise<void> {
   const token = getToken();
+  const body: Record<string, unknown> = { message, history };
+  if (conversationId) body.conversation_id = conversationId;
   const resp = await fetch('/api/agent/chat', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify(body),
     signal,
   });
 
@@ -198,6 +202,7 @@ function isAgentEvent(value: unknown): value is AgentEvent {
   const type = (value as { type?: unknown }).type;
   return (
     type === 'thought' ||
+    type === 'conversation_started' ||
     type === 'tool_call' ||
     type === 'tool_result' ||
     type === 'confirm_required' ||

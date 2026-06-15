@@ -37,7 +37,7 @@ const EXAMPLES = [
   '列出所有岗位',
 ];
 
-let idSeq = 0;
+let idSeq = Date.now();
 const nextId = () => ++idSeq;
 
 export function AgentPage() {
@@ -51,6 +51,8 @@ export function AgentPage() {
     setStreaming,
     abortRef,
     toolSeqRef,
+    conversationId,
+    setConversationId,
   } = useAgentChat();
   const [tools, setTools] = useState<AgentTool[]>([]);
 
@@ -75,6 +77,8 @@ export function AgentPage() {
       prev.map((m) => {
         if (m.kind !== 'assistant' || m.id !== assistantId) return m;
         switch (ev.type) {
+          case 'conversation_started':
+            return m;
           case 'thought':
             return { ...m, thoughts: [...m.thoughts, ev.text] };
           case 'tool_call':
@@ -151,8 +155,14 @@ export function AgentPage() {
 
       try {
         await streamChat(
-          { message: text, history, signal: controller.signal },
-          (ev) => applyEvent(assistantId, ev)
+          { message: text, history, conversationId, signal: controller.signal },
+          (ev) => {
+            if (ev.type === 'conversation_started') {
+              setConversationId(ev.id);
+              return;
+            }
+            applyEvent(assistantId, ev);
+          }
         );
         // Stream ended without an explicit done/error → mark done.
         setMessages((prev) =>
@@ -182,7 +192,7 @@ export function AgentPage() {
         setStreaming(false);
       }
     },
-    [streaming, messages, buildHistory, applyEvent]
+    [streaming, messages, conversationId, setConversationId, buildHistory, applyEvent]
   );
 
   const stop = useCallback(() => {
