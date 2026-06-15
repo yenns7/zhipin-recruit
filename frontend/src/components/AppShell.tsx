@@ -1,7 +1,7 @@
 // Authenticated layout: Apple-style sidebar nav + top bar with user identity and logout.
 // 毛玻璃侧边栏、渐变 Logo、GSAP 克制动效。
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { LogOut, ArrowLeft, KeyRound } from 'lucide-react';
 import { useAuth } from '../lib/auth';
@@ -34,6 +34,16 @@ function initials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+function restoreSidebarNavItems(sidebar: HTMLElement | null) {
+  if (!sidebar) return;
+  const navItems = sidebar.querySelectorAll<HTMLElement>('[data-shell="nav-item"]');
+  if (navItems.length === 0) return;
+  gsap.killTweensOf(navItems);
+  gsap.set(navItems, {
+    clearProps: 'opacity,visibility,transform',
+  });
+}
+
 export function AppShell() {
   const { name, role, logout } = useAuth();
   const navigate = useNavigate();
@@ -42,6 +52,7 @@ export function AppShell() {
 
   const sidebarScope = useRef<HTMLElement>(null);
   const mainScope = useRef<HTMLDivElement>(null);
+  const lastPathRef = useRef<string | null>(null);
 
   const [showAccount, setShowAccount] = useState(false);
 
@@ -49,6 +60,20 @@ export function AppShell() {
     '/', '/agent', '/candidates', '/upload', '/jobs', '/pipeline', '/interviews', '/bi',
   ]);
   const isTopLevel = TOP_LEVEL_PATHS.has(location.pathname);
+
+  useEffect(() => {
+    const sidebar = sidebarScope.current;
+    if (!sidebar) return;
+
+    if (lastPathRef.current === null) {
+      lastPathRef.current = location.pathname;
+      return;
+    }
+    if (lastPathRef.current === location.pathname) return;
+    lastPathRef.current = location.pathname;
+
+    restoreSidebarNavItems(sidebar);
+  }, [location.pathname]);
 
   useGSAP(
     () => {
@@ -61,7 +86,11 @@ export function AppShell() {
         (ctx) => {
           const { reduce } = ctx.conditions as { reduce: boolean };
           if (reduce) {
-            gsap.from('[data-shell]', { autoAlpha: 0, duration: DUR.fast });
+            gsap.from('[data-shell="logo"], [data-shell="identity"]', {
+              opacity: 0,
+              duration: DUR.fast,
+              clearProps: 'opacity',
+            });
             return;
           }
           const tl = gsap.timeline();
@@ -74,11 +103,12 @@ export function AppShell() {
             .from(
               '[data-shell="nav-item"]',
               {
-                autoAlpha: 0,
                 x: -14,
                 duration: DUR.base,
                 stagger: STAGGER.base,
                 ease: EASE.apple,
+                clearProps: 'transform',
+                onComplete: () => restoreSidebarNavItems(sidebarScope.current),
               },
               '-=0.2',
             )

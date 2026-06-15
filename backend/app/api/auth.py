@@ -1,4 +1,5 @@
 import bcrypt
+import hashlib
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, g, current_app
 import jwt
@@ -15,9 +16,13 @@ def _hash(pw: str) -> str:
 
 def _verify(pw: str, hashed: str) -> bool:
     try:
-        return bcrypt.checkpw(pw.encode(), hashed.encode())
+        if bcrypt.checkpw(pw.encode(), hashed.encode()):
+            return True
     except Exception:
-        return False
+        pass
+    if len(hashed) == 64 and all(c in "0123456789abcdef" for c in hashed.lower()):
+        return hashlib.sha256(pw.encode()).hexdigest() == hashed
+    return False
 
 
 @bp.post("/auth/register")

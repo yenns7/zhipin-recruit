@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import time
 import logging
 from pathlib import Path
@@ -23,6 +24,7 @@ except Exception:
 ROOT_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG_FILE = ROOT_DIR / "llm_config.json"
 DEFAULT_API_KEY_FILE = ROOT_DIR / "API_key-openai.md"
+KEYCHAIN_PREFIX = "keychain:"
 
 DEFAULTS = {
     "provider": "openai",  # or "deepseek"
@@ -33,6 +35,39 @@ DEFAULTS = {
     "max_retry": 3,
     "temperature": 0.7,
 }
+
+
+def resolve_secret_value(value: str) -> str:
+    """Resolve supported secret references while keeping real keys out of files."""
+    if not value or not value.startswith(KEYCHAIN_PREFIX):
+        return value
+
+    service = value[len(KEYCHAIN_PREFIX):].strip()
+    if not service:
+        raise ValueError("keychain secret reference is missing a service name")
+
+    try:
+        result = subprocess.run(
+            ["security", "find-generic-password", "-s", service, "-w"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        raise RuntimeError(f"无法从 macOS 钥匙串读取 API Key: {service}") from e
+
+    secret = result.stdout.strip()
+    if not secret:
+        raise RuntimeError(f"macOS 钥匙串里的 API Key 为空: {service}")
+    return secret
+
+
+def first_configured_api_key() -> str:
+    for name in ("OPENAI_API_KEY", "DEEPSEEK_API_KEY", "OPENROUTER_API_KEY", "API_KEY", "LLM_API_KEY"):
+        raw_value = os.getenv(name)
+        if raw_value:
+            return resolve_secret_value(raw_value)
+    return ""
 
 # DeepSeek v4 模型路由：按任务难度选择模型与思考模式。
 #   fast   —— 结构化/简单任务：flash 关思考，最快、最省 token
@@ -121,7 +156,7 @@ class LLMClient:
 
     def _maybe_build_key_manager(self) -> Optional["APIKeyManager"]:
         # First check env var
-        env_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPENROUTER_API_KEY") or os.getenv("API_KEY")
+        env_key = first_configured_api_key()
         if env_key:
             if APIKeyManager is not None:
                 return APIKeyManager([env_key])
@@ -132,7 +167,7 @@ class LLMClient:
         # Default to API_key-openai.md in project root
         key_file = DEFAULT_API_KEY_FILE
         try:
-            api_keys = load_api_keys(key_file)
+            api_keys = [resolve_secret_value(key) for key in load_api_keys(key_file)]
             return APIKeyManager(api_keys)
         except Exception as e:
             logging.warning(f"无法从 {key_file} 加载API Key: {e}")
@@ -147,7 +182,7 @@ class LLMClient:
     def _resolve_key(self) -> str:
         if self.api_key_manager:
             return self.api_key_manager.get_key()
-        return os.getenv("OPENAI_API_KEY") or os.getenv("DEEPSEEK_API_KEY") or os.getenv("API_KEY", "")
+        return first_configured_api_key()
 
     def _build_body(
         self,

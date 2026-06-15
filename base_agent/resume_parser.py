@@ -32,7 +32,7 @@ except ImportError:
     logging.error("无法导入 tag_rate 模块，请确保 tag_rate.py 在同一目录")
     raise
 
-from llm_client import LLMClient
+from llm_client import LLMClient, resolve_secret_value
 
 # 配置
 ROOT_DIR = Path(__file__).resolve().parent
@@ -49,11 +49,18 @@ class ResumeParser:
     def __init__(self):
         import os
         if DEFAULT_API_KEY_FILE.exists():
-            api_keys = load_api_keys(DEFAULT_API_KEY_FILE)
+            api_keys = [resolve_secret_value(key) for key in load_api_keys(DEFAULT_API_KEY_FILE)]
             self.api_key_manager = APIKeyManager(api_keys)
         else:
-            env_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY") or os.getenv("API_KEY", "")
-            self.api_key_manager = APIKeyManager([env_key]) if env_key else None
+            env_key = (
+                os.getenv("OPENROUTER_API_KEY")
+                or os.getenv("OPENAI_API_KEY")
+                or os.getenv("DEEPSEEK_API_KEY")
+                or os.getenv("API_KEY")
+                or os.getenv("LLM_API_KEY")
+                or ""
+            )
+            self.api_key_manager = APIKeyManager([resolve_secret_value(env_key)]) if env_key else None
         self.llm = LLMClient(self.api_key_manager)
         
         # 加载技能标签库与岗位族(level_3rd -> tags)
