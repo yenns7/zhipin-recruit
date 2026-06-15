@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { ChevronDown, FileCode2, ShieldCheck } from 'lucide-react';
+import { ChevronDown, FileCode2, ScrollText, ShieldCheck } from 'lucide-react';
 import { Badge, PageHeader } from '../../components/ui';
 import { cn } from '../../lib/cn';
 import { AiArchitectureContent } from './AiArchitecturePage';
+import { AuditLogContent } from './AuditLogPage';
 import { UsersManagementContent } from './UsersPage';
 
-type SettingsSection = 'users' | 'ai';
+type SettingsSection = 'users' | 'ai' | 'audit';
 type SectionIcon = typeof ShieldCheck;
 
 const SECTIONS: Array<{
@@ -29,6 +30,13 @@ const SECTIONS: Array<{
     icon: FileCode2,
     badge: 'AI',
   },
+  {
+    id: 'audit',
+    title: '审计日志',
+    description: '查看关键写操作流水，排查谁在什么时候改了什么。',
+    icon: ScrollText,
+    badge: '审计',
+  },
 ];
 
 export function SystemSettingsPage() {
@@ -42,7 +50,7 @@ export function SystemSettingsPage() {
         eyebrow={<Badge tone="glass">仅管理员可见</Badge>}
       />
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="grid gap-3 lg:grid-cols-3">
         {SECTIONS.map((section) => {
           const active = openSection === section.id;
           const Icon = section.icon;
@@ -83,7 +91,9 @@ export function SystemSettingsPage() {
       </div>
 
       <section className="rounded-lg border border-hairline bg-canvas px-4 py-4">
-        {openSection === 'users' ? <UsersManagementContent /> : <AiArchitectureContent />}
+        {openSection === 'users' && <UsersManagementContent />}
+        {openSection === 'ai' && <AiArchitectureContent />}
+        {openSection === 'audit' && <AuditLogContent />}
       </section>
     </div>
   );

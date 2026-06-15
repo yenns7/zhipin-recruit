@@ -1,8 +1,11 @@
+from datetime import datetime, timezone
+import math
+
 from flask import Blueprint, request, jsonify, g
 from ..middleware.auth import require_auth, require_role
 from ..middleware.events import record_event
 from .. import db
-from ..models import User
+from ..models import Event, User
 from ..services.agent_service import get_agent_architecture_dashboard
 
 bp = Blueprint("admin", __name__)
@@ -26,6 +29,80 @@ def list_users():
 @require_role("admin")
 def ai_architecture():
     return jsonify(get_agent_architecture_dashboard())
+
+
+def _positive_int_arg(name, default, max_value=None):
+    value = request.args.get(name, default, type=int)
+    value = max(1, value or default)
+    if max_value is not None:
+        value = min(value, max_value)
+    return value
+
+
+def _parse_datetime_arg(name):
+    raw = request.args.get(name, "").strip()
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    return parsed
+
+
+@bp.get("/admin/audit-logs")
+@require_auth
+@require_role("admin")
+def audit_logs():
+    actor_id = request.args.get("actor_id", type=int)
+    action = request.args.get("action", "").strip()
+    entity_type = request.args.get("entity_type", "").strip()
+    page = _positive_int_arg("page", 1)
+    per_page = _positive_int_arg("per_page", 50, max_value=200)
+    from_dt = _parse_datetime_arg("from")
+    to_dt = _parse_datetime_arg("to")
+
+    query = Event.query
+    if actor_id is not None:
+        query = query.filter(Event.actor_id == actor_id)
+    if action:
+        query = query.filter(Event.action == action)
+    if entity_type:
+        query = query.filter(Event.entity_type == entity_type)
+    if from_dt:
+        query = query.filter(Event.ts >= from_dt)
+    if to_dt:
+        query = query.filter(Event.ts <= to_dt)
+
+    query = query.order_by(Event.ts.desc(), Event.id.desc())
+    total = query.count()
+    logs = query.offset((page - 1) * per_page).limit(per_page).all()
+
+    actor_ids = {log.actor_id for log in logs if log.actor_id is not None}
+    actor_names = {}
+    if actor_ids:
+        users = User.query.filter(User.id.in_(actor_ids)).all()
+        actor_names = {user.id: user.name for user in users}
+
+    return jsonify({
+        "logs": [{
+            "id": log.id,
+            "source": "event",
+            "actor_id": log.actor_id,
+            "actor_name": actor_names.get(log.actor_id),
+            "action": log.action,
+            "entity_type": log.entity_type,
+            "entity_id": log.entity_id,
+            "payload": log.payload or {},
+            "ts": log.ts.isoformat() if log.ts else None,
+        } for log in logs],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "pages": max(1, math.ceil(total / per_page)),
+    })
 
 
 @bp.patch("/admin/users/<int:user_id>")

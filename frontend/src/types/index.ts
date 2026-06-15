@@ -401,6 +401,36 @@ export interface AdminAiArchitecture {
   recommended_next_steps: string[];
 }
 
+export interface AuditLogItem {
+  id: number;
+  source: 'event';
+  actor_id: number | null;
+  actor_name: string | null;
+  action: string;
+  entity_type: string | null;
+  entity_id: number | null;
+  payload: Record<string, unknown>;
+  ts: string | null;
+}
+
+export interface AuditLogResponse {
+  logs: AuditLogItem[];
+  total: number;
+  page: number;
+  per_page: number;
+  pages: number;
+}
+
+export interface AuditLogQuery {
+  page?: number;
+  per_page?: number;
+  actor_id?: number;
+  action?: string;
+  entity_type?: string;
+  from?: string;
+  to?: string;
+}
+
 export interface InterviewerOption {
   id: number;
   name: string;

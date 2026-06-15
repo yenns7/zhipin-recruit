@@ -5,6 +5,8 @@
 import type {
   AdminAiArchitecture,
   AdminUser,
+  AuditLogQuery,
+  AuditLogResponse,
   BiOverview,
   BiStaffDetail,
   BiJobDetail,
@@ -305,6 +307,16 @@ export const api = {
   },
   getAdminAiArchitecture(): Promise<AdminAiArchitecture> {
     return request('/admin/ai-architecture');
+  },
+  getAuditLogs(params: AuditLogQuery = {}): Promise<AuditLogResponse> {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value).trim() !== '') {
+        search.set(key, String(value));
+      }
+    });
+    const query = search.toString();
+    return request(`/admin/audit-logs${query ? `?${query}` : ''}`);
   },
 
   // ---- Candidate pipeline context / journey / reassignment (M4/M5) ----
