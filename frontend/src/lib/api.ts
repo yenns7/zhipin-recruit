@@ -34,6 +34,7 @@ import type {
   LoginResponse,
   MatchResponse,
   MeResponse,
+  NotificationListResponse,
   OfferRecord,
   PipelineBoard,
   PipelineHistory,
@@ -317,6 +318,20 @@ export const api = {
     });
     const query = search.toString();
     return request(`/admin/audit-logs${query ? `?${query}` : ''}`);
+  },
+
+  // ---- Notifications ----
+  getNotifications(page = 1, perPage = 20): Promise<NotificationListResponse> {
+    return request(`/notifications?page=${page}&per_page=${perPage}`);
+  },
+  getUnreadCount(): Promise<{ unread_count: number }> {
+    return request('/notifications/unread-count');
+  },
+  markNotificationsRead(ids?: number[]): Promise<{ status: string }> {
+    return request('/notifications/mark-read', {
+      method: 'POST',
+      body: ids && ids.length > 0 ? { ids } : {},
+    });
   },
 
   // ---- Candidate pipeline context / journey / reassignment (M4/M5) ----

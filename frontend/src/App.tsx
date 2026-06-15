@@ -25,6 +25,7 @@ import { InterviewListPage } from './pages/InterviewListPage';
 import { InterviewsPage } from './pages/InterviewsPage';
 import { InterviewReportPage } from './pages/InterviewReportPage';
 import { AgentPage } from './pages/AgentPage';
+import { NotificationCenterPage } from './pages/NotificationCenterPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { AiArchitecturePage } from './pages/admin/AiArchitecturePage';
 import { SystemSettingsPage } from './pages/admin/SystemSettingsPage';
@@ -66,6 +67,7 @@ function AppRoutes() {
       <Route element={<RequireAuth />}>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/agent" element={<AgentPage />} />
+        <Route path="/notifications" element={<NotificationCenterPage />} />
         {featureRoutes.map((route) => (
           <Route
             key={route.path}

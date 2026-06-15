@@ -431,6 +431,25 @@ export interface AuditLogQuery {
   to?: string;
 }
 
+export interface NotificationItem {
+  id: number;
+  type: string;
+  title: string;
+  body: string | null;
+  link: string | null;
+  is_read: boolean;
+  created_at: string | null;
+}
+
+export interface NotificationListResponse {
+  notifications: NotificationItem[];
+  total: number;
+  page: number;
+  per_page: number;
+  pages: number;
+  unread_count: number;
+}
+
 export interface InterviewerOption {
   id: number;
   name: string;

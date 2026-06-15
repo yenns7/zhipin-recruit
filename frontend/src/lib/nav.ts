@@ -2,6 +2,7 @@
 
 import {
   LayoutDashboard,
+  Bell,
   Briefcase,
   KanbanSquare,
   BarChart3,
@@ -34,6 +35,12 @@ export const NAV_ITEMS: NavItem[] = [
     to: '/agent',
     label: 'AI 助手',
     icon: Sparkles,
+    roles: ['recruiter', 'manager', 'admin', 'interviewer'],
+  },
+  {
+    to: '/notifications',
+    label: '通知中心',
+    icon: Bell,
     roles: ['recruiter', 'manager', 'admin', 'interviewer'],
   },
   ...featureNavItems,
