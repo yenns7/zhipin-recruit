@@ -28,6 +28,7 @@ import { AgentPage } from './pages/AgentPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { AiArchitecturePage } from './pages/admin/AiArchitecturePage';
 import { SystemSettingsPage } from './pages/admin/SystemSettingsPage';
+import { ToastProvider } from './components/ui';
 import type { Role } from './types';
 
 // Gate for the authenticated app area.
@@ -166,9 +167,11 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
+      <ToastProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </ToastProvider>
     </AuthProvider>
   );
 }
