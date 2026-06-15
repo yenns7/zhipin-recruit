@@ -1,10 +1,11 @@
 from flask import Blueprint, jsonify, request, g
-from sqlalchemy import func
+from sqlalchemy import func, select
 from ..middleware.auth import require_auth, require_role
 from ..middleware.events import record_event
 from .. import db
 from ..models import (
     Candidate,
+    CandidateTag,
     CandidateDisposition,
     Job,
     PipelineStage,
@@ -12,6 +13,7 @@ from ..models import (
     InterviewFeedback,
     UploadBatch,
     User,
+    VALID_STAGES,
 )
 from .pipeline import _latest_stage_subquery, STAGE_ORDER
 from .access import assigned_candidate_ids_for_interviewer, interviewer_has_assignment
@@ -146,14 +148,68 @@ def _decision_summary(timeline, ai_interviews, feedback, dispositions):
 @bp.get("/candidates")
 @require_auth
 def list_candidates():
+    wants_paginated = any(
+        key in request.args
+        for key in ("search", "stage", "job_id", "sort_by", "sort_order", "page", "per_page")
+    )
+
     if g.role == "recruiter":
-        candidates = Candidate.query.filter_by(owner_hr_id=g.user_id).all()
+        query = Candidate.query.filter_by(owner_hr_id=g.user_id)
     elif g.role == "interviewer":
         assigned_ids = assigned_candidate_ids_for_interviewer(g.user_id)
-        candidates = Candidate.query.filter(Candidate.id.in_(assigned_ids or [-1])).all()
+        query = Candidate.query.filter(Candidate.id.in_(assigned_ids or [-1]))
     else:
-        candidates = Candidate.query.all()
-    return jsonify([_candidate_library_item(c) for c in candidates])
+        query = Candidate.query
+
+    if not wants_paginated:
+        return jsonify([_candidate_library_item(c) for c in query.all()])
+
+    search = request.args.get("search", "").strip()
+    stage = request.args.get("stage", "").strip()
+    job_id = request.args.get("job_id", type=int)
+    sort_by = request.args.get("sort_by", "created_at")
+    sort_order = request.args.get("sort_order", "desc")
+    page = max(1, request.args.get("page", 1, type=int) or 1)
+    per_page = min(max(1, request.args.get("per_page", 20, type=int) or 20), 100)
+
+    if search:
+        like = f"%{search}%"
+        tag_subquery = select(CandidateTag.candidate_id).where(CandidateTag.tag.ilike(like))
+        query = query.filter(db.or_(
+            Candidate.name_masked.ilike(like),
+            Candidate.email_masked.ilike(like),
+            Candidate.phone_masked.ilike(like),
+            Candidate.id.in_(tag_subquery),
+        ))
+
+    if stage and stage in VALID_STAGES:
+        latest = _latest_stage_subquery()
+        stage_subquery = (
+            select(PipelineStage.candidate_id)
+            .join(latest, PipelineStage.id == latest.c.max_id)
+            .where(PipelineStage.stage == stage)
+        )
+        query = query.filter(Candidate.id.in_(stage_subquery))
+
+    if job_id:
+        job_subquery = select(PipelineStage.candidate_id).where(PipelineStage.job_id == job_id)
+        query = query.filter(Candidate.id.in_(job_subquery))
+
+    sort_column = Candidate.created_at
+    if sort_by == "name_masked":
+        sort_column = Candidate.name_masked
+    query = query.order_by(sort_column.asc() if sort_order == "asc" else sort_column.desc())
+
+    total = query.count()
+    candidates = query.offset((page - 1) * per_page).limit(per_page).all()
+
+    return jsonify({
+        "candidates": [_candidate_library_item(c) for c in candidates],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "pages": max(1, (total + per_page - 1) // per_page),
+    })
 
 
 @bp.get("/candidates/<int:candidate_id>/pipelines")

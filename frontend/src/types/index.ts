@@ -106,6 +106,24 @@ export interface CandidateListItem {
   source?: CandidateSourceInfo | null;
 }
 
+export interface CandidateListQuery {
+  search?: string;
+  stage?: PipelineStage;
+  job_id?: number;
+  sort_by?: 'created_at' | 'name_masked';
+  sort_order?: 'asc' | 'desc';
+  page?: number;
+  per_page?: number;
+}
+
+export interface CandidateListResponse {
+  candidates: CandidateListItem[];
+  total: number;
+  page: number;
+  per_page: number;
+  pages: number;
+}
+
 // ---- Jobs ----
 export interface CreateJobRequest {
   title: string;

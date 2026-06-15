@@ -11,7 +11,9 @@ import type {
   BiStaffDetail,
   BiJobDetail,
   CandidateDetail,
+  CandidateListQuery,
   CandidateListItem,
+  CandidateListResponse,
   CandidateJourney,
   CandidatePipelines,
   CreateJobRequest,
@@ -183,6 +185,15 @@ export const api = {
   },
   listCandidates(): Promise<CandidateListItem[]> {
     return request('/candidates');
+  },
+  searchCandidates(params: CandidateListQuery): Promise<CandidateListResponse> {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value).trim() !== '') {
+        search.set(key, String(value));
+      }
+    });
+    return request(`/candidates?${search.toString()}`);
   },
 
   // ---- Jobs ----

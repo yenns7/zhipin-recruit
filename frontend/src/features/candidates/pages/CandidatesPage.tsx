@@ -1,10 +1,11 @@
 // 简历库页面 — 展示上传后由 AI 解析出的候选人简历摘要、技能标签与筛选结果。
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { RotateCcw, Target, Upload, Users } from 'lucide-react';
 import { candidatesApi as api } from '../api';
 import { formatDate } from '../../../lib/formatDate';
+import { useDebounce } from '../../../lib/useDebounce';
 import { useAsync } from '../../../lib/useAsync';
 import {
   Badge,
@@ -17,6 +18,7 @@ import {
   ErrorState,
   Input,
   PageHeader,
+  Pagination,
   Select,
   Spinner,
 } from '../../../components/ui';
@@ -153,12 +155,29 @@ function CandidateRow({ candidate }: { candidate: CandidateListItem }) {
 }
 
 export function CandidatesPage() {
-  const { data, loading, error, reload } = useAsync(() => api.listCandidates(), []);
   const [query, setQuery] = useState('');
   const [tagFilter, setTagFilter] = useState('all');
   const [scoreFilter, setScoreFilter] = useState('0');
+  const [page, setPage] = useState(1);
+  const debouncedQuery = useDebounce(query, 300);
 
-  const candidates = useMemo(() => data ?? [], [data]);
+  const { data, loading, error, reload } = useAsync(
+    () => api.searchCandidates({
+      search: debouncedQuery || undefined,
+      page,
+      per_page: 20,
+      sort_by: 'created_at',
+      sort_order: 'desc',
+    }),
+    [debouncedQuery, page],
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQuery]);
+
+  const candidates = useMemo(() => data?.candidates ?? [], [data]);
+  const totalCandidates = data?.total ?? candidates.length;
 
   const tagOptions = useMemo(() => {
     const counts = new Map<string, number>();
@@ -197,6 +216,7 @@ export function CandidatesPage() {
     setQuery('');
     setTagFilter('all');
     setScoreFilter('0');
+    setPage(1);
   }
 
   if (loading) {
@@ -224,7 +244,7 @@ export function CandidatesPage() {
         title="简历库"
         description={
           <>
-            已入库 <AnimatedNumber value={candidates.length} /> 份简历 · AI 解析技能标签{' '}
+            已匹配 <AnimatedNumber value={totalCandidates} /> 份简历 · 当前页 AI 技能标签{' '}
             <AnimatedNumber value={uniqueTagCount} /> 类
           </>
         }
@@ -257,7 +277,7 @@ export function CandidatesPage() {
         </Card>
         <Card>
           <CardBody className="py-4">
-            <p className="text-xs text-muted-soft">高分候选人</p>
+            <p className="text-xs text-muted-soft">当前页高分候选人</p>
             <p className="mt-1 text-2xl font-semibold text-ink">
               <AnimatedNumber value={highScoreCount} />
             </p>
@@ -369,6 +389,16 @@ export function CandidatesPage() {
                     ))}
                   </Reveal>
                 </table>
+              </div>
+            )}
+            {data && data.pages > 1 && (
+              <div className="border-t border-hairline px-5 py-3">
+                <Pagination
+                  page={data.page}
+                  totalPages={data.pages}
+                  onChange={setPage}
+                  summary={`第 ${data.page} / ${data.pages} 页，共 ${data.total} 条`}
+                />
               </div>
             )}
           </Card>
