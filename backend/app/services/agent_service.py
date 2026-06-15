@@ -15,6 +15,7 @@ from __future__ import annotations
 import sys
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, TypedDict
 
@@ -166,6 +167,56 @@ def _tool_count_summary(**_) -> Dict[str, Any]:
     }
 
 
+def _is_search_quota_or_credential_leak(text: str) -> bool:
+    """Detect non-search responses that expose credentials or setup prompts."""
+    if not text:
+        return False
+    low = text.lower()
+    signals = (
+        "quota_exhausted",
+        "quota is exhausted",
+        "daily_free_quota",
+        "recharge",
+        "api key:",
+        "api_key:",
+        "apikey",
+        "password:",
+        "username:",
+        "console:",
+        "registration_status",
+        "add the api key",
+        "mcp config",
+    )
+    return any(signal in low for signal in signals)
+
+
+_CRED_PATTERNS = [
+    re.compile(r"\b(?:as_sk|sk|pk|api|key|token)[-_][A-Za-z0-9]{12,}\b", re.I),
+    re.compile(r"(?im)^\s*(?:api[_ ]?key|username|password|console)\s*[:=].*$"),
+]
+
+
+def _sanitize_search_text(text: str) -> str:
+    """Redact credential-looking content before search output reaches AI/UI."""
+    if not text:
+        return text
+    cleaned = text
+    for pattern in _CRED_PATTERNS:
+        cleaned = pattern.sub("[已脱敏]", cleaned)
+    return cleaned
+
+
+def _sanitize_search_payload(payload: Any) -> Any:
+    """Recursively redact credential-looking strings in structured search output."""
+    if isinstance(payload, str):
+        return _sanitize_search_text(payload)
+    if isinstance(payload, list):
+        return [_sanitize_search_payload(item) for item in payload]
+    if isinstance(payload, dict):
+        return {key: _sanitize_search_payload(value) for key, value in payload.items()}
+    return payload
+
+
 def _tool_web_search(query: str = "", max_results: int = 5, **_) -> Dict[str, Any]:
     """联网搜索：调用 anysearch CLI 获取实时网络信息（薪资行情/技能趋势/公司背景等）。
 
@@ -205,13 +256,15 @@ def _tool_web_search(query: str = "", max_results: int = 5, **_) -> Dict[str, An
             msg = err or "无输出"
             if "Connection" in msg or "Timeout" in msg or "timed out" in msg:
                 return {"error": "联网搜索服务暂时不可达（网络问题），请稍后重试"}
-            return {"error": f"搜索失败：{msg[:200]}"}
+            return {"error": f"搜索失败：{_sanitize_search_text(msg)[:200]}"}
+        if _is_search_quota_or_credential_leak(out):
+            return {"error": "联网搜索服务当前不可用（额度已用尽或需重新配置），请稍后重试或改用系统内数据回答"}
         # CLI 可能返回 JSON 或 Markdown；尝试 JSON，失败则原样返回文本
         try:
             parsed = json.loads(out)
-            return {"query": query, "results": parsed}
+            return {"query": query, "results": _sanitize_search_payload(parsed)}
         except Exception:
-            return {"query": query, "results_text": out[:4000]}
+            return {"query": query, "results_text": _sanitize_search_text(out)[:4000]}
     except subprocess.TimeoutExpired:
         return {"error": "联网搜索超时（45s），请稍后重试"}
     except Exception as e:
