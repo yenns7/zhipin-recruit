@@ -66,6 +66,7 @@ export interface CandidateTag {
 
 // Resume JSON is backend-defined and free-form; kept as a record.
 export type ResumeJson = Record<string, unknown>;
+export type ParseStatus = 'pending' | 'processing' | 'ok' | 'failed';
 
 export interface CandidateSourceInfo {
   batch_id: number;
@@ -83,8 +84,19 @@ export interface CandidateDetail {
   name_masked: string;
   resume_json: ResumeJson;
   tags: CandidateTag[];
+  parse_status?: ParseStatus;
+  parse_error?: string | null;
   source?: CandidateSourceInfo | null;
   created_at: string;
+}
+
+export interface RetryParseResponse {
+  candidate_id: number;
+  name_masked: string;
+  parse_status: ParseStatus;
+  parse_error: string | null;
+  resume_json: ResumeJson;
+  tags: CandidateTag[];
 }
 
 export interface CandidateListItem {
@@ -94,6 +106,8 @@ export interface CandidateListItem {
   phone_masked?: string;
   owner_hr_id: number;
   created_at: string;
+  parse_status?: ParseStatus;
+  parse_error?: string | null;
   tag_count: number;
   top_tags?: CandidateTag[];
   max_score?: number;

@@ -8,4 +8,6 @@ export type {
   CandidateTag,
   CandidateListQuery,
   ResumeJson,
+  ParseStatus,
+  RetryParseResponse,
 } from '../../types';

@@ -1,7 +1,8 @@
 // 候选人档案页（HR 视角）— 展示技能雷达图（≥3 标签）或横向评分条，以及简历结构化内容。
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 import {
   Radar,
   RadarChart,
@@ -14,7 +15,7 @@ import { candidatesApi as api } from '../api';
 import { formatDate } from '../../../lib/formatDate';
 import { useAsync } from '../../../lib/useAsync';
 import { useAuth } from '../../../lib/auth';
-import { Badge, Card, CardBody, CardHeader, CardTitle, Spinner, ErrorState } from '../../../components/ui';
+import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Spinner, ErrorState, useToast } from '../../../components/ui';
 import { Reveal } from '../../../components/motion';
 import { PipelineProgress } from '../../../components/candidate/PipelineProgress';
 import { ReassignOwner } from '../../../components/candidate/ReassignOwner';
@@ -408,6 +409,8 @@ export function CandidateProfilePage() {
   const isInvalidId = !id || Number.isNaN(candidateId);
   const { role } = useAuth();
   const canReassign = role === 'manager' || role === 'admin';
+  const toast = useToast();
+  const [retryingParse, setRetryingParse] = useState(false);
 
   // useAsync 无条件调用，fetch 函数在 id 无效时短路，不发送请求
   const { data, loading, error, reload } = useAsync(
@@ -417,6 +420,20 @@ export function CandidateProfilePage() {
         : api.getCandidate(candidateId),
     [candidateId, isInvalidId]
   );
+
+  const handleRetryParse = async () => {
+    if (!data || data.parse_status !== 'failed') return;
+    setRetryingParse(true);
+    try {
+      await api.retryCandidateParse(candidateId);
+      toast.success('简历已重新解析');
+      reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '重新解析失败');
+    } finally {
+      setRetryingParse(false);
+    }
+  };
 
   // 所有 hook 调用完毕后再做早返回
   if (isInvalidId) {
@@ -461,9 +478,10 @@ export function CandidateProfilePage() {
 
   if (!data) return null;
 
-  const { name_masked, resume_json, tags, created_at, source } = data;
+  const { name_masked, resume_json, tags, created_at, source, parse_status, parse_error } = data;
   const hasTags = tags && tags.length > 0;
   const useRadar = hasTags && tags.length >= 3;
+  const parseFailed = parse_status === 'failed';
 
   return (
     <div>
@@ -523,6 +541,32 @@ export function CandidateProfilePage() {
               <CardTitle>简历详情</CardTitle>
             </CardHeader>
             <CardBody>
+              {parseFailed && (
+                <div className="mb-4 rounded-md border border-danger-200 bg-danger-50 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex gap-3">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-danger-600" aria-hidden="true" />
+                      <div>
+                        <p className="text-sm font-semibold text-danger-700">简历解析失败</p>
+                        <p className="mt-1 text-sm leading-relaxed text-danger-700">
+                          {parse_error || '原始文件已保留，可以重新解析。'}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      loading={retryingParse}
+                      onClick={handleRetryParse}
+                      className="shrink-0"
+                    >
+                      <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                      重新解析
+                    </Button>
+                  </div>
+                </div>
+              )}
               {resume_json && Object.keys(resume_json).length > 0 ? (
                 <ResumeJsonView resumeJson={resume_json} />
               ) : (

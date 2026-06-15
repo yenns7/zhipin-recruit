@@ -41,7 +41,25 @@ def _process_resume(svc, fpath, display_name, results, upload_batch_id=None):
         record_event("resume.uploaded", entity_id=candidate.id, entity_type="candidate")
         results.append({"file": display_name, "status": "ok", "candidate_id": candidate.id})
     except Exception as e:
-        results.append({"file": display_name, "status": "error", "reason": str(e)})
+        candidate = svc.create_failed_candidate(
+            fpath,
+            owner_hr_id=g.user_id,
+            display_name=display_name,
+            error=e,
+            upload_batch_id=upload_batch_id,
+        )
+        record_event(
+            "resume.parse_failed",
+            entity_id=candidate.id,
+            entity_type="candidate",
+            payload={"file": display_name, "reason": str(e)[:500]},
+        )
+        results.append({
+            "file": display_name,
+            "status": "error",
+            "candidate_id": candidate.id,
+            "reason": str(e),
+        })
 
 
 def _process_zip(svc, zip_path, zip_display_name, folder, results, upload_batch_id=None):
@@ -245,8 +263,50 @@ def get_resume(candidate_id):
         "name_masked": c.name_masked,
         "resume_json": c.resume_json,
         "tags": [{"tag": t.tag, "score": t.score} for t in c.tags],
+        "parse_status": c.parse_status,
+        "parse_error": c.parse_error,
         "source": _candidate_source_payload(c),
         "created_at": c.created_at.isoformat(),
+    })
+
+
+@bp.post("/resume/<int:candidate_id>/retry-parse")
+@require_auth
+def retry_parse(candidate_id):
+    from ..models import Candidate
+
+    candidate = Candidate.query.get_or_404(candidate_id)
+    if g.role == "recruiter" and candidate.owner_hr_id != g.user_id:
+        return jsonify({"error": "Forbidden"}), 403
+    if g.role == "interviewer":
+        from .access import interviewer_has_assignment
+        if not interviewer_has_assignment(g.user_id, candidate_id):
+            return jsonify({"error": "Forbidden"}), 403
+    if candidate.parse_status != "failed":
+        return jsonify({"error": "只有解析失败的简历才能重试"}), 400
+
+    svc = ResumeBatchService()
+    try:
+        candidate = svc.reparse_candidate(candidate)
+    except Exception as e:
+        return jsonify({
+            "candidate_id": candidate_id,
+            "parse_status": "failed",
+            "parse_error": str(e)[:500],
+        }), 422
+
+    record_event(
+        "resume.retry_parse",
+        entity_id=candidate.id,
+        entity_type="candidate",
+    )
+    return jsonify({
+        "candidate_id": candidate.id,
+        "name_masked": candidate.name_masked,
+        "parse_status": candidate.parse_status,
+        "parse_error": candidate.parse_error,
+        "resume_json": candidate.resume_json,
+        "tags": [{"tag": t.tag, "score": t.score} for t in candidate.tags],
     })
 
 

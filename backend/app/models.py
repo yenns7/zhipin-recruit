@@ -24,6 +24,8 @@ class Candidate(db.Model):
     resume_json = db.Column(db.JSON, nullable=False)
     raw_file_path = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    parse_status = db.Column(db.String(20), default="ok", nullable=False)
+    parse_error = db.Column(db.Text)
     tags = db.relationship("CandidateTag", backref="candidate", cascade="all,delete-orphan")
     stages = db.relationship("PipelineStage", backref="candidate")
 

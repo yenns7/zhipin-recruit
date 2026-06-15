@@ -67,6 +67,8 @@ def _candidate_library_item(candidate):
         "phone_masked": candidate.phone_masked,
         "owner_hr_id": candidate.owner_hr_id,
         "created_at": candidate.created_at.isoformat(),
+        "parse_status": candidate.parse_status,
+        "parse_error": candidate.parse_error,
         "tag_count": len(candidate.tags),
         "top_tags": tags[:6],
         "max_score": tags[0]["score"] if tags else 0,

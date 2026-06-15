@@ -46,6 +46,7 @@ import type {
   PipelineMoveResponse,
   RegisterRequest,
   RegisterResponse,
+  RetryParseResponse,
   ResumeUploadResponse,
   Role,
 } from '../types';
@@ -183,6 +184,9 @@ export const api = {
   },
   getCandidate(candidateId: number): Promise<CandidateDetail> {
     return request(`/resume/${candidateId}`);
+  },
+  retryCandidateParse(candidateId: number): Promise<RetryParseResponse> {
+    return request(`/resume/${candidateId}/retry-parse`, { method: 'POST' });
   },
   listCandidates(): Promise<CandidateListItem[]> {
     return request('/candidates');

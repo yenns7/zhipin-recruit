@@ -76,6 +76,12 @@ def _ensure_workflow_enhancement_columns():
     if "upload_batch_id" not in candidate_columns:
         db.session.execute(text("ALTER TABLE candidates ADD COLUMN upload_batch_id INTEGER"))
         changed = True
+    if "parse_status" not in candidate_columns:
+        db.session.execute(text("ALTER TABLE candidates ADD COLUMN parse_status VARCHAR(20) DEFAULT 'ok' NOT NULL"))
+        changed = True
+    if "parse_error" not in candidate_columns:
+        db.session.execute(text("ALTER TABLE candidates ADD COLUMN parse_error TEXT"))
+        changed = True
 
     if "interview_feedback" in inspector.get_table_names():
         feedback_columns = {column["name"] for column in inspector.get_columns("interview_feedback")}
