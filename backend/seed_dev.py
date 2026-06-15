@@ -360,23 +360,23 @@ def seed():
             # (candidate, job, stage, updated_by, days_ago)
             (c1,  job1, "pending",    hr1.id, 28),
             (c1,  job1, "ai_screen",  hr1.id, 26),
-            (c1,  job1, "interview",  hr1.id, 22),
+            (c1,  job1, "interview_first",  hr1.id, 22),
             (c1,  job1, "offer",      manager.id, 18),
             (c1,  job1, "onboarded",  manager.id, 10),
 
             (c2,  job2, "pending",    hr1.id, 25),
             (c2,  job2, "ai_screen",  hr1.id, 23),
-            (c2,  job2, "interview",  hr1.id, 19),
+            (c2,  job2, "interview_first",  hr1.id, 19),
             (c2,  job2, "offer",      manager.id, 14),
 
             (c3,  job3, "pending",    hr2.id, 22),
             (c3,  job3, "ai_screen",  hr2.id, 20),
-            (c3,  job3, "interview",  hr2.id, 16),
+            (c3,  job3, "interview_first",  hr2.id, 16),
             (c3,  job3, "onboarded",  manager.id, 8),
 
             (c4,  job4, "pending",    hr2.id, 20),
             (c4,  job4, "ai_screen",  hr2.id, 18),
-            (c4,  job4, "interview",  hr2.id, 14),
+            (c4,  job4, "interview_first",  hr2.id, 14),
 
             (c5,  job1, "pending",    hr3.id, 18),
             (c5,  job1, "ai_screen",  hr3.id, 16),
@@ -388,20 +388,20 @@ def seed():
 
             (c7,  job3, "pending",    hr1.id, 12),
             (c7,  job3, "ai_screen",  hr1.id, 10),
-            (c7,  job3, "interview",  hr1.id, 7),
+            (c7,  job3, "interview_first",  hr1.id, 7),
             (c7,  job3, "offer",      manager.id, 4),
             (c7,  job3, "onboarded",  manager.id, 2),
 
             (c8,  job1, "pending",    hr2.id, 10),
             (c8,  job1, "ai_screen",  hr2.id, 8),
-            (c8,  job1, "interview",  hr2.id, 5),
+            (c8,  job1, "interview_first",  hr2.id, 5),
 
             (c9,  job2, "pending",    hr3.id, 8),
             (c9,  job2, "ai_screen",  hr3.id, 6),
 
             (c10, job4, "pending",    hr1.id, 6),
             (c10, job4, "ai_screen",  hr1.id, 4),
-            (c10, job4, "interview",  hr1.id, 2),
+            (c10, job4, "interview_first",  hr1.id, 2),
             (c10, job4, "offer",      manager.id, 1),
         ]
 

@@ -6,7 +6,9 @@ export type Role = 'recruiter' | 'manager' | 'admin' | 'interviewer';
 export type PipelineStage =
   | 'pending'
   | 'ai_screen'
-  | 'interview'
+  | 'interview_first'
+  | 'interview_second'
+  | 'interview_final'
   | 'offer'
   | 'onboarded'
   | 'rejected';
@@ -202,21 +204,61 @@ export interface PipelineMoveRequest {
   candidate_id: number;
   job_id: number;
   stage: PipelineStage;
+  note?: string;
 }
 
 export interface PipelineMoveResponse {
   status: string;
   stage: PipelineStage;
+  from: PipelineStage | null;
+  candidate_id: number;
+  name_masked: string;
 }
 
 // Map of stage -> count. Keys are PipelineStage values.
 export type PipelineCounts = Partial<Record<PipelineStage, number>>;
 
+// A single candidate currently sitting in a job's pipeline (at their latest stage).
+export interface PipelineBoardCandidate {
+  candidate_id: number;
+  name_masked: string;
+  stage: PipelineStage;
+  updated_at: string | null;
+  updated_by_name: string | null;
+  note?: string | null;
+}
+
+// Full board payload for one job: candidates bucketed by their current stage.
+export interface PipelineBoard {
+  job_id: number;
+  job_title: string;
+  stage_order: PipelineStage[];
+  candidates: PipelineBoardCandidate[];
+}
+
+// One step in a candidate's stage-transition timeline for a job.
+export interface PipelineHistoryStep {
+  stage: PipelineStage;
+  ts: string | null;
+  updated_by_name: string | null;
+  note?: string | null;
+}
+
+export interface PipelineHistory {
+  job_id: number;
+  candidate_id: number;
+  timeline: PipelineHistoryStep[];
+}
+
 // ---- BI ----
+// 漏斗按当前阶段计数。面试阶段已拆分为三轮（一面/二面/终面），
+// BI 漏斗展示时合并为一个"面试"概念值（见 BiPage 的 interviewTotal）。
 export interface BiFunnel {
   pending?: number;
   ai_screen?: number;
-  interview?: number;
+  interview_first?: number;
+  interview_second?: number;
+  interview_final?: number;
   offer?: number;
   onboarded?: number;
   rejected?: number;
@@ -255,4 +297,89 @@ export interface MeResponse {
   name: string;
   email: string;
   role: Role;
+}
+
+// ---- Admin user management ----
+export interface AdminUser {
+  id: number;
+  name: string;
+  email: string;
+  role: Role;
+  is_active: boolean;
+  created_at: string | null;
+}
+
+// ---- Interview list + feedback ----
+export interface InterviewListItem {
+  id: number;
+  type: 'ai' | 'feedback';
+  candidate_id: number;
+  name_masked: string | null;
+  job_id: number;
+  job_title: string | null;
+  score: number | null;
+  pass: boolean | null;
+  round: string | null;
+  created_at: string | null;
+}
+
+export interface InterviewFeedbackInput {
+  candidate_id: number;
+  job_id: number;
+  round: PipelineStage;
+  score: number;
+  passed: boolean;
+  strengths?: string;
+  concerns?: string;
+  note?: string;
+}
+
+// ---- Candidate pipeline context / journey (M4/M5) ----
+export interface CandidatePipelineItem {
+  job_id: number;
+  job_title: string;
+  stage: PipelineStage;
+  updated_at: string | null;
+}
+
+export interface CandidatePipelines {
+  candidate_id: number;
+  name_masked: string;
+  pipelines: CandidatePipelineItem[];
+}
+
+export interface JourneyTimelineStep {
+  stage: PipelineStage;
+  ts: string | null;
+  note: string | null;
+  updated_by_name: string | null;
+}
+
+export interface JourneyAiInterview {
+  id: number;
+  score: number | null;
+  pass: boolean | null;
+  created_at: string | null;
+}
+
+export interface JourneyFeedback {
+  id: number;
+  round: string | null;
+  score: number | null;
+  passed: boolean | null;
+  strengths: string | null;
+  concerns: string | null;
+  note: string | null;
+  interviewer_name: string | null;
+  created_at: string | null;
+}
+
+export interface CandidateJourney {
+  candidate_id: number;
+  name_masked: string;
+  job_id: number;
+  job_title: string | null;
+  timeline: JourneyTimelineStep[];
+  ai_interviews: JourneyAiInterview[];
+  feedback: JourneyFeedback[];
 }

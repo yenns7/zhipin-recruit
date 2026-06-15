@@ -22,9 +22,11 @@ import { CandidateProfilePage } from './pages/CandidateProfilePage';
 import { JobsPage } from './pages/JobsPage';
 import { JobMatchPage } from './pages/JobMatchPage';
 import { PipelinePage } from './pages/PipelinePage';
+import { InterviewListPage } from './pages/InterviewListPage';
 import { InterviewsPage } from './pages/InterviewsPage';
 import { InterviewReportPage } from './pages/InterviewReportPage';
 import { AgentPage } from './pages/AgentPage';
+import { UsersPage } from './pages/admin/UsersPage';
 import type { Role } from './types';
 
 // Gate for the authenticated app area.
@@ -104,6 +106,15 @@ function AppRoutes() {
           path="/interviews"
           element={
             <RequireRole
+              allow={['recruiter', 'interviewer', 'manager', 'admin']}
+              element={<InterviewListPage />}
+            />
+          }
+        />
+        <Route
+          path="/interviews/new"
+          element={
+            <RequireRole
               allow={['recruiter', 'manager', 'admin']}
               element={<InterviewsPage />}
             />
@@ -123,6 +134,10 @@ function AppRoutes() {
           element={
             <RequireRole allow={['manager', 'admin']} element={<BiPage />} />
           }
+        />
+        <Route
+          path="/admin/users"
+          element={<RequireRole allow={['admin']} element={<UsersPage />} />}
         />
       </Route>
       <Route path="*" element={<HomeRedirect />} />

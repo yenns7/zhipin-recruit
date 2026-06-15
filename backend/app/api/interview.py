@@ -45,6 +45,30 @@ def submit_interview():
     record_event("interview.scored", entity_id=candidate_id, entity_type="candidate",
                  payload={"job_id": job_id, "score": report["avg_score"],
                           "pass": report["pass_recommended"]})
+    # R2.1 回写流程：通过→一面；不通过→淘汰。未入流程先补 ai_screen 再推进。
+    # 不回退、不重复写：若当前阶段已 ≥ interview_first，则通过分支不再追加。
+    from ..models import PipelineStage
+    from .pipeline import STAGE_ORDER
+    last = (PipelineStage.query
+            .filter_by(candidate_id=candidate_id, job_id=job_id)
+            .order_by(PipelineStage.id.desc()).first())
+    passed = report["pass_recommended"]
+    cur_idx = STAGE_ORDER.index(last.stage) if (last and last.stage in STAGE_ORDER) else -1
+    first_idx = STAGE_ORDER.index("interview_first")
+
+    if passed and cur_idx >= first_idx:
+        # 已在一面或更靠后，AI 预筛不应让其回退或重复入轮——仅记录预筛分，不动阶段。
+        pass
+    else:
+        if last is None:
+            db.session.add(PipelineStage(candidate_id=candidate_id, job_id=job_id,
+                                         stage="ai_screen", updated_by=g.user_id,
+                                         note="AI 预筛入流程"))
+        target = "interview_first" if passed else "rejected"
+        note = f"AI 预筛{'通过' if passed else '未通过'}，均分 {report['avg_score']}"
+        db.session.add(PipelineStage(candidate_id=candidate_id, job_id=job_id,
+                                     stage=target, updated_by=g.user_id, note=note))
+    db.session.commit()
     return jsonify({"interview_id": iv.id, "report": report})
 
 
@@ -61,3 +85,87 @@ def get_report(interview_id):
         "ai_report": iv.ai_report,
         "created_at": iv.created_at.isoformat(),
     })
+
+
+@bp.post("/interview/feedback")
+@require_auth
+def submit_feedback():
+    from ..models import InterviewFeedback
+    data = request.get_json() or {}
+    required = ("candidate_id", "job_id", "round")
+    if not all(data.get(k) for k in required):
+        return jsonify({"error": "candidate_id, job_id, round required"}), 400
+    fb = InterviewFeedback(
+        candidate_id=data["candidate_id"], job_id=data["job_id"],
+        round=data["round"], interviewer_id=g.user_id,
+        score=data.get("score"), passed=data.get("passed"),
+        strengths=data.get("strengths"), concerns=data.get("concerns"),
+        note=data.get("note"))
+    db.session.add(fb)
+    db.session.commit()
+    record_event("interview.feedback", entity_id=data["candidate_id"],
+                 entity_type="candidate",
+                 payload={"job_id": data["job_id"], "round": data["round"],
+                          "score": data.get("score"), "passed": data.get("passed")})
+    return jsonify({"id": fb.id, "status": "ok"}), 201
+
+
+@bp.get("/interview/feedback")
+@require_auth
+def list_feedback():
+    from ..models import InterviewFeedback, User
+    cid = request.args.get("candidate_id", type=int)
+    jid = request.args.get("job_id", type=int)
+    q = InterviewFeedback.query
+    if cid: q = q.filter_by(candidate_id=cid)
+    if jid: q = q.filter_by(job_id=jid)
+    rows = q.order_by(InterviewFeedback.id.desc()).all()
+    out = []
+    for f in rows:
+        u = User.query.get(f.interviewer_id)
+        out.append({
+            "id": f.id, "candidate_id": f.candidate_id, "job_id": f.job_id,
+            "round": f.round, "interviewer_id": f.interviewer_id,
+            "interviewer_name": u.name if u else None,
+            "score": f.score, "passed": f.passed,
+            "strengths": f.strengths, "concerns": f.concerns, "note": f.note,
+            "created_at": f.created_at.isoformat() if f.created_at else None,
+        })
+    return jsonify(out)
+
+
+@bp.get("/interviews")
+@require_auth
+def list_interviews():
+    """面试记录列表：AI 面试 + 面试官反馈，按角色过滤。"""
+    from ..models import Interview, InterviewFeedback, Candidate, Job
+    items = []
+    ai_q = Interview.query
+    fb_q = InterviewFeedback.query
+    if g.role == "recruiter":
+        own_ids = [c.id for c in Candidate.query.filter_by(owner_hr_id=g.user_id).all()]
+        ai_q = ai_q.filter(Interview.candidate_id.in_(own_ids or [-1]))
+        fb_q = fb_q.filter(InterviewFeedback.candidate_id.in_(own_ids or [-1]))
+    elif g.role == "interviewer":
+        ai_q = ai_q.filter(Interview.id < 0)  # 面试官不看 AI 预筛发起记录（永假条件）
+        fb_q = fb_q.filter_by(interviewer_id=g.user_id)
+
+    def cname(cid):
+        c = Candidate.query.get(cid); return c.name_masked if c else None
+    def jtitle(jid):
+        j = Job.query.get(jid); return j.title if j else None
+
+    for iv in ai_q.order_by(Interview.id.desc()).all():
+        items.append({"id": iv.id, "type": "ai", "candidate_id": iv.candidate_id,
+                      "name_masked": cname(iv.candidate_id), "job_id": iv.job_id,
+                      "job_title": jtitle(iv.job_id), "score": iv.score,
+                      "pass": iv.pass_recommended, "round": None,
+                      "created_at": iv.created_at.isoformat() if iv.created_at else None})
+    for f in fb_q.order_by(InterviewFeedback.id.desc()).all():
+        items.append({"id": f.id, "type": "feedback", "candidate_id": f.candidate_id,
+                      "name_masked": cname(f.candidate_id), "job_id": f.job_id,
+                      "job_title": jtitle(f.job_id), "score": f.score,
+                      "pass": f.passed, "round": f.round,
+                      "created_at": f.created_at.isoformat() if f.created_at else None})
+    items.sort(key=lambda it: it["created_at"] or "", reverse=True)
+    return jsonify(items)

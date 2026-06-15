@@ -28,12 +28,18 @@ const DAYS_OPTIONS: { label: string; value: number }[] = [
   { label: '近 90 天', value: 90 },
 ];
 
-const FUNNEL_STAGES: { key: keyof Omit<BiFunnel, 'conversion_rate' | 'rejected'>; label: string }[] = [
-  { key: 'pending', label: '待筛选' },
-  { key: 'ai_screen', label: 'AI初筛' },
-  { key: 'interview', label: '面试' },
-  { key: 'offer', label: 'Offer' },
-  { key: 'onboarded', label: '已入职' },
+// 漏斗展示的 5 个概念阶段。面试阶段在后端已拆为一面/二面/终面三轮，
+// 这里用 value(funnel) 取值，"面试"行把三轮合并求和。
+const FUNNEL_STAGES: { label: string; value: (f: BiFunnel) => number }[] = [
+  { label: '待筛选', value: (f) => safeNum(f.pending) },
+  { label: 'AI初筛', value: (f) => safeNum(f.ai_screen) },
+  {
+    label: '面试',
+    value: (f) =>
+      safeNum(f.interview_first) + safeNum(f.interview_second) + safeNum(f.interview_final),
+  },
+  { label: 'Offer', value: (f) => safeNum(f.offer) },
+  { label: '已入职', value: (f) => safeNum(f.onboarded) },
 ];
 
 // Apple 风格渐变配色
@@ -292,9 +298,9 @@ function TeamOverview({
               </CardHeader>
               <CardBody>
                 <FunnelDiagram
-                  stages={FUNNEL_STAGES.map(({ key, label }, i) => ({
+                  stages={FUNNEL_STAGES.map(({ label, value }, i) => ({
                     label,
-                    value: safeNum(data.funnel[key]),
+                    value: value(data.funnel),
                     color: FUNNEL_COLORS[i] ?? '#007AFF',
                   }))}
                   rejected={safeNum(data.funnel.rejected)}
@@ -316,11 +322,11 @@ function TeamOverview({
                   />
                 </div>
                 <div className="grid grid-cols-3 gap-3">
-                  {FUNNEL_STAGES.map(({ key, label }) => (
-                    <div key={key} className="rounded-xl bg-surface-soft px-3 py-2.5 transition-colors hover:bg-surface-card">
+                  {FUNNEL_STAGES.map(({ label, value }) => (
+                    <div key={label} className="rounded-xl bg-surface-soft px-3 py-2.5 transition-colors hover:bg-surface-card">
                       <p className="text-xs text-muted mb-0.5">{label}</p>
                       <p className="text-lg font-display text-ink">
-                        <AnimatedNumber value={safeNum(data.funnel[key])} />
+                        <AnimatedNumber value={value(data.funnel)} />
                       </p>
                     </div>
                   ))}
@@ -436,9 +442,9 @@ function StaffDrilldown({
           <CardBody>
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
               <FunnelDiagram
-                stages={FUNNEL_STAGES.map(({ key, label }, i) => ({
+                stages={FUNNEL_STAGES.map(({ label, value }, i) => ({
                   label,
-                  value: safeNum(data.funnel[key]),
+                  value: value(data.funnel),
                   color: FUNNEL_COLORS[i] ?? '#007AFF',
                 }))}
                 rejected={safeNum(data.funnel.rejected)}
@@ -454,11 +460,11 @@ function StaffDrilldown({
               </div>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {FUNNEL_STAGES.map(({ key, label }) => (
-                <div key={key} className="rounded-xl bg-surface-soft px-3 py-2.5 transition-colors hover:bg-surface-card">
+              {FUNNEL_STAGES.map(({ label, value }) => (
+                <div key={label} className="rounded-xl bg-surface-soft px-3 py-2.5 transition-colors hover:bg-surface-card">
                   <p className="text-xs text-muted mb-0.5">{label}</p>
                   <p className="text-xl font-display text-ink">
-                    <AnimatedNumber value={safeNum(data.funnel[key])} />
+                    <AnimatedNumber value={value(data.funnel)} />
                   </p>
                 </div>
               ))}

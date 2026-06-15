@@ -3,13 +3,18 @@
 // The JWT is read from localStorage and injected as a Bearer token.
 
 import type {
+  AdminUser,
   BiOverview,
   BiStaffDetail,
   BiJobDetail,
   CandidateDetail,
   CandidateListItem,
+  CandidateJourney,
+  CandidatePipelines,
   CreateJobRequest,
   CreateJobResponse,
+  InterviewFeedbackInput,
+  InterviewListItem,
   InterviewRecord,
   InterviewStartRequest,
   InterviewStartResponse,
@@ -22,12 +27,15 @@ import type {
   LoginResponse,
   MatchResponse,
   MeResponse,
+  PipelineBoard,
+  PipelineHistory,
   PipelineCounts,
   PipelineMoveRequest,
   PipelineMoveResponse,
   RegisterRequest,
   RegisterResponse,
   ResumeUploadResponse,
+  Role,
 } from '../types';
 
 const API_BASE = '/api';
@@ -199,6 +207,12 @@ export const api = {
   getInterview(interviewId: number): Promise<InterviewRecord> {
     return request(`/interview/${interviewId}`);
   },
+  listInterviews(): Promise<InterviewListItem[]> {
+    return request('/interviews');
+  },
+  submitFeedback(payload: InterviewFeedbackInput): Promise<{ id: number; status: string }> {
+    return request('/interview/feedback', { method: 'POST', body: payload });
+  },
 
   // ---- Pipeline ----
   movePipeline(payload: PipelineMoveRequest): Promise<PipelineMoveResponse> {
@@ -206,6 +220,14 @@ export const api = {
   },
   getPipeline(jobId: number): Promise<PipelineCounts> {
     return request(`/pipeline/${jobId}`);
+  },
+  // Per-candidate board: who is at which stage right now for this job.
+  getPipelineBoard(jobId: number): Promise<PipelineBoard> {
+    return request(`/pipeline/${jobId}/board`);
+  },
+  // Stage-transition timeline for one candidate in one job.
+  getPipelineHistory(jobId: number, candidateId: number): Promise<PipelineHistory> {
+    return request(`/pipeline/${jobId}/history/${candidateId}`);
   },
 
   // ---- BI (manager/admin only) ----
@@ -228,6 +250,34 @@ export const api = {
     return request('/auth/change-password', {
       method: 'POST',
       body: { old_password: oldPassword, new_password: newPassword },
+    });
+  },
+
+  // ---- Admin (admin-only) ----
+  listUsers(): Promise<AdminUser[]> {
+    return request('/admin/users');
+  },
+  updateUser(
+    userId: number,
+    payload: { role?: Role; is_active?: boolean },
+  ): Promise<AdminUser> {
+    return request(`/admin/users/${userId}`, { method: 'PATCH', body: payload });
+  },
+
+  // ---- Candidate pipeline context / journey / reassignment (M4/M5) ----
+  getCandidatePipelines(candidateId: number): Promise<CandidatePipelines> {
+    return request(`/candidates/${candidateId}/pipelines`);
+  },
+  getCandidateJourney(candidateId: number, jobId: number): Promise<CandidateJourney> {
+    return request(`/candidates/${candidateId}/journey?job_id=${jobId}`);
+  },
+  reassignCandidate(
+    candidateId: number,
+    ownerHrId: number,
+  ): Promise<{ candidate_id: number; owner_hr_id: number }> {
+    return request(`/candidates/${candidateId}/owner`, {
+      method: 'PATCH',
+      body: { owner_hr_id: ownerHrId },
     });
   },
 };

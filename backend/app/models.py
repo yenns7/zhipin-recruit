@@ -10,6 +10,7 @@ class User(db.Model):
     role = db.Column(db.String(20), nullable=False, default="recruiter")  # admin/manager/recruiter/interviewer
     password_hash = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
 
 
 class Candidate(db.Model):
@@ -67,7 +68,11 @@ class Interview(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
-VALID_STAGES = {"pending", "ai_screen", "interview", "offer", "onboarded", "rejected"}
+VALID_STAGES = {
+    "pending", "ai_screen",
+    "interview_first", "interview_second", "interview_final",
+    "offer", "onboarded", "rejected",
+}
 
 
 class PipelineStage(db.Model):
@@ -77,6 +82,7 @@ class PipelineStage(db.Model):
     job_id = db.Column(db.Integer, db.ForeignKey("jobs.id"))
     stage = db.Column(db.String(50), nullable=False)
     updated_by = db.Column(db.Integer, db.ForeignKey("users.id"))
+    note = db.Column(db.Text)  # 本次阶段变更原因/备注，可空
     ts = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -99,3 +105,18 @@ class AuditLog(db.Model):
     target_id = db.Column(db.Integer)
     action = db.Column(db.String(50))
     ts = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class InterviewFeedback(db.Model):
+    __tablename__ = "interview_feedback"
+    id = db.Column(db.Integer, primary_key=True)
+    candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id"), nullable=False)
+    job_id = db.Column(db.Integer, db.ForeignKey("jobs.id"), nullable=False)
+    round = db.Column(db.String(30), nullable=False)  # interview_first/second/final
+    interviewer_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    score = db.Column(db.Integer)        # 1-5
+    passed = db.Column(db.Boolean)
+    strengths = db.Column(db.Text)
+    concerns = db.Column(db.Text)
+    note = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)

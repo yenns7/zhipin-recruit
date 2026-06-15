@@ -9,6 +9,7 @@ import {
   BarChart3,
   Bot,
   Sparkles,
+  ShieldCheck,
   type LucideIcon,
 } from 'lucide-react';
 import type { Role } from '../types';
@@ -52,15 +53,21 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     to: '/interviews',
-    label: 'AI 面试',
+    label: '面试记录',
     icon: Bot,
-    roles: ['recruiter'],
+    roles: ['recruiter', 'interviewer', 'manager', 'admin'],
   },
   {
     to: '/bi',
     label: '数据看板',
     icon: BarChart3,
     roles: ['manager', 'admin'],
+  },
+  {
+    to: '/admin/users',
+    label: '用户管理',
+    icon: ShieldCheck,
+    roles: ['admin'],
   },
 ];
 

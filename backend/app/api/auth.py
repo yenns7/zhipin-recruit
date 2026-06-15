@@ -1,8 +1,7 @@
 import bcrypt
 from datetime import datetime, timedelta
-from flask import Blueprint, request, jsonify, g
+from flask import Blueprint, request, jsonify, g, current_app
 import jwt
-from ..config import Config
 from ..middleware.auth import require_auth
 from .. import db
 from ..models import User
@@ -23,13 +22,15 @@ def _verify(pw: str, hashed: str) -> bool:
 
 @bp.post("/auth/register")
 def register():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
+    if not data.get("email") or not data.get("password"):
+        return jsonify({"error": "email and password required"}), 400
     if User.query.filter_by(email=data.get("email")).first():
         return jsonify({"error": "Email already registered"}), 409
     user = User(
         name=data.get("name", ""),
         email=data["email"],
-        role=data.get("role", "recruiter"),
+        role="recruiter",  # 安全：注册一律为 recruiter，特权角色由 admin 分配
         password_hash=_hash(data["password"]),
     )
     db.session.add(user)
@@ -39,14 +40,16 @@ def register():
 
 @bp.post("/auth/login")
 def login():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     user = User.query.filter_by(email=data.get("email")).first()
     if not user or not _verify(data.get("password", ""), user.password_hash):
         return jsonify({"error": "Invalid credentials"}), 401
-    exp = datetime.utcnow() + timedelta(hours=Config.JWT_EXPIRY_HOURS)
+    if not user.is_active:
+        return jsonify({"error": "账号已停用，请联系管理员"}), 403
+    exp = datetime.utcnow() + timedelta(hours=current_app.config["JWT_EXPIRY_HOURS"])
     token = jwt.encode(
         {"user_id": user.id, "role": user.role, "exp": exp},
-        Config.JWT_SECRET, algorithm="HS256"
+        current_app.config["JWT_SECRET"], algorithm="HS256"
     )
     return jsonify({"token": token, "role": user.role, "name": user.name})
 
