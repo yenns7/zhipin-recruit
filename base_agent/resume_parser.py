@@ -252,12 +252,24 @@ class ResumeParser:
             '  "name": "姓名",\n'
             '  "email": "邮箱",\n'
             '  "phone": "电话",\n'
+            '  "summary": "个人简介或职业概述",\n'
+            '  "intent_city": "意向城市或工作城市",\n'
             '  "education": [\n'
             '    {"school": "学校", "degree": "学位", "major": "专业", "year": "年份"}\n'
             '  ],\n'
             '  "experience": [\n'
             '    {"company": "公司", "position": "职位", "duration": "时间", "description": "描述"}\n'
-            '  ]\n'
+            '  ],\n'
+            '  "projects": [\n'
+            '    {"name": "项目名称", "role": "角色", "duration": "时间", "description": "项目描述或成果"}\n'
+            '  ],\n'
+            '  "certifications": [\n'
+            '    {"name": "证书名称", "issuer": "颁发机构", "date": "日期"}\n'
+            '  ],\n'
+            '  "languages": [\n'
+            '    {"language": "语言", "level": "水平"}\n'
+            '  ],\n'
+            '  "additional_info": "其他值得 HR 看到的信息、备注或亮点"\n'
             "}\n"
             "如果某项信息不存在，使用空字符串或空数组。"
         )
@@ -276,8 +288,14 @@ class ResumeParser:
                 "name": extracted.get("name", ""),
                 "email": extracted.get("email", ""),
                 "phone": extracted.get("phone", ""),
+                "summary": extracted.get("summary", ""),
+                "intent_city": extracted.get("intent_city", ""),
                 "education": extracted.get("education", []),
                 "experience": extracted.get("experience", []),
+                "projects": extracted.get("projects", []),
+                "certifications": extracted.get("certifications", []),
+                "languages": extracted.get("languages", []),
+                "additional_info": extracted.get("additional_info", ""),
             }
         except Exception as e:
             logging.error(f"简历信息提取失败: {e}")
@@ -286,8 +304,14 @@ class ResumeParser:
                 "name": "",
                 "email": "",
                 "phone": "",
+                "summary": "",
+                "intent_city": "",
                 "education": [],
                 "experience": [],
+                "projects": [],
+                "certifications": [],
+                "languages": [],
+                "additional_info": "",
             }
     
     def score_resume_skills(self, resume_text: str, extracted_info: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -437,7 +461,12 @@ class ResumeParser:
             for exp in extracted_info["experience"]:
                 lines.append(f"- {exp.get('company', '')} {exp.get('position', '')}")
                 lines.append(f"  {exp.get('description', '')}")
-        
+        if extracted_info.get("projects"):
+            lines.append("\n项目经历:")
+            for project in extracted_info["projects"]:
+                lines.append(f"- {project.get('name', '')} {project.get('role', '')}")
+                lines.append(f"  {project.get('description', '')}")
+
         return "\n".join(lines)
     
     def _select_candidate_tags(self, text: str) -> List[str]:

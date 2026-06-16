@@ -6,6 +6,7 @@ export type Role = 'recruiter' | 'manager' | 'admin' | 'interviewer';
 export type PipelineStage =
   | 'pending'
   | 'ai_screen'
+  | 'business_review'
   | 'interview_first'
   | 'interview_second'
   | 'interview_final'
@@ -51,6 +52,8 @@ export interface ResumeUploadResultItem {
   status: 'ok' | 'skipped' | 'error';
   candidate_id?: number;
   reason?: string;
+  target_job_id?: number;
+  pipeline_stage?: PipelineStage;
 }
 
 export interface ResumeUploadResponse {
@@ -75,6 +78,8 @@ export interface CandidateSourceInfo {
   referrer: string;
   target_job_id: number | null;
   target_job_title: string | null;
+  target_job_city: string;
+  target_job_department: string;
   note: string;
   created_at: string | null;
 }
@@ -88,6 +93,12 @@ export interface CandidateDetail {
   parse_error?: string | null;
   source?: CandidateSourceInfo | null;
   created_at: string;
+  rematched_jobs?: { id: number; title: string }[];
+}
+
+export interface CandidateProfileUpdateRequest {
+  profile: ResumeJson;
+  skills?: CandidateTag[];
 }
 
 export interface RetryParseResponse {
@@ -111,6 +122,7 @@ export interface CandidateListItem {
   tag_count: number;
   top_tags?: CandidateTag[];
   max_score?: number;
+  intent_city?: string;
   latest_experience?: {
     company: string;
     position: string;
@@ -124,6 +136,10 @@ export interface CandidateListQuery {
   search?: string;
   stage?: PipelineStage;
   job_id?: number;
+  city?: string;
+  source_channel?: string;
+  parse_status?: ParseStatus;
+  pipeline_status?: 'in_pipeline' | 'not_in_pipeline';
   sort_by?: 'created_at' | 'name_masked';
   sort_order?: 'asc' | 'desc';
   page?: number;
@@ -199,6 +215,71 @@ export interface JobDetail {
   status: string;
   owner_hr_id?: number;
   created_at?: string;
+}
+
+// ---- Recruitment demands ----
+export type DemandPriority = 'A' | 'B' | 'C';
+export type DemandStatus = 'pending' | 'active' | 'paused' | 'filled' | 'cancelled';
+
+export interface RecruitmentDemandMetrics {
+  recommended_count: number;
+  business_review_count: number;
+  interview_count: number;
+  offer_count: number;
+  onboarded_count: number;
+  current_stage_counts: Partial<Record<PipelineStage | string, number>>;
+}
+
+export interface RecruitmentDemand {
+  id: number;
+  job_id: number;
+  job_title: string;
+  job_city: string;
+  job_department: string;
+  job_code: string;
+  owner_hr_id: number;
+  request_no: string;
+  requester_name: string;
+  requester_department: string;
+  hiring_manager_name: string;
+  requested_at: string | null;
+  accepted_at: string | null;
+  target_date: string | null;
+  priority: DemandPriority;
+  headcount: number;
+  status: DemandStatus;
+  close_reason: string;
+  downgrade_reason: string;
+  note: string;
+  metrics: RecruitmentDemandMetrics;
+  risk_flags: string[];
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface RecruitmentDemandInput {
+  job_id: number;
+  request_no?: string;
+  requester_name?: string;
+  requester_department?: string;
+  hiring_manager_name?: string;
+  requested_at?: string;
+  accepted_at?: string;
+  target_date?: string;
+  priority?: DemandPriority;
+  headcount?: number;
+  status?: DemandStatus;
+  note?: string;
+}
+
+export interface DemandCloseInput {
+  status: 'filled' | 'cancelled' | 'paused';
+  close_reason?: string;
+}
+
+export interface DemandDowngradeInput {
+  priority: DemandPriority;
+  downgrade_reason?: string;
 }
 
 // ---- Matching ----
@@ -351,12 +432,14 @@ export interface PipelineHistory {
 export interface BiFunnel {
   pending?: number;
   ai_screen?: number;
+  business_review?: number;
   interview_first?: number;
   interview_second?: number;
   interview_final?: number;
   offer?: number;
   onboarded?: number;
   rejected?: number;
+  pipeline_total?: number;
   conversion_rate: number;
 }
 
@@ -369,9 +452,25 @@ export interface BiStaffMember {
   conversion_rate: number;
 }
 
+export interface BiManagerAlert {
+  kind: 'stale_pipeline' | 'pending_interview_feedback' | 'business_feedback_overdue' | string;
+  priority: 'high' | 'medium' | 'low' | string;
+  title: string;
+  detail: string;
+  candidate_id: number;
+  candidate_name: string;
+  job_id: number;
+  job_title: string;
+  stage: PipelineStage | string;
+  stage_label: string;
+  age_days: number;
+  action_path: string;
+}
+
 export interface BiOverview {
   funnel: BiFunnel;
   staff: BiStaffMember[];
+  alerts: BiManagerAlert[];
 }
 
 export interface BiStaffDetail {

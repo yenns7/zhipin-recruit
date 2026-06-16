@@ -5,12 +5,15 @@ from ..middleware.auth import require_auth
 from ..middleware.events import record_event
 from .. import db
 from ..models import Candidate, CandidateDisposition, Job, OfferRecord, PipelineStage, VALID_STAGES, User
-from .access import assigned_candidate_ids_for_interviewer, interviewer_has_assignment
+from .access import (
+    can_access_candidate,
+    visible_candidate_query,
+)
 
 bp = Blueprint("pipeline", __name__)
 
 # 阶段顺序（用于"推进/回退"语义与前端排序）。rejected 是终态，不在主序列里。
-STAGE_ORDER = ["pending", "ai_screen", "interview_first",
+STAGE_ORDER = ["pending", "ai_screen", "business_review", "interview_first",
                "interview_second", "interview_final", "offer", "onboarded"]
 
 
@@ -74,7 +77,7 @@ def move_stage():
     job = Job.query.get(job_id)
     if job is None:
         return jsonify({"error": "岗位不存在"}), 404
-    if g.role == "interviewer" and not interviewer_has_assignment(g.user_id, candidate_id, job_id):
+    if not can_access_candidate(g.user_id, g.role, candidate_id, job_id):
         return jsonify({"error": "Forbidden"}), 403
 
     # 当前阶段（用于事件记录与返回，便于前端给出"从 X 到 Y"的反馈）
@@ -139,9 +142,14 @@ def get_pipeline(job_id):
     rows = (
         db.session.query(PipelineStage.stage, func.count(PipelineStage.id))
         .join(latest, PipelineStage.id == latest.c.max_id)
+        .join(Candidate, Candidate.id == PipelineStage.candidate_id)
         .group_by(PipelineStage.stage)
-        .all()
     )
+    if g.role not in ("manager", "admin"):
+        rows = rows.filter(Candidate.id.in_(
+            visible_candidate_query(g.user_id, g.role).with_entities(Candidate.id)
+        ))
+    rows = rows.all()
     return jsonify({stage: count for stage, count in rows})
 
 
@@ -163,9 +171,10 @@ def get_board(job_id):
         .join(Candidate, Candidate.id == PipelineStage.candidate_id)
         .outerjoin(User, User.id == PipelineStage.updated_by)
     )
-    if g.role == "interviewer":
-        assigned_ids = assigned_candidate_ids_for_interviewer(g.user_id)
-        rows = rows.filter(Candidate.id.in_(assigned_ids or [-1]))
+    if g.role not in ("manager", "admin"):
+        rows = rows.filter(Candidate.id.in_(
+            visible_candidate_query(g.user_id, g.role).with_entities(Candidate.id)
+        ))
     rows = rows.all()
 
     candidates = [{
@@ -194,7 +203,7 @@ def get_board(job_id):
 @require_auth
 def get_history(job_id, candidate_id):
     """单个候选人在某岗位的阶段流转时间线（按时间正序）。"""
-    if g.role == "interviewer" and not interviewer_has_assignment(g.user_id, candidate_id, job_id):
+    if not can_access_candidate(g.user_id, g.role, candidate_id, job_id):
         return jsonify({"error": "Forbidden"}), 403
     rows = (
         db.session.query(PipelineStage, User)
@@ -216,7 +225,7 @@ def get_history(job_id, candidate_id):
 @bp.get("/pipeline/<int:job_id>/offer/<int:candidate_id>")
 @require_auth
 def get_offer(job_id, candidate_id):
-    if g.role == "interviewer" and not interviewer_has_assignment(g.user_id, candidate_id, job_id):
+    if not can_access_candidate(g.user_id, g.role, candidate_id, job_id):
         return jsonify({"error": "Forbidden"}), 403
     offer = (OfferRecord.query
              .filter_by(candidate_id=candidate_id, job_id=job_id)
@@ -241,6 +250,8 @@ def save_offer(job_id, candidate_id):
         return jsonify({"error": "候选人不存在"}), 404
     if Job.query.get(job_id) is None:
         return jsonify({"error": "岗位不存在"}), 404
+    if not can_access_candidate(g.user_id, g.role, candidate_id, job_id):
+        return jsonify({"error": "Forbidden"}), 403
     data = request.get_json() or {}
     offer = (OfferRecord.query
              .filter_by(candidate_id=candidate_id, job_id=job_id)

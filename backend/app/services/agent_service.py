@@ -38,11 +38,18 @@ from ..models import (  # noqa: E402
     PipelineStage,
 )
 from .match_service import MatchService  # noqa: E402
-from ..api.bi import _funnel  # 复用 BI 漏斗逻辑（模块级函数）  # noqa: E402
+from ..api.bi import _funnel, _safe_rate  # 复用 BI 漏斗逻辑（模块级函数）  # noqa: E402
+from ..api.access import can_access_candidate, visible_candidate_query  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
 MAX_ITERATIONS = 5  # ReAct 步数上限，防止无限循环
+
+
+def _scoped_candidate_query(user_id=None, role=None):
+    if user_id and role:
+        return visible_candidate_query(user_id, role)
+    return Candidate.query
 
 
 # =============================================================================
@@ -54,7 +61,9 @@ def _tool_list_candidates(limit: int = 20, **_) -> Dict[str, Any]:
         limit = int(limit) if limit else 20
     except (TypeError, ValueError):
         limit = 20
-    rows = Candidate.query.order_by(Candidate.id).limit(limit).all()
+    user_id = _.get("_user_id")
+    role = _.get("_role")
+    rows = _scoped_candidate_query(user_id, role).order_by(Candidate.id).limit(limit).all()
     items = [{
         "id": c.id,
         "name_masked": c.name_masked,
@@ -65,6 +74,10 @@ def _tool_list_candidates(limit: int = 20, **_) -> Dict[str, Any]:
 
 def _tool_get_candidate(candidate_id: int, **_) -> Dict[str, Any]:
     """单个候选人详情，含技能标签。"""
+    user_id = _.get("_user_id")
+    role = _.get("_role")
+    if user_id and role and not can_access_candidate(user_id, role, int(candidate_id)):
+        return {"error": "Forbidden"}
     c = Candidate.query.get(int(candidate_id))
     if not c:
         return {"error": f"候选人 {candidate_id} 不存在"}
@@ -96,7 +109,11 @@ def _tool_match_candidates_for_job(job_id: int, **_) -> Dict[str, Any]:
         return {"error": f"岗位 {job_id} 不存在"}
     # 使用纯计算模式（不写入 DB），rank_for_job(..., persist=False)
     from .match_service import MatchService as MS
-    ranked = MS().rank_for_job_readonly(int(job_id), top_n=10)
+    ranked = MS().rank_for_job_readonly(
+        int(job_id),
+        top_n=10,
+        candidate_query=_scoped_candidate_query(_.get("_user_id"), _.get("_role")),
+    )
     return {"job_id": int(job_id), "job_title": job.title, "ranking": ranked}
 
 
@@ -104,7 +121,11 @@ def _tool_get_pipeline(job_id: int, **_) -> Dict[str, Any]:
     """某岗位招聘流程看板：按 stage 分组计数。"""
     rows = (
         db.session.query(PipelineStage.stage, db.func.count(PipelineStage.candidate_id))
+        .join(Candidate, Candidate.id == PipelineStage.candidate_id)
         .filter(PipelineStage.job_id == int(job_id))
+        .filter(Candidate.id.in_(
+            _scoped_candidate_query(_.get("_user_id"), _.get("_role")).with_entities(Candidate.id)
+        ))
         .group_by(PipelineStage.stage)
         .all()
     )
@@ -139,7 +160,7 @@ def _tool_get_bi_overview(days: int = 30, **_) -> Dict[str, Any]:
             )).label("onboarded"),
         )
         .outerjoin(Event, (Event.actor_id == User.id) & (Event.ts >= cutoff))
-        .filter(User.role == "recruiter")
+        .filter(User.role == "recruiter", User.is_active.is_(True))
         .group_by(User.id, User.name)
         .all()
     )
@@ -147,20 +168,23 @@ def _tool_get_bi_overview(days: int = 30, **_) -> Dict[str, Any]:
         "hr_id": hr_id, "name": name,
         "resumes": resumes or 0, "screens": screens or 0,
         "onboarded": onboarded or 0,
-        "conversion_rate": round((onboarded or 0) / (resumes or 1) * 100, 1),
+        "conversion_rate": _safe_rate(onboarded or 0, resumes or 0),
     } for hr_id, name, resumes, screens, onboarded in staff_rows]
     return {"days": days, "funnel": funnel, "staff": staff}
 
 
 def _tool_count_summary(**_) -> Dict[str, Any]:
     """系统概览数字：候选人/岗位/面试总数 + 各流程阶段人数。"""
+    scoped_candidates = _scoped_candidate_query(_.get("_user_id"), _.get("_role"))
     stage_rows = (
         db.session.query(PipelineStage.stage, db.func.count(PipelineStage.candidate_id))
+        .join(Candidate, Candidate.id == PipelineStage.candidate_id)
+        .filter(Candidate.id.in_(scoped_candidates.with_entities(Candidate.id)))
         .group_by(PipelineStage.stage)
         .all()
     )
     return {
-        "candidate_count": Candidate.query.count(),
+        "candidate_count": scoped_candidates.count(),
         "job_count": Job.query.count(),
         "interview_count": Interview.query.count(),
         "stage_counts": {stage: count for stage, count in stage_rows},
@@ -356,7 +380,8 @@ def _write_create_job(title: str = "", jd_text: str = "", actor_id: int = None, 
 
 
 def _write_move_pipeline(candidate_id: int = None, job_id: int = None,
-                         stage: str = "", actor_id: int = None, **_) -> Dict[str, Any]:
+                         stage: str = "", actor_id: int = None,
+                         actor_role: str = None, **_) -> Dict[str, Any]:
     """推进候选人到指定招聘流程阶段。"""
     from ..models import VALID_STAGES
     from ..middleware.events import record_event
@@ -368,6 +393,8 @@ def _write_move_pipeline(candidate_id: int = None, job_id: int = None,
         return {"error": f"候选人 {candidate_id} 不存在"}
     if not Job.query.get(int(job_id)):
         return {"error": f"岗位 {job_id} 不存在"}
+    if not can_access_candidate(actor_id, actor_role, int(candidate_id), int(job_id)):
+        return {"error": "Forbidden"}
     ps = PipelineStage(candidate_id=int(candidate_id), job_id=int(job_id),
                        stage=stage, updated_by=actor_id)
     db.session.add(ps)
@@ -381,7 +408,8 @@ def _write_move_pipeline(candidate_id: int = None, job_id: int = None,
 
 
 def _write_start_interview(candidate_id: int = None, job_id: int = None,
-                           count: int = 5, actor_id: int = None, **_) -> Dict[str, Any]:
+                           count: int = 5, actor_id: int = None,
+                           actor_role: str = None, **_) -> Dict[str, Any]:
     """为候选人发起 AI 面试，生成面试题。"""
     from ..services.interview_service import PreScreenService
     from ..middleware.events import record_event
@@ -392,6 +420,8 @@ def _write_start_interview(candidate_id: int = None, job_id: int = None,
         return {"error": f"岗位 {job_id} 不存在"}
     if not Candidate.query.get(int(candidate_id)):
         return {"error": f"候选人 {candidate_id} 不存在"}
+    if not can_access_candidate(actor_id, actor_role, int(candidate_id), int(job_id)):
+        return {"error": "Forbidden"}
     try:
         count = int(count) if count else 5
     except (TypeError, ValueError):
@@ -402,7 +432,8 @@ def _write_start_interview(candidate_id: int = None, job_id: int = None,
     return {"candidate_id": int(candidate_id), "job_id": int(job_id), "questions": questions}
 
 
-def _write_run_match(job_id: int = None, actor_id: int = None, **_) -> Dict[str, Any]:
+def _write_run_match(job_id: int = None, actor_id: int = None,
+                     actor_role: str = None, **_) -> Dict[str, Any]:
     """为岗位运行候选人匹配并持久化结果。"""
     from ..middleware.events import record_event
     if not job_id:
@@ -410,7 +441,11 @@ def _write_run_match(job_id: int = None, actor_id: int = None, **_) -> Dict[str,
     job = Job.query.get(int(job_id))
     if not job:
         return {"error": f"岗位 {job_id} 不存在"}
-    ranked = MatchService().rank_for_job(int(job_id), top_n=10)
+    ranked = MatchService().rank_for_job(
+        int(job_id),
+        top_n=10,
+        candidate_query=_scoped_candidate_query(actor_id, actor_role),
+    )
     record_event("match.run", entity_id=int(job_id), entity_type="job",
                  payload={"count": len(ranked)})
     return {"job_id": int(job_id), "job_title": job.title, "ranking": ranked}
@@ -536,6 +571,7 @@ def execute_write_tool(name: str, args: Dict[str, Any], user_id: int, role: str)
     try:
         clean_args = dict(args or {})
         clean_args["actor_id"] = user_id
+        clean_args["actor_role"] = role
         result = tool["execute"](**clean_args)
         if isinstance(result, dict) and result.get("error"):
             return {"ok": False, "error": result["error"]}
@@ -552,6 +588,8 @@ class AgentState(TypedDict, total=False):
     messages: List[Dict[str, str]]      # 用户对话历史（role/content）
     tool_results: List[Dict[str, Any]]  # 已执行工具的结果累积
     iterations: int                     # 已迭代步数
+    user_id: int
+    role: str
     final: str                          # 决策为 final 时模型给的回答（非流式兜底）
     # 内部传递：当前 agent 节点的决策结果
     _decision: Dict[str, Any]
@@ -707,7 +745,13 @@ class RecruitingAgent:
             result: Any = {"error": f"未知工具：{tool_name}"}
         else:
             try:
-                result = tool_def["execute"](**args) if isinstance(args, dict) else tool_def["execute"]()
+                if isinstance(args, dict):
+                    clean_args = dict(args)
+                    clean_args["_user_id"] = state.get("user_id")
+                    clean_args["_role"] = state.get("role")
+                    result = tool_def["execute"](**clean_args)
+                else:
+                    result = tool_def["execute"]()
             except Exception as e:
                 logger.exception("工具 %s 执行失败", tool_name)
                 result = {"error": f"工具执行失败：{e}"}
@@ -783,7 +827,13 @@ class RecruitingAgent:
         return "".join(full)
 
     # ----- 对外接口：流式运行 -------------------------------------------------
-    def run_stream(self, user_message: str, history: Optional[List[Dict[str, str]]] = None):
+    def run_stream(
+        self,
+        user_message: str,
+        history: Optional[List[Dict[str, str]]] = None,
+        user_id: Optional[int] = None,
+        role: Optional[str] = None,
+    ):
         """
         生成器，yield SSE 事件 dict：
           {"type":"thought","text":...}                  # agent 思考
@@ -799,6 +849,8 @@ class RecruitingAgent:
             "messages": messages,
             "tool_results": [],
             "iterations": 0,
+            "user_id": user_id,
+            "role": role,
             "_events": [],
         }
 

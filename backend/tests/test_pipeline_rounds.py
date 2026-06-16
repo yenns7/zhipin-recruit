@@ -11,7 +11,7 @@ def _seed_job_candidate(app):
 def test_move_through_rounds_with_note(client, make_user, app):
     _, token = make_user("hr@x.com", role="recruiter")
     jid, cid = _seed_job_candidate(app)
-    for stage in ["pending", "ai_screen", "interview_first", "interview_second"]:
+    for stage in ["pending", "ai_screen", "business_review", "interview_first", "interview_second"]:
         r = client.post("/api/pipeline/move", headers=_auth(token),
                         json={"candidate_id": cid, "job_id": jid, "stage": stage,
                               "note": f"进入{stage}"})
@@ -20,8 +20,22 @@ def test_move_through_rounds_with_note(client, make_user, app):
     assert counts == {"interview_second": 1}
     hist = client.get(f"/api/pipeline/{jid}/history/{cid}", headers=_auth(token)).get_json()
     stages = [t["stage"] for t in hist["timeline"]]
-    assert stages == ["pending", "ai_screen", "interview_first", "interview_second"]
+    assert stages == ["pending", "ai_screen", "business_review", "interview_first", "interview_second"]
     assert hist["timeline"][-1]["note"] == "进入interview_second"
+
+
+def test_business_review_appears_in_board_order(client, make_user, app):
+    _, token = make_user("hr-board@x.com", role="recruiter")
+    jid, cid = _seed_job_candidate(app)
+
+    r = client.post("/api/pipeline/move", headers=_auth(token),
+                    json={"candidate_id": cid, "job_id": jid, "stage": "business_review"})
+    assert r.status_code == 200
+
+    board = client.get(f"/api/pipeline/{jid}/board", headers=_auth(token)).get_json()
+    assert board["stage_order"].index("business_review") > board["stage_order"].index("ai_screen")
+    assert board["stage_order"].index("business_review") < board["stage_order"].index("interview_first")
+    assert board["candidates"][0]["stage"] == "business_review"
 
 def test_invalid_stage_rejected(client, make_user, app):
     _, token = make_user("hr@x.com", role="recruiter")

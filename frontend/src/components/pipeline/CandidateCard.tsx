@@ -16,12 +16,29 @@ import { RejectionDispositionForm } from './RejectionDispositionForm';
 // 给定当前阶段，推算"推进到下一阶段"的目标（用于一键推进按钮）。
 const FORWARD: Partial<Record<PipelineStage, PipelineStage>> = {
   pending: 'ai_screen',
-  ai_screen: 'interview_first',
+  ai_screen: 'business_review',
+  business_review: 'interview_first',
   interview_first: 'interview_second',
   interview_second: 'interview_final',
   interview_final: 'offer',
   offer: 'onboarded',
 };
+
+function stageAgeDays(updatedAt?: string | null): number | null {
+  if (!updatedAt) return null;
+  const ts = new Date(updatedAt).getTime();
+  if (Number.isNaN(ts)) return null;
+  const diff = Date.now() - ts;
+  if (diff < 0) return 0;
+  return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
+
+function stageAgeClass(stage: PipelineStage, days: number | null): string {
+  if (days === null) return 'text-muted-soft';
+  if (stage === 'business_review' && days >= 3) return 'text-warning-700';
+  if ((stage === 'pending' || stage === 'ai_screen') && days >= 5) return 'text-warning-700';
+  return 'text-muted-soft';
+}
 
 interface CandidateCardProps {
   candidate: PipelineBoardCandidate;
@@ -54,6 +71,7 @@ export function CandidateCard({
   const stage = STAGE_BY_KEY[candidate.stage];
   const next = FORWARD[candidate.stage];
   const isTerminal = candidate.stage === 'onboarded' || candidate.stage === 'rejected';
+  const ageDays = stageAgeDays(candidate.updated_at);
 
   const move = (toStage: PipelineStage) => {
     const note = window.prompt('变更备注（可留空）') ?? undefined;
@@ -79,8 +97,9 @@ export function CandidateCard({
       </div>
 
       {candidate.updated_at && (
-        <p className="mt-1 text-[11px] text-muted-soft">
+        <p className={cn('mt-1 text-[11px]', stageAgeClass(candidate.stage, ageDays))}>
           {formatDate(candidate.updated_at)}
+          {ageDays !== null ? ` · 停留 ${ageDays} 天` : ''}
           {candidate.updated_by_name ? ` · ${candidate.updated_by_name}` : ''}
         </p>
       )}

@@ -1,8 +1,9 @@
 import os, uuid, zipfile
 from pathlib import Path, PurePosixPath
+from flask import current_app
 from flask import Blueprint, request, jsonify, g
 from werkzeug.utils import secure_filename
-from ..middleware.auth import require_auth
+from ..middleware.auth import require_auth, require_role
 from ..middleware.events import record_event
 from ..services.resume_service import ResumeBatchService
 from .. import db
@@ -13,6 +14,13 @@ bp = Blueprint("resume", __name__)
 RESUME_EXTS = {"pdf", "doc", "docx"}
 # 上传白名单：简历文件 + zip 压缩包
 ALLOWED = RESUME_EXTS | {"zip"}
+RESUME_MAX_FILE_SIZE = 20 * 1024 * 1024
+FILE_SIGNATURES = {
+    "pdf": (b"%PDF-",),
+    "doc": (b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1",),
+    "docx": (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"),
+    "zip": (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"),
+}
 
 # ---- zip 解压安全限制（防 zip 炸弹）----
 ZIP_MAX_ENTRIES = 100              # zip 内最多处理的文件条目数
@@ -33,13 +41,131 @@ def _is_resume(filename):
     return _ext(filename) in RESUME_EXTS
 
 
-def _process_resume(svc, fpath, display_name, results, upload_batch_id=None):
+def _stream_size(file_storage):
+    stream = file_storage.stream
+    current = stream.tell()
+    stream.seek(0, os.SEEK_END)
+    size = stream.tell()
+    stream.seek(current)
+    return size
+
+
+def _content_matches_extension(file_storage, ext):
+    signatures = FILE_SIGNATURES.get(ext)
+    if not signatures:
+        return True
+    stream = file_storage.stream
+    current = stream.tell()
+    head = stream.read(max(len(sig) for sig in signatures))
+    stream.seek(current)
+    return any(head.startswith(sig) for sig in signatures)
+
+
+def _validate_upload_file(file_storage):
+    ext = _ext(file_storage.filename)
+    size = _stream_size(file_storage)
+    if size <= 0:
+        return "文件为空"
+    if ext in RESUME_EXTS and size > RESUME_MAX_FILE_SIZE:
+        return f"文件大小超过上限（{RESUME_MAX_FILE_SIZE // (1024 * 1024)}MB）"
+    if not _content_matches_extension(file_storage, ext):
+        return "文件内容与扩展名不匹配"
+    return None
+
+
+def _add_to_target_pipeline(candidate, target_job_id):
+    if not target_job_id:
+        return False
+
+    from ..models import PipelineStage
+
+    exists = PipelineStage.query.filter_by(
+        candidate_id=candidate.id,
+        job_id=target_job_id,
+    ).first()
+    if exists:
+        return False
+
+    db.session.add(PipelineStage(
+        candidate_id=candidate.id,
+        job_id=target_job_id,
+        stage="pending",
+        updated_by=g.user_id,
+        note="上传简历后自动进入待筛选",
+    ))
+    record_event(
+        "pipeline.moved",
+        entity_id=candidate.id,
+        entity_type="candidate",
+        payload={"job_id": target_job_id, "stage": "pending", "source": "resume_upload"},
+    )
+    return True
+
+
+def _related_jobs_for_candidate(candidate):
+    from ..models import Job, PipelineStage, UploadBatch
+
+    job_ids = set()
+    if candidate.upload_batch_id:
+        batch = UploadBatch.query.get(candidate.upload_batch_id)
+        if batch and batch.target_job_id:
+            job_ids.add(batch.target_job_id)
+
+    rows = (
+        db.session.query(PipelineStage.job_id)
+        .filter(PipelineStage.candidate_id == candidate.id)
+        .distinct()
+        .all()
+    )
+    for job_id, in rows:
+        if job_id:
+            job_ids.add(job_id)
+
+    if not job_ids:
+        return []
+
+    return (
+        db.session.query(Job)
+        .filter(Job.id.in_(job_ids), Job.status == "active")
+        .order_by(Job.id.asc())
+        .all()
+    )
+
+
+def _refresh_related_job_matches(candidate):
+    from ..services.match_service import MatchService
+
+    jobs = _related_jobs_for_candidate(candidate)
+    if not jobs:
+        return []
+
+    svc = MatchService()
+    refreshed = []
+    for job in jobs:
+        try:
+            svc.rank_for_job(job.id)
+        except Exception:
+            current_app.logger.exception(
+                "候选人档案保存后刷新岗位匹配失败: candidate_id=%s job_id=%s",
+                candidate.id,
+                job.id,
+            )
+            continue
+        refreshed.append({"id": job.id, "title": job.title})
+    return refreshed
+
+
+def _process_resume(svc, fpath, display_name, results, upload_batch_id=None, target_job_id=None):
     """解析单份简历并入库，把结果（成功/失败）追加到 results。
     display_name 用于结果展示（zip 内文件会带 "xxx.zip → 文件名" 前缀）。"""
     try:
         candidate = svc.parse_and_save(fpath, owner_hr_id=g.user_id, upload_batch_id=upload_batch_id)
         record_event("resume.uploaded", entity_id=candidate.id, entity_type="candidate")
-        results.append({"file": display_name, "status": "ok", "candidate_id": candidate.id})
+        auto_joined = _add_to_target_pipeline(candidate, target_job_id)
+        result = {"file": display_name, "status": "ok", "candidate_id": candidate.id}
+        if auto_joined:
+            result.update({"target_job_id": target_job_id, "pipeline_stage": "pending"})
+        results.append(result)
     except Exception as e:
         candidate = svc.create_failed_candidate(
             fpath,
@@ -62,7 +188,7 @@ def _process_resume(svc, fpath, display_name, results, upload_batch_id=None):
         })
 
 
-def _process_zip(svc, zip_path, zip_display_name, folder, results, upload_batch_id=None):
+def _process_zip(svc, zip_path, zip_display_name, folder, results, upload_batch_id=None, target_job_id=None):
     """安全解压 zip，逐个解析其中的 pdf/doc/docx 简历。
     安全防护：
       - 防 zip 炸弹：限制条目数、单文件与总解压大小。
@@ -170,6 +296,7 @@ def _process_zip(svc, zip_path, zip_display_name, folder, results, upload_batch_
                     f"{zip_display_name} → {base}",
                     results,
                     upload_batch_id=upload_batch_id,
+                    target_job_id=target_job_id,
                 )
                 processed += 1
 
@@ -189,6 +316,7 @@ def _process_zip(svc, zip_path, zip_display_name, folder, results, upload_batch_
 
 @bp.post("/resume/upload")
 @require_auth
+@require_role("recruiter", "manager", "admin")
 def upload():
     files = request.files.getlist("files")
     if not files or all(f.filename == "" for f in files):
@@ -199,10 +327,14 @@ def upload():
     Path(folder).mkdir(parents=True, exist_ok=True)
 
     from ..models import UploadBatch, Job
+    from .access import can_manage_job
 
     target_job_id = request.form.get("target_job_id", type=int)
-    if target_job_id and Job.query.get(target_job_id) is None:
+    target_job = Job.query.get(target_job_id) if target_job_id else None
+    if target_job_id and target_job is None:
         return jsonify({"error": "目标岗位不存在"}), 400
+    if target_job is not None and not can_manage_job(g.user_id, g.role, target_job):
+        return jsonify({"error": "Forbidden"}), 403
 
     batch = UploadBatch(
         owner_hr_id=g.user_id,
@@ -224,6 +356,10 @@ def upload():
         if not _allowed(f.filename):
             results.append({"file": f.filename, "status": "skipped", "reason": "unsupported format"})
             continue
+        invalid_reason = _validate_upload_file(f)
+        if invalid_reason:
+            results.append({"file": f.filename, "status": "skipped", "reason": invalid_reason})
+            continue
 
         # 落盘（普通简历直接落盘并保留路径供 raw_file_path 使用）
         fname = f"{uuid.uuid4()}_{secure_filename(f.filename)}"
@@ -232,7 +368,15 @@ def upload():
 
         if _ext(f.filename) == "zip":
             # zip：解压后逐个解析其中的简历
-            _process_zip(svc, fpath, f.filename, folder, results, upload_batch_id=batch.id)
+            _process_zip(
+                svc,
+                fpath,
+                f.filename,
+                folder,
+                results,
+                upload_batch_id=batch.id,
+                target_job_id=target_job_id,
+            )
             # 原始 zip 不再需要，删除（解压出的简历文件已单独保留）
             try:
                 os.remove(fpath)
@@ -240,7 +384,14 @@ def upload():
                 pass
         else:
             # 普通简历文件，逐个解析
-            _process_resume(svc, fpath, f.filename, results, upload_batch_id=batch.id)
+            _process_resume(
+                svc,
+                fpath,
+                f.filename,
+                results,
+                upload_batch_id=batch.id,
+                target_job_id=target_job_id,
+            )
 
     # total 改为实际产生的简历结果条数（zip 会展开成多条）
     return jsonify({"batch_id": batch.id, "total": len(results), "results": results}), 202
@@ -270,18 +421,61 @@ def get_resume(candidate_id):
     })
 
 
+@bp.patch("/resume/<int:candidate_id>/profile")
+@require_auth
+def update_resume_profile(candidate_id):
+    from ..models import Candidate
+
+    candidate = Candidate.query.get_or_404(candidate_id)
+    if g.role == "interviewer":
+        return jsonify({"error": "Forbidden"}), 403
+    if g.role == "recruiter" and candidate.owner_hr_id != g.user_id:
+        return jsonify({"error": "Forbidden"}), 403
+
+    data = request.get_json(silent=True) or {}
+    profile = data.get("profile")
+    if not isinstance(profile, dict):
+        return jsonify({"error": "profile required"}), 400
+    skills = data.get("skills") if "skills" in data else None
+    if skills is not None and not isinstance(skills, list):
+        return jsonify({"error": "skills must be a list"}), 400
+
+    svc = ResumeBatchService()
+    candidate = svc.update_candidate_profile(candidate, profile, skills)
+    rematched_jobs = _refresh_related_job_matches(candidate)
+    record_event(
+        "resume.profile_updated",
+        entity_id=candidate.id,
+        entity_type="candidate",
+        payload={
+            "actor_id": g.user_id,
+            "fields": sorted(profile.keys()),
+            "rematched_job_ids": [job["id"] for job in rematched_jobs],
+        },
+    )
+    return jsonify({
+        "id": candidate.id,
+        "name_masked": candidate.name_masked,
+        "resume_json": candidate.resume_json,
+        "tags": [{"tag": t.tag, "score": t.score} for t in candidate.tags],
+        "parse_status": candidate.parse_status,
+        "parse_error": candidate.parse_error,
+        "source": _candidate_source_payload(candidate),
+        "created_at": candidate.created_at.isoformat(),
+        "rematched_jobs": rematched_jobs,
+    })
+
+
 @bp.post("/resume/<int:candidate_id>/retry-parse")
 @require_auth
 def retry_parse(candidate_id):
     from ..models import Candidate
 
     candidate = Candidate.query.get_or_404(candidate_id)
+    if g.role == "interviewer":
+        return jsonify({"error": "Forbidden"}), 403
     if g.role == "recruiter" and candidate.owner_hr_id != g.user_id:
         return jsonify({"error": "Forbidden"}), 403
-    if g.role == "interviewer":
-        from .access import interviewer_has_assignment
-        if not interviewer_has_assignment(g.user_id, candidate_id):
-            return jsonify({"error": "Forbidden"}), 403
     if candidate.parse_status != "failed":
         return jsonify({"error": "只有解析失败的简历才能重试"}), 400
 
@@ -326,6 +520,8 @@ def _candidate_source_payload(candidate):
         "referrer": batch.referrer or "",
         "target_job_id": batch.target_job_id,
         "target_job_title": target_job.title if target_job else None,
+        "target_job_city": target_job.city if target_job else "",
+        "target_job_department": target_job.department if target_job else "",
         "note": batch.note or "",
         "created_at": batch.created_at.isoformat() if batch.created_at else None,
     }

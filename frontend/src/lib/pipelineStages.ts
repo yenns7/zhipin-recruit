@@ -32,6 +32,15 @@ export const STAGES: StageConfig[] = [
     dot: 'bg-brand-500',
   },
   {
+    key: 'business_review',
+    label: '业务待反馈',
+    bg: 'bg-sky-50',
+    border: 'border-sky-200',
+    text: 'text-sky-700',
+    badgeBg: 'bg-sky-100 text-sky-700',
+    dot: 'bg-sky-500',
+  },
+  {
     key: 'interview_first',
     label: '一面',
     bg: 'bg-warning-50',

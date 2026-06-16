@@ -64,6 +64,29 @@ class Job(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class RecruitmentDemand(db.Model):
+    __tablename__ = "recruitment_demands"
+    id = db.Column(db.Integer, primary_key=True)
+    job_id = db.Column(db.Integer, db.ForeignKey("jobs.id"), nullable=False)
+    owner_hr_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    request_no = db.Column(db.String(80), default="")
+    requester_name = db.Column(db.String(120), default="")
+    requester_department = db.Column(db.String(120), default="")
+    hiring_manager_name = db.Column(db.String(120), default="")
+    requested_at = db.Column(db.Date)
+    accepted_at = db.Column(db.Date)
+    target_date = db.Column(db.Date)
+    priority = db.Column(db.String(1), default="B", nullable=False)
+    headcount = db.Column(db.Integer, default=1, nullable=False)
+    status = db.Column(db.String(20), default="active", nullable=False)
+    close_reason = db.Column(db.Text)
+    downgrade_reason = db.Column(db.Text)
+    note = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    job = db.relationship("Job", backref="demands")
+
+
 class Match(db.Model):
     __tablename__ = "matches"
     id = db.Column(db.Integer, primary_key=True)
@@ -87,7 +110,7 @@ class Interview(db.Model):
 
 
 VALID_STAGES = {
-    "pending", "ai_screen",
+    "pending", "ai_screen", "business_review",
     "interview_first", "interview_second", "interview_final",
     "offer", "onboarded", "rejected",
 }

@@ -1,0 +1,519 @@
+<title>招聘系统PRD更新版本</title>
+
+<callout emoji="📌" background-color="light-blue" border-color="blue">
+  <p><b>文档类型：</b>产品需求文档 PRD</p>
+  <p><b>版本：</b>V0.5 MVP 演示版</p>
+  <p><b>用途：</b>用于梳理当前招聘系统的产品结构、功能模块、按钮级能力、当前进度与两个月迭代方向，方便后续继续开发、演示和复盘。</p>
+  <p><b>阅读方式：</b>先看「1. 产品总览」「2. 当前进度总表」「4. 核心流程图」；需要细节时再看「5. 功能模块详情」。</p>
+</callout>
+
+<h1>1. 产品总览</h1>
+<h2>1.1 产品定位</h2>
+<p>招聘系统是一套面向企业招聘场景的 AI 招聘管理系统。当前版本重点验证从简历入库到候选人匹配、流程推进、面试评估、BI 看板和 AI 助手的完整业务闭环。</p>
+
+<table>
+  <thead>
+    <tr><th background-color="light-gray">项目</th><th background-color="light-gray">说明</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>产品名称</td><td>招聘系统</td></tr>
+    <tr><td>版本定义</td><td>V0.5 MVP 演示版</td></tr>
+    <tr><td>核心目标</td><td>让 HR 能从简历上传开始，完成岗位创建、AI 匹配、流程推进、面试反馈和数据查看。</td></tr>
+    <tr><td>核心价值</td><td>把散落的简历文件、岗位要求、面试反馈和招聘进度沉淀成可查询、可流转、可分析的数据。</td></tr>
+    <tr><td>当前边界</td><td>当前以演示和 MVP 验证为主，暂不承诺完整企业级产品能力。</td></tr>
+  </tbody>
+</table>
+
+<h2>1.2 用户角色</h2>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">角色</th><th background-color="light-gray">主要使用场景</th><th background-color="light-gray">当前状态</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>HR / 招聘专员</td><td>上传简历、创建岗位、查看候选人、运行匹配、推进流程、发起 AI 面试。</td><td>已完成</td></tr>
+    <tr><td>面试官</td><td>查看分配给自己的面试、查看面试指南、填写反馈。</td><td>已完成</td></tr>
+    <tr><td>经理</td><td>查看招聘漏斗、专员效能、岗位转化和团队招聘数据。</td><td>已完成</td></tr>
+    <tr><td>管理员</td><td>管理用户、查看 AI 架构能力、查看审计日志。</td><td>部分完成</td></tr>
+  </tbody>
+</table>
+
+<h2>1.3 状态定义</h2>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">状态</th><th background-color="light-gray">含义</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>已完成</td><td>当前系统已有页面、接口和基础流程，可用于演示。</td></tr>
+    <tr><td>部分完成</td><td>已有基础能力，但还需要补交互、权限、异常处理或数据口径。</td></tr>
+    <tr><td>待优化</td><td>功能能用，但体验、稳定性、文案、性能或边界处理仍需改进。</td></tr>
+    <tr><td>后续规划</td><td>当前版本未完整实现，计划在后续两个月内推进。</td></tr>
+    <tr><td>暂不做</td><td>不纳入当前两个月版本范围，避免 MVP 失焦。</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h1>2. 当前进度总表</h1>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">模块</th><th background-color="light-gray">当前状态</th><th background-color="light-gray">已具备能力</th><th background-color="light-gray">待补齐能力</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>登录与权限</td><td>已完成</td><td>登录、注册、角色识别、路由权限、账号改密。</td><td>更细的数据权限、统一认证接入。</td></tr>
+    <tr><td>工作台</td><td>已完成</td><td>角色欢迎区、关键指标、快捷入口、流程提示。</td><td>角色化待办、真实运营指标解释。</td></tr>
+    <tr><td>简历上传</td><td>已完成</td><td>PDF、Word、ZIP 上传，来源信息，目标岗位，上传结果。</td><td>上传失败重试体验、文件安全增强。</td></tr>
+    <tr><td>简历库</td><td>已完成</td><td>候选人列表、搜索、标签筛选、分页、候选人详情。</td><td>高级筛选、批量操作、人才库视图。</td></tr>
+    <tr><td>候选人档案</td><td>已完成</td><td>基础信息、解析结果、技能标签、流程、面试反馈、决策摘要。</td><td>候选人画像评分、风险标签、履历时间线增强。</td></tr>
+    <tr><td>岗位管理</td><td>已完成</td><td>创建岗位、AI 澄清、JD 结构化、编辑、关闭、筛选。</td><td>岗位模板、审批流、岗位版本记录。</td></tr>
+    <tr><td>智能匹配</td><td>已完成</td><td>岗位匹配候选人、匹配分数、命中技能、缺失技能、加入流程、批量加入流程。</td><td>匹配解释增强、人工调整权重、重排策略。</td></tr>
+    <tr><td>招聘流程</td><td>已完成</td><td>流程看板、阶段推进、淘汰原因、Offer 信息、面试反馈入口。</td><td>拖拽体验、自动提醒、流程 SLA。</td></tr>
+    <tr><td>面试中心</td><td>已完成</td><td>AI 初筛评估、面试安排、待办反馈、面试记录、面试指南、反馈表。</td><td>面试模板、评分维度可配置、会议集成。</td></tr>
+    <tr><td>BI 看板</td><td>部分完成</td><td>招聘漏斗、转化率、专员效能、单岗位漏斗。</td><td>指标口径说明、趋势分析、异常提醒。</td></tr>
+    <tr><td>AI 助手</td><td>部分完成</td><td>工具调用、流式回答、写操作确认、会话保存、历史查看。</td><td>真实问题埋点、权限过滤、Prompt 迭代、知识库接入。</td></tr>
+    <tr><td>通知中心</td><td>部分完成</td><td>通知列表、未读数、标记已读、跳转链接。</td><td>通知规则、触发条件、通知偏好。</td></tr>
+    <tr><td>管理员</td><td>部分完成</td><td>用户管理、角色调整、账号启停、AI 架构看板、审计日志。</td><td>权限矩阵、操作审批、系统配置持久化。</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h1>3. 产品信息架构</h1>
+<pre lang="text" caption="信息架构图"><code>招聘系统
+├─ 工作台
+├─ AI 助手
+│  ├─ 对话输入
+│  ├─ 工具调用过程
+│  ├─ 写操作确认
+│  └─ 历史会话
+├─ 简历库
+│  ├─ 简历上传
+│  ├─ 候选人列表
+│  └─ 候选人档案
+├─ 岗位管理
+│  ├─ 新建岗位
+│  ├─ JD 结构化
+│  ├─ 岗位列表
+│  └─ 岗位匹配
+├─ 招聘流程
+│  ├─ 流程看板
+│  ├─ 阶段推进
+│  ├─ 淘汰记录
+│  └─ Offer 信息
+├─ 面试中心
+│  ├─ AI 初筛
+│  ├─ 面试安排
+│  ├─ 面试反馈
+│  └─ 面试记录
+├─ 数据看板
+└─ 系统管理
+   ├─ 用户管理
+   ├─ AI 架构看板
+   ├─ 审计日志
+   └─ 通知中心</code></pre>
+
+<hr/>
+
+<h1>4. 核心流程图</h1>
+<h2>4.1 招聘主流程图</h2>
+<pre lang="text" caption="流程图 1：招聘主流程"><code>开始
+  ↓
+HR 上传简历
+  ↓
+系统解析候选人信息与技能标签
+  ↓
+HR 创建岗位并录入 JD
+  ↓
+AI 结构化岗位要求
+  ↓
+系统匹配候选人
+  ↓
+候选人加入招聘流程
+  ↓
+AI 初筛 / 面试官反馈
+  ↓
+流程推进
+  ↓
+Offer / 入职 / 淘汰
+  ↓
+BI 看板统计招聘结果
+  ↓
+结束</code></pre>
+
+<h2>4.2 简历入库流程图</h2>
+<pre lang="text" caption="流程图 2：简历入库"><code>进入简历上传页
+  ↓
+选择文件：PDF / Word / ZIP
+  ↓
+填写来源信息：渠道 / 链接 / 推荐人 / 目标岗位 / 备注
+  ↓
+点击上传
+  ↓
+后端保存上传批次
+  ↓
+解析简历文本
+  ↓
+AI 提取结构化信息
+  ↓
+生成候选人技能标签
+  ↓
+写入候选人库
+  ↓
+展示上传结果
+  ↓
+可进入候选人档案查看</code></pre>
+
+<h2>4.3 岗位创建与匹配流程图</h2>
+<pre lang="text" caption="流程图 3：岗位创建与匹配"><code>进入岗位管理
+  ↓
+点击新建岗位
+  ↓
+填写岗位名称 / 城市 / 部门 / 岗位编号 / JD
+  ↓
+点击 AI 澄清
+  ↓
+补充关键缺失信息
+  ↓
+保存岗位
+  ↓
+AI 结构化 JD
+  ↓
+进入岗位匹配页
+  ↓
+系统计算候选人匹配分
+  ↓
+展示命中技能 / 缺失技能 / 排序结果
+  ↓
+单个或批量加入招聘流程</code></pre>
+
+<h2>4.4 招聘流程推进图</h2>
+<pre lang="text" caption="流程图 4：流程推进"><code>候选人进入流程
+  ↓
+待筛选
+  ↓
+AI 初筛
+  ↓
+一面
+  ↓
+二面
+  ↓
+终面
+  ↓
+Offer
+  ↓
+入职
+
+任一阶段也可以进入：
+  ↓
+淘汰
+  ↓
+记录淘汰原因 / 是否进人才库 / 下次联系时间 / 标签</code></pre>
+
+<h2>4.5 面试中心流程图</h2>
+<pre lang="text" caption="流程图 5：面试中心"><code>HR 选择候选人与岗位
+  ↓
+发起 AI 初筛
+  ↓
+AI 生成面试题
+  ↓
+录入候选人回答
+  ↓
+AI 生成评分报告
+  ↓
+进入面试中心
+  ↓
+创建面试安排
+  ↓
+面试官查看待办
+  ↓
+填写评分 / 是否通过 / 优势 / 顾虑 / 备注
+  ↓
+系统沉淀面试记录并更新候选人 Journey</code></pre>
+
+<h2>4.6 AI 助手工具调用流程图</h2>
+<pre lang="text" caption="流程图 6：AI 助手"><code>用户输入问题
+  ↓
+AI 判断意图
+  ↓
+是否需要查系统数据？
+  ├─ 是 → 调用候选人 / 岗位 / 匹配 / 流程 / BI 工具
+  └─ 否 → 直接回答或追问
+  ↓
+是否涉及写操作？
+  ├─ 是 → 生成确认卡片 → 用户确认 → 后端校验权限 → 执行
+  └─ 否 → 输出分析结果
+  ↓
+保存对话与工具调用记录
+  ↓
+用于后续 Prompt 与工具迭代</code></pre>
+
+<hr/>
+
+<h1>5. 功能模块详情</h1>
+<h2>5.1 登录与账户</h2>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">功能点</th><th background-color="light-gray">按钮 / 字段</th><th background-color="light-gray">状态</th><th background-color="light-gray">说明</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>登录</td><td>邮箱、密码、登录按钮</td><td>已完成</td><td>成功后进入系统工作台。</td></tr>
+    <tr><td>注册</td><td>姓名、邮箱、密码、角色、注册按钮</td><td>已完成</td><td>当前注册后默认按安全规则处理角色。</td></tr>
+    <tr><td>退出登录</td><td>退出按钮</td><td>已完成</td><td>清除本地登录态。</td></tr>
+    <tr><td>账户设置</td><td>当前密码、新密码、确认新密码、保存按钮</td><td>已完成</td><td>支持当前用户修改密码。</td></tr>
+  </tbody>
+</table>
+
+<h2>5.2 工作台</h2>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">功能点</th><th background-color="light-gray">按钮 / 入口</th><th background-color="light-gray">状态</th><th background-color="light-gray">说明</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>核心指标</td><td>候选人总数、岗位总数、面试中、转化率</td><td>已完成</td><td>按角色展示关键数字。</td></tr>
+    <tr><td>快捷入口</td><td>上传简历、选择岗位匹配、跟进招聘流程、处理面试反馈、查看团队看板、问 AI 助手</td><td>已完成</td><td>帮助快速进入常用操作。</td></tr>
+    <tr><td>角色化提示</td><td>角色说明卡片</td><td>已完成</td><td>根据 HR、经理、管理员、面试官展示不同职责说明。</td></tr>
+  </tbody>
+</table>
+
+<h2>5.3 简历上传</h2>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">功能点</th><th background-color="light-gray">按钮 / 字段</th><th background-color="light-gray">状态</th><th background-color="light-gray">说明</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>选择文件</td><td>点击选择文件、拖拽上传、移除文件</td><td>已完成</td><td>支持 PDF、Word、ZIP。</td></tr>
+    <tr><td>来源信息</td><td>目标岗位、来源渠道、来源链接、推荐人、备注</td><td>已完成</td><td>用于追踪候选人来源。</td></tr>
+    <tr><td>上传</td><td>上传按钮、重置按钮</td><td>已完成</td><td>上传后展示每个文件的解析结果。</td></tr>
+    <tr><td>上传结果</td><td>继续上传、查看候选人</td><td>已完成</td><td>结果包含成功、跳过、失败。</td></tr>
+    <tr><td>解析失败处理</td><td>重新解析</td><td>部分完成</td><td>候选人详情支持 retry parse，上传页失败体验仍可优化。</td></tr>
+  </tbody>
+</table>
+
+<h2>5.4 简历库与候选人档案</h2>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">功能点</th><th background-color="light-gray">按钮 / 字段</th><th background-color="light-gray">状态</th><th background-color="light-gray">说明</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>候选人列表</td><td>搜索简历、技能标签、最低技能分、重置筛选、分页</td><td>已完成</td><td>支持基础检索和筛选。</td></tr>
+    <tr><td>候选人卡片</td><td>查看详情</td><td>已完成</td><td>展示姓名、联系方式、技能、教育、最近经历、来源。</td></tr>
+    <tr><td>候选人详情</td><td>重新解析、返回、流程展开</td><td>已完成</td><td>展示简历解析、标签、来源、岗位流程、Journey。</td></tr>
+    <tr><td>负责人调整</td><td>HR 用户 ID、重新分配按钮</td><td>部分完成</td><td>经理或管理员可调整候选人负责人，后续需要更友好的人员选择器。</td></tr>
+  </tbody>
+</table>
+
+<h2>5.5 岗位管理</h2>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">功能点</th><th background-color="light-gray">按钮 / 字段</th><th background-color="light-gray">状态</th><th background-color="light-gray">说明</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>新建岗位</td><td>新增岗位、收起新增岗位</td><td>已完成</td><td>打开或收起创建表单。</td></tr>
+    <tr><td>岗位字段</td><td>岗位名称、城市、部门、岗位编号、JD</td><td>已完成</td><td>用于创建岗位基础信息。</td></tr>
+    <tr><td>AI 澄清</td><td>AI 澄清按钮、澄清问题输入框</td><td>已完成</td><td>保存前补充 JD 缺失信息。</td></tr>
+    <tr><td>保存岗位</td><td>确认保存、重新填写</td><td>已完成</td><td>保存后生成结构化 JD。</td></tr>
+    <tr><td>岗位列表</td><td>城市筛选、部门筛选、查看匹配、关闭岗位</td><td>已完成</td><td>支持筛选、进入匹配、软关闭岗位。</td></tr>
+  </tbody>
+</table>
+
+<h2>5.6 智能匹配</h2>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">功能点</th><th background-color="light-gray">按钮 / 字段</th><th background-color="light-gray">状态</th><th background-color="light-gray">说明</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>匹配列表</td><td>刷新、查看流程、选择候选人</td><td>已完成</td><td>展示匹配分、命中技能、缺失技能。</td></tr>
+    <tr><td>加入流程</td><td>加入流程按钮</td><td>已完成</td><td>将单个候选人加入岗位招聘流程。</td></tr>
+    <tr><td>批量加入</td><td>选择全部未加入候选人、批量加入流程</td><td>已完成</td><td>支持把多个匹配候选人加入流程。</td></tr>
+    <tr><td>匹配解释</td><td>命中技能、缺失技能</td><td>待优化</td><td>后续可增加更自然语言化的匹配理由。</td></tr>
+  </tbody>
+</table>
+
+<h2>5.7 招聘流程</h2>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">功能点</th><th background-color="light-gray">按钮 / 字段</th><th background-color="light-gray">状态</th><th background-color="light-gray">说明</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>流程看板</td><td>岗位选择、阶段列</td><td>已完成</td><td>按岗位展示候选人当前阶段。</td></tr>
+    <tr><td>阶段推进</td><td>推进下一阶段、选择阶段</td><td>已完成</td><td>支持从待筛选推进到面试、Offer、入职。</td></tr>
+    <tr><td>淘汰处理</td><td>淘汰、淘汰原因、未来可联系时间、候选人标签、备注</td><td>已完成</td><td>记录淘汰原因和后续人才库信息。</td></tr>
+    <tr><td>Offer 信息</td><td>薪资范围、预计到岗时间、审批状态、备注、保存</td><td>已完成</td><td>维护 Offer 阶段关键信息。</td></tr>
+    <tr><td>面试反馈入口</td><td>填写反馈、查看反馈</td><td>已完成</td><td>可从候选人卡片进入反馈。</td></tr>
+  </tbody>
+</table>
+
+<h2>5.8 面试中心</h2>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">功能点</th><th background-color="light-gray">按钮 / 字段</th><th background-color="light-gray">状态</th><th background-color="light-gray">说明</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>AI 初筛评估</td><td>候选人、面试岗位、生成题目数量、生成题目、提交答案</td><td>已完成</td><td>生成问题并提交回答后得到 AI 报告。</td></tr>
+    <tr><td>面试记录</td><td>待我处理、面试记录、已通过、未通过</td><td>已完成</td><td>按不同状态筛选面试内容。</td></tr>
+    <tr><td>面试安排</td><td>新增安排、候选人、岗位、轮次、面试官、面试时间、地点/会议链接、安排备注、创建</td><td>已完成</td><td>HR 可为候选人分配面试官。</td></tr>
+    <tr><td>反馈表</td><td>轮次、评分、是否通过、维度评分、优势、顾虑、保存反馈、保存并推进、淘汰</td><td>已完成</td><td>面试官提交结构化反馈。</td></tr>
+    <tr><td>面试指南</td><td>查看指南</td><td>已完成</td><td>按候选人、岗位和轮次生成面试关注点。</td></tr>
+  </tbody>
+</table>
+
+<h2>5.9 BI 看板</h2>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">功能点</th><th background-color="light-gray">按钮 / 字段</th><th background-color="light-gray">状态</th><th background-color="light-gray">说明</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>时间筛选</td><td>近 7 天、近 30 天、近 90 天</td><td>已完成</td><td>切换统计周期。</td></tr>
+    <tr><td>团队指标</td><td>在招专员、本期入职、整体转化率、简历总量</td><td>已完成</td><td>展示整体招聘数据。</td></tr>
+    <tr><td>招聘漏斗</td><td>待筛选、AI 初筛、面试、Offer、已入职</td><td>已完成</td><td>展示流程转化。</td></tr>
+    <tr><td>专员效能</td><td>点击专员查看详情、返回团队看板</td><td>已完成</td><td>支持下钻单个招聘专员。</td></tr>
+    <tr><td>指标说明</td><td>暂无</td><td>待优化</td><td>后续需要补充数据口径和指标解释。</td></tr>
+  </tbody>
+</table>
+
+<h2>5.10 AI 助手</h2>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">功能点</th><th background-color="light-gray">按钮 / 字段</th><th background-color="light-gray">状态</th><th background-color="light-gray">说明</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>对话输入</td><td>输入框、发送、停止</td><td>已完成</td><td>支持自然语言提问和停止流式回答。</td></tr>
+    <tr><td>示例问题</td><td>系统概览、岗位匹配、团队漏斗等示例卡片</td><td>已完成</td><td>帮助用户快速上手。</td></tr>
+    <tr><td>工具过程</td><td>思考过程、工具调用、工具结果展开</td><td>已完成</td><td>展示 AI 如何调用系统能力。</td></tr>
+    <tr><td>写操作确认</td><td>确认执行、取消</td><td>已完成</td><td>AI 只能提议，用户确认后才执行。</td></tr>
+    <tr><td>历史会话</td><td>会话列表、会话详情</td><td>部分完成</td><td>后端已保存会话，前端体验可继续优化。</td></tr>
+    <tr><td>真实问题埋点</td><td>问题、角色、工具、结果、后续动作</td><td>后续规划</td><td>用于优化 Prompt、工具和知识库。</td></tr>
+  </tbody>
+</table>
+
+<h2>5.11 通知中心</h2>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">功能点</th><th background-color="light-gray">按钮 / 字段</th><th background-color="light-gray">状态</th><th background-color="light-gray">说明</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>通知入口</td><td>顶部通知按钮、未读红点</td><td>部分完成</td><td>可查看通知中心。</td></tr>
+    <tr><td>通知列表</td><td>通知标题、正文、时间、跳转链接</td><td>部分完成</td><td>已有基础列表。</td></tr>
+    <tr><td>标记已读</td><td>全部标记已读、点击通知</td><td>部分完成</td><td>支持标记已读，通知规则需补充。</td></tr>
+  </tbody>
+</table>
+
+<h2>5.12 管理员模块</h2>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">功能点</th><th background-color="light-gray">按钮 / 字段</th><th background-color="light-gray">状态</th><th background-color="light-gray">说明</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>用户管理</td><td>角色选择、启用/停用按钮</td><td>已完成</td><td>管理员可调整角色和账号状态。</td></tr>
+    <tr><td>AI 提示词看板</td><td>查询工具、写操作工具、数据库接入、写操作保护</td><td>已完成</td><td>展示 AI 助手的能力边界。</td></tr>
+    <tr><td>审计日志</td><td>筛选、分页、日志列表</td><td>部分完成</td><td>基于事件记录展示系统写操作。</td></tr>
+    <tr><td>系统设置</td><td>设置分组入口</td><td>部分完成</td><td>当前偏展示入口，配置持久化待完善。</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h1>6. 数据对象</h1>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">对象</th><th background-color="light-gray">说明</th><th background-color="light-gray">当前状态</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>User</td><td>用户账号、角色、密码、启停状态。</td><td>已完成</td></tr>
+    <tr><td>Candidate</td><td>候选人基础信息、简历解析、解析状态、负责人。</td><td>已完成</td></tr>
+    <tr><td>UploadBatch</td><td>简历上传批次、来源渠道、目标岗位。</td><td>已完成</td></tr>
+    <tr><td>CandidateTag</td><td>候选人技能标签和评分。</td><td>已完成</td></tr>
+    <tr><td>Job</td><td>岗位名称、城市、部门、JD、结构化 JD、状态。</td><td>已完成</td></tr>
+    <tr><td>Match</td><td>岗位与候选人的匹配结果。</td><td>已完成</td></tr>
+    <tr><td>PipelineStage</td><td>候选人在某岗位下的流程阶段记录。</td><td>已完成</td></tr>
+    <tr><td>Interview</td><td>AI 面试题、作答和评分报告。</td><td>已完成</td></tr>
+    <tr><td>InterviewAssignment</td><td>面试安排、面试官、时间、地点。</td><td>已完成</td></tr>
+    <tr><td>InterviewFeedback</td><td>人工面试反馈、评分、优势、顾虑。</td><td>已完成</td></tr>
+    <tr><td>OfferRecord</td><td>薪资范围、到岗时间、审批状态。</td><td>已完成</td></tr>
+    <tr><td>Event / AuditLog</td><td>业务事件和审计日志。</td><td>部分完成</td></tr>
+    <tr><td>Notification</td><td>通知消息和已读状态。</td><td>部分完成</td></tr>
+    <tr><td>Conversation</td><td>AI 助手会话和消息记录。</td><td>部分完成</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h1>7. 两个月版本规划</h1>
+<h2>7.1 第 1 个月：MVP 稳定化</h2>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">方向</th><th background-color="light-gray">具体事项</th><th background-color="light-gray">状态</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>演示数据</td><td>准备稳定的候选人、岗位、面试、流程和 BI 数据。</td><td>后续规划</td></tr>
+    <tr><td>权限补强</td><td>细化 AI 助手查询范围，按角色和数据归属过滤。</td><td>后续规划</td></tr>
+    <tr><td>AI 助手埋点</td><td>记录用户问题、角色、调用工具、回答结果和后续动作。</td><td>后续规划</td></tr>
+    <tr><td>Prompt 迭代</td><td>基于真实问题优化工具选择、回答格式和追问策略。</td><td>后续规划</td></tr>
+    <tr><td>异常处理</td><td>补齐上传失败、解析失败、接口失败、无数据状态。</td><td>待优化</td></tr>
+    <tr><td>测试补齐</td><td>补充核心链路、权限边界、AI 写操作测试。</td><td>待优化</td></tr>
+  </tbody>
+</table>
+
+<h2>7.2 第 2 个月：产品化试用</h2>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">方向</th><th background-color="light-gray">具体事项</th><th background-color="light-gray">状态</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>候选人画像</td><td>增加候选人评分、风险点、优势摘要和人才库标签。</td><td>后续规划</td></tr>
+    <tr><td>岗位模板</td><td>沉淀常见岗位 JD 模板和必填项模板。</td><td>后续规划</td></tr>
+    <tr><td>面试标准</td><td>配置不同岗位/轮次的评分维度和面试问题模板。</td><td>后续规划</td></tr>
+    <tr><td>BI 增强</td><td>增加指标口径、趋势图、异常提醒和岗位维度分析。</td><td>后续规划</td></tr>
+    <tr><td>通知规则</td><td>候选人推进、待反馈、面试临期、流程停滞提醒。</td><td>后续规划</td></tr>
+    <tr><td>中台对齐</td><td>梳理标准工具接口、权限规则和知识库材料，为未来接入 Agent 中台做准备。</td><td>后续规划</td></tr>
+  </tbody>
+</table>
+
+<h2>7.3 暂不做范围</h2>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">事项</th><th background-color="light-gray">原因</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>实时视频面试</td><td>复杂度较高，当前 MVP 先聚焦异步面试评估和人工反馈。</td></tr>
+    <tr><td>完整 Offer 审批流</td><td>当前只记录 Offer 信息，审批流需要结合公司制度再设计。</td></tr>
+    <tr><td>外部招聘平台集成</td><td>当前先验证内部闭环，外部平台对接放到后续。</td></tr>
+    <tr><td>完整 Agent 中台接入</td><td>当前先沉淀稳定工具和业务数据，待中台规范明确后接入。</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h1>8. 验收标准</h1>
+<checkbox done="true">HR 可以上传简历，并在简历库看到候选人。</checkbox>
+<checkbox done="true">系统可以解析候选人信息，并展示技能标签。</checkbox>
+<checkbox done="true">HR 可以创建岗位，并由 AI 结构化 JD。</checkbox>
+<checkbox done="true">系统可以按岗位匹配候选人，并展示分数、命中技能和缺失技能。</checkbox>
+<checkbox done="true">候选人可以进入招聘流程，并被推进到不同阶段。</checkbox>
+<checkbox done="true">面试中心可以生成 AI 初筛题目，并保存面试结果。</checkbox>
+<checkbox done="true">面试官可以填写结构化反馈。</checkbox>
+<checkbox done="true">经理可以查看 BI 看板。</checkbox>
+<checkbox done="true">AI 助手可以查询系统数据，并展示工具调用过程。</checkbox>
+<checkbox done="true">AI 写操作必须用户确认后执行。</checkbox>
+<checkbox done="false">AI 助手问题埋点形成真实问题库。</checkbox>
+<checkbox done="false">权限细化到 AI 查询工具和候选人归属。</checkbox>
+<checkbox done="false">两个月版本形成可试用产品化版本。</checkbox>
+
+<hr/>
+
+<h1>9. 当前主要问题</h1>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">问题</th><th background-color="light-gray">影响</th><th background-color="light-gray">处理建议</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>PRD 和功能边界此前不够清晰</td><td>容易变成看到哪里补哪里，产品结构不稳定。</td><td>以本文档作为后续功能迭代依据。</td></tr>
+    <tr><td>AI 助手缺少真实使用问题沉淀</td><td>Prompt 和工具优化没有真实依据。</td><td>优先做问题埋点和问题分类。</td></tr>
+    <tr><td>部分功能偏演示版本</td><td>真实业务使用时可能遇到异常流程。</td><td>第 1 个月重点补异常、权限、测试和数据口径。</td></tr>
+    <tr><td>中台接入还只是方向</td><td>不宜过早承诺完整 Agent 化。</td><td>先标准化工具接口和业务数据，再对齐中台规范。</td></tr>
+  </tbody>
+</table>
+
+<h1>10. 总结</h1>
+<callout emoji="✅" background-color="light-green" border-color="green">
+  <p>当前招聘系统 V0.5 MVP 演示版已经完成核心业务闭环，但需要通过传统 PRD 将功能模块、按钮级能力、当前状态和未来进度固定下来。后续两个月应围绕稳定性、权限、埋点、AI 助手、BI 口径和产品化试用继续迭代。</p>
+</callout>

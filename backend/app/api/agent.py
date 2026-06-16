@@ -122,6 +122,7 @@ def chat():
     app = current_app._get_current_object()
     agent = _get_agent()
     user_id = g.user_id
+    role = g.role
     store_conversation_id = conversation_id
 
     @stream_with_context
@@ -135,7 +136,7 @@ def chat():
             success = False
             yield f"data: {json.dumps({'type': 'conversation_started', 'id': store_conversation_id}, ensure_ascii=False)}\n\n"
             try:
-                for ev in agent.run_stream(message, history):
+                for ev in agent.run_stream(message, history, user_id=user_id, role=role):
                     ev_type = ev.get("type")
                     if ev_type == "thought":
                         thoughts.append(ev.get("text", ""))

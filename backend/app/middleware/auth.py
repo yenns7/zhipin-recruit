@@ -11,8 +11,15 @@ def require_auth(f):
             return jsonify({"error": "Missing token"}), 401
         try:
             payload = jwt.decode(token, current_app.config["JWT_SECRET"], algorithms=["HS256"])
-            g.user_id = payload["user_id"]
-            g.role = payload["role"]
+            from ..models import User
+
+            user = User.query.get(payload["user_id"])
+            if not user:
+                return jsonify({"error": "User not found"}), 401
+            if not user.is_active:
+                return jsonify({"error": "账号已停用，请联系管理员"}), 403
+            g.user_id = user.id
+            g.role = user.role
         except jwt.ExpiredSignatureError:
             return jsonify({"error": "Token expired"}), 401
         except jwt.InvalidTokenError:

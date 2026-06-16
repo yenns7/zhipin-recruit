@@ -35,6 +35,7 @@ export function FunnelDiagram({
   const halfW = (v: number) => (Math.max(v, 0) / max) * (W / 2) * 0.92;
 
   const allZero = stages.every((s) => s.value === 0) && rejected === 0;
+  const stageTotal = Math.max(stages.reduce((sum, stage) => sum + Math.max(stage.value, 0), 0), 1);
 
   useGSAP(
     () => {
@@ -164,12 +165,11 @@ export function FunnelDiagram({
           })}
         </div>
 
-        {/* Conversion rate labels */}
+        {/* Current-stage share labels */}
         <div className="pointer-events-none absolute inset-0">
-          {stages.slice(0, -1).map((s, i) => {
-            const next = stages[i + 1];
-            const rate = s.value > 0 ? (next.value / s.value) * 100 : 0;
-            const topPct = (((i + 1) * (rowH + gap) - gap / 2) / H) * 100;
+          {stages.map((s, i) => {
+            const rate = (Math.max(s.value, 0) / stageTotal) * 100;
+            const topPct = ((i * (rowH + gap) + rowH / 2) / H) * 100;
             return (
               <div
                 key={s.label}
@@ -178,7 +178,7 @@ export function FunnelDiagram({
                 style={{ top: `${topPct}%` }}
               >
                 <span className="rounded-full bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-body shadow-apple-sm">
-                  {rate.toFixed(0)}%
+                  阶段占比 {rate.toFixed(0)}%
                 </span>
               </div>
             );
@@ -230,6 +230,7 @@ export function ConversionRing({
       const glow = root.querySelector<SVGCircleElement>('[data-glow]');
       const num = numRef.current;
       if (!arc || !num) return;
+      num.textContent = clamped.toFixed(1) + '%';
 
       const mm = gsap.matchMedia();
       mm.add(
@@ -260,15 +261,6 @@ export function ConversionRing({
               '<',
             );
           }
-          const obj = { n: 0 };
-          gsap.to(obj, {
-            n: clamped,
-            duration: DUR.slow * 1.2,
-            ease: EASE.outExpo,
-            onUpdate: () => {
-              num.textContent = obj.n.toFixed(1) + '%';
-            },
-          });
         },
       );
     },
@@ -330,7 +322,7 @@ export function ConversionRing({
             ref={numRef}
             className="font-display text-3xl text-ink tabular-nums"
           >
-            0.0%
+            {clamped.toFixed(1) + '%'}
           </span>
         </div>
       </div>

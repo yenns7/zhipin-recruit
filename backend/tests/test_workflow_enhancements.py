@@ -74,6 +74,107 @@ def test_upload_batch_source_metadata_is_attached_to_candidate(client, make_user
     assert item["source"]["batch_id"] == body["batch_id"]
 
 
+def test_successful_upload_with_target_job_enters_pending_pipeline(client, make_user, app, monkeypatch, tmp_path):
+    uid, token = make_user("upload-pipeline@x.com", role="recruiter")
+    jid, _ = _seed_job_candidate(app, owner_id=uid)
+
+    def fake_parse_and_save(self, fpath, owner_hr_id, upload_batch_id=None):
+        from app import db
+        from app.models import Candidate
+
+        candidate = Candidate(
+            owner_hr_id=owner_hr_id,
+            upload_batch_id=upload_batch_id,
+            name_masked="候选人自动入流程",
+            resume_json={"extracted_info": {}},
+            raw_file_path=fpath,
+        )
+        db.session.add(candidate)
+        db.session.commit()
+        return candidate
+
+    from app.services.resume_service import ResumeBatchService
+
+    monkeypatch.setattr(ResumeBatchService, "parse_and_save", fake_parse_and_save)
+    resume = tmp_path / "auto-pipeline.pdf"
+    resume.write_bytes(b"%PDF-1.4")
+
+    with resume.open("rb") as f:
+        response = client.post(
+            "/api/resume/upload",
+            headers=_auth(token),
+            data={
+                "files": (f, "auto-pipeline.pdf"),
+                "target_job_id": str(jid),
+            },
+            content_type="multipart/form-data",
+        )
+
+    assert response.status_code == 202
+    candidate_id = response.get_json()["results"][0]["candidate_id"]
+
+    board = client.get(f"/api/pipeline/{jid}/board", headers=_auth(token)).get_json()
+    row = next(item for item in board["candidates"] if item["candidate_id"] == candidate_id)
+    assert row["stage"] == "pending"
+
+    pipelines = client.get(f"/api/candidates/{candidate_id}/pipelines", headers=_auth(token)).get_json()
+    assert pipelines["pipelines"][0]["job_id"] == jid
+    assert pipelines["pipelines"][0]["stage"] == "pending"
+
+
+def test_upload_without_target_job_stays_in_library_without_pipeline(client, make_user, app, monkeypatch, tmp_path):
+    uid, token = make_user("upload-library-only@x.com", role="recruiter")
+
+    def fake_parse_and_save(self, fpath, owner_hr_id, upload_batch_id=None):
+        from app import db
+        from app.models import Candidate
+
+        candidate = Candidate(
+            owner_hr_id=owner_hr_id,
+            upload_batch_id=upload_batch_id,
+            name_masked="候选人简历库",
+            resume_json={"extracted_info": {"intent_city": "深圳"}},
+            raw_file_path=fpath,
+        )
+        db.session.add(candidate)
+        db.session.commit()
+        return candidate
+
+    from app.services.resume_service import ResumeBatchService
+
+    monkeypatch.setattr(ResumeBatchService, "parse_and_save", fake_parse_and_save)
+    resume = tmp_path / "library-only.pdf"
+    resume.write_bytes(b"%PDF-1.4")
+
+    with resume.open("rb") as f:
+        response = client.post(
+            "/api/resume/upload",
+            headers=_auth(token),
+            data={
+                "files": (f, "library-only.pdf"),
+                "source_channel": "内推",
+                "source_note": "先入库，后续再筛岗位",
+            },
+            content_type="multipart/form-data",
+        )
+
+    assert response.status_code == 202
+    result = response.get_json()["results"][0]
+    assert result["status"] == "ok"
+    assert "target_job_id" not in result
+    assert "pipeline_stage" not in result
+
+    candidate_id = result["candidate_id"]
+    library = client.get("/api/candidates", headers=_auth(token)).get_json()
+    item = next(c for c in library if c["id"] == candidate_id)
+    assert item["source"]["channel"] == "内推"
+    assert item["source"]["target_job_id"] is None
+    assert item["source"]["target_job_title"] is None
+
+    pipelines = client.get(f"/api/candidates/{candidate_id}/pipelines", headers=_auth(token)).get_json()
+    assert pipelines["pipelines"] == []
+
+
 def test_rejected_pipeline_move_persists_disposition_for_candidate_journey(client, make_user, app):
     uid, token = make_user("reject@x.com", role="recruiter")
     jid, cid = _seed_job_candidate(app, owner_id=uid)
@@ -138,6 +239,7 @@ def test_offer_record_can_be_saved_without_changing_pipeline_shape(client, make_
     assert board["stage_order"] == [
         "pending",
         "ai_screen",
+        "business_review",
         "interview_first",
         "interview_second",
         "interview_final",

@@ -21,11 +21,64 @@ import {
 } from '../components/ui';
 import type {
   CreateJobResponse,
+  JobListItem,
   JobStructured,
   JdClarificationQuestion,
   JdClarificationAnswer,
 } from '../types';
 import { Reveal } from '../components/motion';
+
+const COMMON_JOB_CITY_OPTIONS = [
+  '北京',
+  '上海',
+  '深圳',
+  '广州',
+  '杭州',
+  '成都',
+  '武汉',
+  '南京',
+  '苏州',
+  '西安',
+  '长沙',
+  '重庆',
+  '天津',
+  '厦门',
+  '合肥',
+  '郑州',
+  '青岛',
+  '宁波',
+  '佛山',
+  '东莞',
+  '远程',
+] as const;
+
+const COMMON_JOB_DEPARTMENT_OPTIONS = [
+  '技术研发部',
+  '产品部',
+  '数据部',
+  '设计部',
+  '测试部',
+  '财务总部',
+  '人力资源部',
+  '市场部',
+  '销售部',
+  '运营部',
+  '客服部',
+] as const;
+
+function mergePresetOptions(presets: readonly string[], dynamicValues: string[]) {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const value of [
+    ...presets,
+    ...dynamicValues.filter(Boolean).sort((a, b) => a.localeCompare(b, 'zh-CN')),
+  ]) {
+    if (seen.has(value)) continue;
+    result.push(value);
+    seen.add(value);
+  }
+  return result;
+}
 
 // ---- Structured JD result renderer ----
 
@@ -230,19 +283,31 @@ function CreateJobForm({ onCreated, onCancel }: CreateJobFormProps) {
               <Input
                 label="城市"
                 name="city"
-                placeholder="例：上海"
+                list="job-city-options"
+                placeholder="例：深圳"
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
                 disabled={clarifying || submitting}
               />
+              <datalist id="job-city-options">
+                {COMMON_JOB_CITY_OPTIONS.map((cityName) => (
+                  <option key={cityName} value={cityName} />
+                ))}
+              </datalist>
               <Input
                 label="部门"
                 name="department"
-                placeholder="例：技术部"
+                list="job-department-options"
+                placeholder="例：技术研发部"
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
                 disabled={clarifying || submitting}
               />
+              <datalist id="job-department-options">
+                {COMMON_JOB_DEPARTMENT_OPTIONS.map((departmentName) => (
+                  <option key={departmentName} value={departmentName} />
+                ))}
+              </datalist>
               <Input
                 label="岗位编号"
                 name="job_code"
@@ -364,6 +429,9 @@ export function JobsPage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [cityFilter, setCityFilter] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
+  const [editingJobId, setEditingJobId] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState({ city: '', department: '', job_code: '' });
+  const [savingJobId, setSavingJobId] = useState<number | null>(null);
 
   // Latest created job result — shown inline after creation
   const [lastCreated, setLastCreated] = useState<CreateJobResponse | null>(null);
@@ -379,11 +447,11 @@ export function JobsPage() {
 
   const jobs = useMemo(() => data ?? [], [data]);
   const cityOptions = useMemo(
-    () => Array.from(new Set(jobs.map((job) => job.city).filter(Boolean))).sort(),
+    () => mergePresetOptions(COMMON_JOB_CITY_OPTIONS, jobs.map((job) => job.city)),
     [jobs]
   );
   const departmentOptions = useMemo(
-    () => Array.from(new Set(jobs.map((job) => job.department).filter(Boolean))).sort(),
+    () => mergePresetOptions(COMMON_JOB_DEPARTMENT_OPTIONS, jobs.map((job) => job.department)),
     [jobs]
   );
   const filteredJobs = useMemo(
@@ -396,6 +464,40 @@ export function JobsPage() {
     [cityFilter, departmentFilter, jobs]
   );
   const hasActiveFilters = cityFilter !== '' || departmentFilter !== '';
+
+  const startEditJobAttribution = useCallback((job: JobListItem) => {
+    setEditingJobId(job.id);
+    setEditDraft({
+      city: job.city || '',
+      department: job.department || '',
+      job_code: job.job_code || '',
+    });
+  }, []);
+
+  const cancelEditJobAttribution = useCallback(() => {
+    setEditingJobId(null);
+    setEditDraft({ city: '', department: '', job_code: '' });
+  }, []);
+
+  const handleSaveJobAttribution = useCallback(
+    async (job: JobListItem) => {
+      setSavingJobId(job.id);
+      try {
+        await api.updateJob(job.id, {
+          city: editDraft.city.trim(),
+          department: editDraft.department.trim(),
+          job_code: editDraft.job_code.trim(),
+        });
+        cancelEditJobAttribution();
+        reload();
+      } catch (err) {
+        window.alert(err instanceof Error ? err.message : '保存岗位归属失败');
+      } finally {
+        setSavingJobId(null);
+      }
+    },
+    [cancelEditJobAttribution, editDraft, reload]
+  );
 
   // Close (take offline) a job after confirmation, then refresh the list.
   const [closingId, setClosingId] = useState<number | null>(null);
@@ -563,43 +665,109 @@ export function JobsPage() {
                     className="transition-colors hover:bg-surface-soft"
                   >
                     <td className="px-5 py-3.5">
-                      <span className="font-mono text-xs text-muted">
-                        {job.job_code || `JOB-${job.id}`}
-                      </span>
+                      {editingJobId === job.id ? (
+                        <input
+                          value={editDraft.job_code}
+                          onChange={(event) => setEditDraft((draft) => ({
+                            ...draft,
+                            job_code: event.target.value,
+                          }))}
+                          aria-label="编辑岗位编号"
+                          className="h-8 w-28 rounded-md border border-hairline bg-canvas px-2 text-xs text-ink focus:border-ink focus:outline-none"
+                          placeholder={`JOB-${job.id}`}
+                        />
+                      ) : (
+                        <span className="font-mono text-xs text-muted">
+                          {job.job_code || `JOB-${job.id}`}
+                        </span>
+                      )}
                     </td>
                     <td className="px-5 py-3.5">
                       <span className="font-medium text-ink">{job.title}</span>
                     </td>
                     <td className="px-5 py-3.5 text-muted">
-                      {job.city || '未设置'}
+                      {editingJobId === job.id ? (
+                        <input
+                          value={editDraft.city}
+                          onChange={(event) => setEditDraft((draft) => ({
+                            ...draft,
+                            city: event.target.value,
+                          }))}
+                          aria-label="编辑岗位城市"
+                          className="h-8 w-24 rounded-md border border-hairline bg-canvas px-2 text-xs text-ink focus:border-ink focus:outline-none"
+                          placeholder="城市"
+                        />
+                      ) : (
+                        job.city || '未设置'
+                      )}
                     </td>
                     <td className="px-5 py-3.5 text-muted">
-                      {job.department || '未设置'}
+                      {editingJobId === job.id ? (
+                        <input
+                          value={editDraft.department}
+                          onChange={(event) => setEditDraft((draft) => ({
+                            ...draft,
+                            department: event.target.value,
+                          }))}
+                          aria-label="编辑岗位部门"
+                          className="h-8 w-28 rounded-md border border-hairline bg-canvas px-2 text-xs text-ink focus:border-ink focus:outline-none"
+                          placeholder="部门"
+                        />
+                      ) : (
+                        job.department || '未设置'
+                      )}
                     </td>
                     <td className="px-5 py-3.5 text-muted">
                       {formatDate(job.created_at)}
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <div className="flex items-center justify-end gap-3">
-                        <Link
-                          to={`/jobs/${job.id}/match`}
-                          className="text-xs font-medium text-ink hover:text-body hover:underline"
-                        >
-                          匹配候选人
-                        </Link>
-                        <Link
-                          to={`/pipeline?job=${job.id}`}
-                          className="text-xs font-medium text-muted hover:text-ink hover:underline"
-                        >
-                          查看招聘流程
-                        </Link>
-                        <button
-                          onClick={() => handleClose(job.id, job.title)}
-                          disabled={closingId === job.id}
-                          className="text-xs font-medium text-muted hover:text-danger-600 disabled:opacity-50"
-                        >
-                          {closingId === job.id ? '关闭中…' : '关闭'}
-                        </button>
+                        {editingJobId === job.id ? (
+                          <>
+                            <button
+                              onClick={() => handleSaveJobAttribution(job)}
+                              disabled={savingJobId === job.id}
+                              className="text-xs font-medium text-ink hover:text-body hover:underline disabled:opacity-50"
+                            >
+                              {savingJobId === job.id ? '保存中…' : '保存归属'}
+                            </button>
+                            <button
+                              onClick={cancelEditJobAttribution}
+                              disabled={savingJobId === job.id}
+                              className="text-xs font-medium text-muted hover:text-ink hover:underline disabled:opacity-50"
+                            >
+                              取消
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <Link
+                              to={`/jobs/${job.id}/match`}
+                              className="text-xs font-medium text-ink hover:text-body hover:underline"
+                            >
+                              匹配候选人
+                            </Link>
+                            <Link
+                              to={`/pipeline?job=${job.id}`}
+                              className="text-xs font-medium text-muted hover:text-ink hover:underline"
+                            >
+                              查看招聘流程
+                            </Link>
+                            <button
+                              onClick={() => startEditJobAttribution(job)}
+                              className="text-xs font-medium text-muted hover:text-ink hover:underline"
+                            >
+                              编辑归属
+                            </button>
+                            <button
+                              onClick={() => handleClose(job.id, job.title)}
+                              disabled={closingId === job.id}
+                              className="text-xs font-medium text-muted hover:text-danger-600 disabled:opacity-50"
+                            >
+                              {closingId === job.id ? '关闭中…' : '关闭'}
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

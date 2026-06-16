@@ -18,9 +18,11 @@ def test_agent_chat_creates_conversation_and_persists_messages(
     _, token = make_user("agent-conversation@example.com", role="recruiter")
 
     class FakeAgent:
-        def run_stream(self, message, history):
+        def run_stream(self, message, history, user_id=None, role=None):
             assert message == "帮我数一下候选人"
             assert history == []
+            assert user_id is not None
+            assert role == "recruiter"
             yield {"type": "thought", "text": "先查系统数据"}
             yield {"type": "done", "answer": "系统里有 0 位候选人。"}
 

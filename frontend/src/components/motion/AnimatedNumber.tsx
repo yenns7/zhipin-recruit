@@ -1,4 +1,4 @@
-// 数字滚动递增 — KPI 统计数字从 0 滚动到目标值。
+// 数字滚动递增 — KPI 统计数字从当前显示值滚动到目标值。
 // 尊重 prefers-reduced-motion：偏好减少动效时直接显示终值。
 
 import { useRef } from 'react';
@@ -16,6 +16,12 @@ interface AnimatedNumberProps {
   /** 滚动时长（秒）。 */
   duration?: number;
   className?: string;
+}
+
+function parseDisplayedNumber(text: string | null | undefined, fallback: number): number {
+  const normalized = (text ?? '').replace(/[^\d.-]/g, '');
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 export function AnimatedNumber({
@@ -51,7 +57,7 @@ export function AnimatedNumber({
             el.textContent = format(value);
             return;
           }
-          const obj = { n: 0 };
+          const obj = { n: parseDisplayedNumber(el.textContent, value) };
           gsap.to(obj, {
             n: value,
             duration,

@@ -36,8 +36,20 @@ assert.match(
 
 assert.match(
   pipelinePage,
-  /岗位 → 匹配候选人 → 加入流程 → 安排面试 → 面试反馈 → Offer \/ 淘汰沉淀/,
-  'Pipeline page should explain the end-to-end hiring path without adding new navigation',
+  /岗位 → 匹配候选人 → 加入流程 → AI 初筛 → 业务反馈 → 安排面试 → 面试反馈 → Offer \/ 淘汰沉淀/,
+  'Pipeline page should explain the end-to-end hiring path including business feedback ownership',
+);
+
+assert.match(
+  pipelinePage,
+  /formatJobOption/,
+  'Pipeline page should format job selector options with business identifiers',
+);
+
+assert.match(
+  pipelinePage,
+  /job\.job_code \|\| `JOB-\$\{job\.id\}`/,
+  'Pipeline job selector should fall back to a visible JOB-id when no job code exists',
 );
 
 assert.match(

@@ -15,7 +15,7 @@ class MatchService:
     def __init__(self):
         self.matcher = JobMatcher()
 
-    def _compute_rankings(self, job_id: int) -> List[Dict[str, Any]]:
+    def _compute_rankings(self, job_id: int, candidate_query=None) -> List[Dict[str, Any]]:
         """纯计算匹配排名，不持久化。"""
         job = Job.query.get(job_id)
         if not job:
@@ -25,7 +25,7 @@ class MatchService:
         jd_skill_tags_raw = jd_structured.get("skill_tags_raw", "")
         jd_tags = self.matcher.parse_job_skills(jd_skill_tags_raw)
 
-        candidates = Candidate.query.all()
+        candidates = (candidate_query or Candidate.query).all()
         results = []
         for c in candidates:
             resume_skills = [
@@ -46,17 +46,22 @@ class MatchService:
         results.sort(key=lambda x: x["score"], reverse=True)
         return results
 
-    def rank_for_job_readonly(self, job_id: int, top_n: int = 20) -> List[Dict[str, Any]]:
+    def rank_for_job_readonly(
+        self,
+        job_id: int,
+        top_n: int = 20,
+        candidate_query=None,
+    ) -> List[Dict[str, Any]]:
         """只读匹配排名（不修改数据库），供 AI 智能体查询工具使用。"""
-        results = self._compute_rankings(job_id)
+        results = self._compute_rankings(job_id, candidate_query=candidate_query)
         return results[:top_n]
 
-    def rank_for_job(self, job_id: int, top_n: int = 20) -> list:
+    def rank_for_job(self, job_id: int, top_n: int = 20, candidate_query=None) -> list:
         """
         岗找人：给定 job_id，从候选人池返回按匹配分排序的列表，并持久化结果。
         复用 base_agent/job_matcher.py 的 parse_job_skills + match_resume_to_job。
         """
-        results = self._compute_rankings(job_id)
+        results = self._compute_rankings(job_id, candidate_query=candidate_query)
         if not results:
             return []
 

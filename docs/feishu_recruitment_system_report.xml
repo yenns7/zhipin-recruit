@@ -1,0 +1,394 @@
+<title>招聘系统</title>
+
+<callout emoji="📌" background-color="light-blue" border-color="blue">
+  <p><b>项目定位：</b>本项目是面向企业招聘场景的 AI 招聘管理系统 MVP，覆盖简历入库、候选人管理、岗位管理、人岗匹配、招聘流程、面试评估、数据看板和 AI 助手。</p>
+  <p><b>建设方式：</b>本项目采用「文档驱动 + AI 辅助研发」方式完成 MVP。先将业务流程、角色权限、模块边界、数据对象和验收标准结构化为文档，再由 AI 编程助手按模块生成代码，人工负责产品判断、上下文组织、联调验证和迭代修正。</p>
+  <p><b>汇报对象：</b>产品总监、技术总监。文档重点覆盖业务价值、产品路线、技术架构、稳定性设计、AI 助手设计以及后续与 Agent 中台的对齐方向。</p>
+</callout>
+
+<h1>1. 项目概览</h1>
+<p>招聘系统的目标不是只做一个 AI 简历解析能力，而是验证一套可落地的招聘业务闭环：把原本分散在简历文件、人工筛选、面试沟通和管理统计中的信息，沉淀为可查询、可流转、可分析的数据资产。</p>
+
+<table>
+  <thead>
+    <tr><th background-color="light-gray">维度</th><th background-color="light-gray">当前 MVP 范围</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>业务对象</td><td>候选人、岗位、招聘流程、面试记录、Offer/淘汰结果、招聘数据指标。</td></tr>
+    <tr><td>核心角色</td><td>HR/招聘专员、面试官、经理、管理员。</td></tr>
+    <tr><td>核心链路</td><td>简历入库 → 候选人结构化 → 岗位 JD 结构化 → AI 匹配 → 流程推进 → 面试评估 → BI 看板 → AI 助手查询。</td></tr>
+    <tr><td>AI 介入点</td><td>简历解析、JD 结构化、人岗匹配、面试题生成、面试报告评估、AI 助手工具调用。</td></tr>
+    <tr><td>当前定位</td><td>MVP 验证版本，重点验证业务闭环、模块边界、AI 能力接入方式和后续产品化路径。</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h1>2. 产品价值与业务流程</h1>
+<h2>2.1 业务价值</h2>
+<grid>
+  <column width-ratio="0.33">
+    <h3>效率提升</h3>
+    <p>将文件简历转为结构化候选人数据，减少 HR 从零翻简历、手动汇总信息的工作量。</p>
+  </column>
+  <column width-ratio="0.33">
+    <h3>过程可视</h3>
+    <p>候选人从入库、匹配、面试到 Offer/淘汰都有流程记录，便于追踪招聘进展。</p>
+  </column>
+  <column width-ratio="0.34">
+    <h3>管理可分析</h3>
+    <p>通过招聘漏斗、岗位转化、专员效能等指标，帮助管理者识别招聘瓶颈。</p>
+  </column>
+</grid>
+
+<h2>2.2 端到端业务闭环</h2>
+<pre lang="text" caption="MVP 核心业务流程"><code>HR 上传简历
+  → 系统解析候选人信息与技能标签
+  → HR 创建岗位并录入 JD
+  → AI 结构化岗位要求
+  → 系统计算人岗匹配度
+  → 候选人进入招聘流程
+  → AI 预筛 / 面试官反馈
+  → Offer / 入职 / 淘汰
+  → 经理查看 BI 看板
+  → AI 助手辅助查询与建议</code></pre>
+
+<h2>2.3 角色与场景</h2>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">角色</th><th background-color="light-gray">核心场景</th><th background-color="light-gray">当前系统支持</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>HR / 招聘专员</td><td>上传简历、创建岗位、筛选候选人、推进流程。</td><td>简历上传、简历库、岗位管理、智能匹配、流程看板、AI 预筛。</td></tr>
+    <tr><td>面试官</td><td>查看面试安排、按结构化标准提交反馈。</td><td>面试分配、面试指南、反馈提交、个人面试记录。</td></tr>
+    <tr><td>经理</td><td>查看招聘进度、岗位转化、团队效率和瓶颈。</td><td>BI 看板、招聘漏斗、专员效能、单岗位漏斗。</td></tr>
+    <tr><td>管理员</td><td>账号权限管理、AI 能力边界查看。</td><td>用户管理、角色调整、AI 架构与工具能力看板。</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h1>3. 当前 MVP 功能范围</h1>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">模块</th><th background-color="light-gray">已实现能力</th><th background-color="light-gray">业务意义</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>登录与权限</td><td>JWT 登录、角色菜单、RBAC 权限。</td><td>支持 HR、面试官、经理、管理员分角色使用。</td></tr>
+    <tr><td>简历入库</td><td>支持 PDF、Word、ZIP 上传，解析候选人信息和技能标签。</td><td>将简历文件转为可查询、可匹配的数据。</td></tr>
+    <tr><td>候选人库</td><td>候选人列表、详情、来源信息、技能标签、流程轨迹。</td><td>形成候选人资产池。</td></tr>
+    <tr><td>岗位管理</td><td>岗位创建、编辑、关闭，AI 结构化 JD，澄清追问。</td><td>将自然语言 JD 转为可匹配的岗位画像。</td></tr>
+    <tr><td>智能匹配</td><td>按岗位计算候选人排序、匹配分数、命中技能和缺失技能。</td><td>辅助 HR 快速定位优先沟通对象。</td></tr>
+    <tr><td>招聘流程</td><td>待筛选、AI 初筛、一面、二面、终面、Offer、入职、淘汰。</td><td>让招聘过程可管理、可追踪。</td></tr>
+    <tr><td>面试中心</td><td>AI 预筛、面试题生成、面试官分配、结构化反馈。</td><td>沉淀 AI 与人工面试结果。</td></tr>
+    <tr><td>BI 看板</td><td>招聘漏斗、转化率、专员效能、单岗位漏斗。</td><td>为管理者提供招聘过程分析。</td></tr>
+    <tr><td>AI 助手</td><td>自然语言查询系统数据，展示工具调用过程，写操作需确认。</td><td>验证招聘业务 Agent 的雏形。</td></tr>
+  </tbody>
+</table>
+
+<callout emoji="✅" background-color="light-green" border-color="green">
+  <p><b>当前 MVP 判断：</b>系统已经具备端到端演示能力，可以完整展示从简历上传到数据看板和 AI 助手查询的招聘闭环。下一阶段重点从「能跑通」进入「更稳定、更可配置、更贴近真实业务」。</p>
+</callout>
+
+<hr/>
+
+<h1>4. 产品演示建议</h1>
+<p>现场演示建议按一条招聘链路展开，避免按菜单逐项介绍。这样产品总监能看到业务闭环，技术总监能看到系统模块之间的衔接。</p>
+
+<ol>
+  <li seq="auto">进入系统工作台，说明角色权限和整体模块。</li>
+  <li seq="auto">上传一份简历，展示候选人结构化结果和技能标签。</li>
+  <li seq="auto">进入简历库，查看候选人档案、来源、流程记录。</li>
+  <li seq="auto">创建一个岗位，展示 JD 结构化和关键岗位画像。</li>
+  <li seq="auto">运行岗位匹配，展示候选人排序、匹配分数、命中技能和缺失技能。</li>
+  <li seq="auto">将候选人加入招聘流程，展示流程看板和状态推进。</li>
+  <li seq="auto">进入面试中心，展示 AI 预筛或面试官反馈。</li>
+  <li seq="auto">切到 BI 看板，展示招聘漏斗、转化率和专员效能。</li>
+  <li seq="auto">最后展示 AI 助手，提问系统概览、岗位匹配、团队漏斗，并说明写操作需要确认。</li>
+</ol>
+
+<hr/>
+
+<h1>5. 技术架构与模块拆分</h1>
+<h2>5.1 架构原则</h2>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">原则</th><th background-color="light-gray">说明</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>前后端分离</td><td>前端负责页面、交互、角色导航和数据展示；后端负责权限、数据、业务规则和 AI 能力调用。</td></tr>
+    <tr><td>后端模块化</td><td>后端按业务域拆分 API，降低模块之间的耦合。</td></tr>
+    <tr><td>AI 工具化</td><td>AI 不直接操作数据库，而是通过固定工具访问候选人、岗位、匹配、流程和 BI 能力。</td></tr>
+    <tr><td>操作可审计</td><td>关键写操作记录事件，为 BI 和后续审计打基础。</td></tr>
+    <tr><td>渐进中台化</td><td>当前先完成业务闭环，后续再根据公司 Agent 中台规范进行模型、工具、知识库和审计接入。</td></tr>
+  </tbody>
+</table>
+
+<h2>5.2 前后端模块映射</h2>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">业务模块</th><th background-color="light-gray">前端</th><th background-color="light-gray">后端</th><th background-color="light-gray">核心数据</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>登录与权限</td><td>LoginPage、AppShell、角色菜单</td><td>auth、admin</td><td>User</td></tr>
+    <tr><td>简历与候选人</td><td>UploadPage、CandidatesPage、CandidateProfilePage</td><td>resume、candidates</td><td>Candidate、CandidateTag、UploadBatch</td></tr>
+    <tr><td>岗位与匹配</td><td>JobsPage、JobMatchPage</td><td>jobs、match</td><td>Job、Match</td></tr>
+    <tr><td>流程与 Offer</td><td>PipelinePage、OfferDrawer、CandidateCard</td><td>pipeline</td><td>PipelineStage、OfferRecord、CandidateDisposition</td></tr>
+    <tr><td>面试中心</td><td>InterviewListPage、InterviewsPage、FeedbackForm</td><td>interview</td><td>Interview、InterviewAssignment、InterviewFeedback</td></tr>
+    <tr><td>BI 看板</td><td>BiPage、BiVisuals</td><td>bi</td><td>Event、PipelineStage、User</td></tr>
+    <tr><td>AI 助手</td><td>AgentPage、ThoughtTrace、ToolCallCard</td><td>agent、agent_service</td><td>通过工具调用业务模型</td></tr>
+  </tbody>
+</table>
+
+<h2>5.3 技术栈</h2>
+<grid>
+  <column width-ratio="0.33">
+    <h3>前端</h3>
+    <ul>
+      <li>React</li>
+      <li>TypeScript</li>
+      <li>Vite</li>
+      <li>Tailwind</li>
+      <li>GSAP / 图表组件</li>
+    </ul>
+  </column>
+  <column width-ratio="0.33">
+    <h3>后端</h3>
+    <ul>
+      <li>Flask</li>
+      <li>SQLAlchemy</li>
+      <li>JWT / RBAC</li>
+      <li>模块化 API</li>
+      <li>事件埋点</li>
+    </ul>
+  </column>
+  <column width-ratio="0.34">
+    <h3>AI</h3>
+    <ul>
+      <li>LLM 调用</li>
+      <li>JD 结构化</li>
+      <li>简历解析</li>
+      <li>匹配与面试评估</li>
+      <li>AI 助手工具调用</li>
+    </ul>
+  </column>
+</grid>
+
+<hr/>
+
+<h1>6. 文档驱动 + AI 辅助研发流程</h1>
+<p>本项目采用文档作为研发入口，用文档约束 AI 编程助手的输出范围和模块边界。AI 负责生成代码和辅助调试，人工负责需求拆解、上下文组织、结果验收和迭代方向。</p>
+
+<table>
+  <thead>
+    <tr><th background-color="light-gray">阶段</th><th background-color="light-gray">文档输入</th><th background-color="light-gray">AI 研发产出</th><th background-color="light-gray">人工把关点</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>需求结构化</td><td>角色、业务流程、功能模块、验收目标。</td><td>模块拆分建议、页面与接口规划。</td><td>业务链路是否成立，是否符合招聘场景。</td></tr>
+    <tr><td>架构设计</td><td>前后端分离、数据对象、权限边界、AI 能力边界。</td><td>目录结构、API 蓝图、数据模型。</td><td>模块边界是否清晰，后续是否可扩展。</td></tr>
+    <tr><td>模块实现</td><td>单模块功能描述、接口契约、验收标准。</td><td>前端页面、后端接口、服务逻辑、测试用例。</td><td>运行验证、页面流程、接口返回、异常处理。</td></tr>
+    <tr><td>联调迭代</td><td>运行问题、报错信息、业务调整点。</td><td>Bug 修复、权限补齐、边界处理。</td><td>确认修复不破坏其他模块。</td></tr>
+    <tr><td>沉淀复盘</td><td>源码、功能清单、系统流程。</td><td>产品汇报、技术说明、后续路线。</td><td>形成可继续迭代和交接的项目资产。</td></tr>
+  </tbody>
+</table>
+
+<h2>6.1 AI 可读的研发输入文档结构</h2>
+<p>后续继续迭代时，可以用以下结构作为 AI 编程助手的输入模板，确保每次需求都有清晰边界。</p>
+<pre lang="text" caption="AI 研发输入模板"><code>1. 背景与目标
+- 当前要解决什么业务问题？
+- 使用角色是谁？
+- 成功标准是什么？
+
+2. 用户流程
+- 用户从哪里进入？
+- 中间经过哪些页面和动作？
+- 最终产生什么业务结果？
+
+3. 功能范围
+- 本次必须实现什么？
+- 哪些暂不实现？
+- 哪些是后续扩展？
+
+4. 前端要求
+- 页面入口
+- 表单字段
+- 列表 / 看板 / 详情页展示
+- 空状态、错误状态、加载状态
+
+5. 后端要求
+- API 路由
+- 请求参数
+- 返回结构
+- 权限规则
+- 事件埋点
+
+6. 数据模型
+- 新增或修改哪些表？
+- 字段含义是什么？
+- 与现有数据如何关联？
+
+7. 验收标准
+- 用户能完成哪些动作？
+- 哪些异常要处理？
+- 需要补哪些测试？</code></pre>
+
+<callout emoji="ℹ️" background-color="light-blue" border-color="blue">
+  <p><b>说明：</b>这种方式的核心不是让 AI 自由发挥，而是用文档给 AI 设定清晰的业务上下文、模块边界和验收标准，从而提升生成代码的可控性和可维护性。</p>
+</callout>
+
+<hr/>
+
+<h1>7. 稳定性与可靠性设计</h1>
+<p>当前系统仍是 MVP，但已经在权限、AI 写操作、流程追踪、文件上传和数据统计口径上做了基础可靠性设计。</p>
+
+<table>
+  <thead>
+    <tr><th background-color="light-gray">关注点</th><th background-color="light-gray">当前设计</th><th background-color="light-gray">下一步增强</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>身份认证</td><td>JWT 登录，前端保存会话，接口需要 token。</td><td>接入统一认证或更完整的会话管理。</td></tr>
+    <tr><td>角色权限</td><td>admin、manager、recruiter、interviewer 分角色访问。</td><td>细化到数据归属、岗位范围、工具调用范围。</td></tr>
+    <tr><td>AI 写操作</td><td>AI 只能提议，用户确认后后端再校验并执行。</td><td>增加审批策略、操作日志和失败回滚提示。</td></tr>
+    <tr><td>流程追踪</td><td>招聘流程采用追加记录，保留候选人历史流转。</td><td>增加完整审计日志和关键流程回放。</td></tr>
+    <tr><td>文件安全</td><td>ZIP 上传限制文件数量、单文件大小、总大小，并防路径穿越。</td><td>增加文件类型深度校验、病毒扫描、对象存储隔离。</td></tr>
+    <tr><td>BI 口径</td><td>漏斗按候选人最新阶段去重，避免历史阶段重复计数。</td><td>沉淀指标字典，统一口径说明。</td></tr>
+    <tr><td>测试覆盖</td><td>已有后端和前端测试覆盖核心流程、权限、候选人 journey、面试、流程等场景。</td><td>补充 AI 助手、异常流程、并发和权限边界测试。</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h1>8. AI 助手设计</h1>
+<h2>8.1 当前定位</h2>
+<p>AI 助手当前定位为招聘系统内的业务智能助手，而不是开放式聊天机器人。它通过固定工具读取业务系统数据，并在涉及数据变更时采用人工确认机制。</p>
+
+<table>
+  <thead>
+    <tr><th background-color="light-gray">能力类型</th><th background-color="light-gray">当前支持</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>查询类</td><td>候选人列表、候选人详情、岗位列表、岗位匹配、招聘流程、BI 概览、系统概览。</td></tr>
+    <tr><td>分析类</td><td>基于工具返回数据生成中文总结和下一步建议。</td></tr>
+    <tr><td>写操作</td><td>创建岗位、推进流程、发起面试、运行匹配；必须用户确认后执行。</td></tr>
+    <tr><td>过程展示</td><td>前端展示 AI 思考、工具调用、工具结果和流式回答。</td></tr>
+  </tbody>
+</table>
+
+<h2>8.2 Prompt 与工具迭代策略</h2>
+<p>当前阶段没有将 AI 助手设计成重 Prompt 方案，而是先建立基础工具能力和安全边界，再通过真实使用数据持续迭代。</p>
+
+<callout emoji="ℹ️" background-color="light-blue" border-color="blue">
+  <p><b>设计原因：</b>真实业务中，HR、面试官和经理会如何提问尚需通过实际使用观察。过早凭经验设计复杂 Prompt，容易偏离真实场景。当前更适合先收集真实问题，再反向优化提示词、工具集和知识库内容。</p>
+</callout>
+
+<h2>8.3 埋点与数据闭环</h2>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">收集对象</th><th background-color="light-gray">用途</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>用户原始问题</td><td>识别高频招聘问题，沉淀真实问题库。</td></tr>
+    <tr><td>用户角色</td><td>区分 HR、面试官、经理、管理员的关注点。</td></tr>
+    <tr><td>调用工具</td><td>判断现有工具是否够用，发现缺失工具。</td></tr>
+    <tr><td>回答结果</td><td>评估是否需要补充 Prompt、知识库或业务规则。</td></tr>
+    <tr><td>后续动作</td><td>判断 AI 回答是否真正推动了招聘操作。</td></tr>
+    <tr><td>失败问题</td><td>沉淀兜底场景，用于改进工具调用和异常处理。</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h1>9. 与 Agent 中台的对齐方向</h1>
+<p>Agent 中台接入不是当前 MVP 的短期强依赖，当前阶段重点是先把招聘业务闭环和工具边界做清楚。后续在中台规范明确后，可将本系统沉淀出的业务能力逐步接入中台。</p>
+
+<table>
+  <thead>
+    <tr><th background-color="light-gray">中台能力</th><th background-color="light-gray">招聘系统对齐方向</th><th background-color="light-gray">接入节奏</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>模型网关</td><td>将当前项目内模型调用切换到统一模型入口，统一限流、日志和成本管理。</td><td>中期</td></tr>
+    <tr><td>工具调用</td><td>将候选人查询、岗位查询、匹配、流程推进、面试安排、BI 查询封装为标准工具。</td><td>中期</td></tr>
+    <tr><td>知识库</td><td>接入招聘制度、岗位画像、面试评价标准、历史问答和业务 SOP。</td><td>中长期</td></tr>
+    <tr><td>工作流编排</td><td>将发布岗位、筛选候选人、安排面试、生成总结、提醒 HR 等流程沉淀为可编排工作流。</td><td>中长期</td></tr>
+    <tr><td>权限审计</td><td>保留用户身份、角色权限、人工确认和操作日志，后续对齐中台审计规范。</td><td>中期</td></tr>
+  </tbody>
+</table>
+
+<pre lang="text" caption="中台化演进路径"><code>当前招聘系统 MVP
+  → 梳理稳定的后端业务能力
+  → 抽象为标准工具接口
+  → 对接 Agent 中台工具注册与模型网关
+  → 接入招聘知识库和业务 SOP
+  → 编排招聘流程 Agent
+  → 纳入统一权限审计与运营监控</code></pre>
+
+<callout emoji="📌" background-color="light-yellow" border-color="yellow">
+  <p><b>边界说明：</b>当前系统不直接承诺已经完成中台接入，而是保留清晰的技术演进路径。短期先把业务闭环、埋点和稳定性做好；中长期再根据公司 Agent 中台规范接入。</p>
+</callout>
+
+<hr/>
+
+<h1>10. 迭代路线图</h1>
+<h2>10.1 两周 MVP 迭代</h2>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">方向</th><th background-color="light-gray">具体事项</th><th background-color="light-gray">目标</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>演示稳定性</td><td>完善演示数据、固定演示账号、优化关键流程容错。</td><td>确保业务闭环可稳定演示和试用。</td></tr>
+    <tr><td>AI 助手埋点</td><td>记录问题、角色、调用工具、结果、后续动作。</td><td>形成第一版真实问题库。</td></tr>
+    <tr><td>权限补强</td><td>细化 AI 查询工具的数据范围和角色过滤。</td><td>降低数据越权风险。</td></tr>
+    <tr><td>Prompt 迭代</td><td>基于真实问题优化问题分类、工具选择和回答格式。</td><td>提升 AI 助手业务可用性。</td></tr>
+    <tr><td>测试补齐</td><td>补关键接口、AI 写操作、流程状态、权限边界测试。</td><td>提升 MVP 稳定性。</td></tr>
+  </tbody>
+</table>
+
+<h2>10.2 1-2 个月产品化路线</h2>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">阶段</th><th background-color="light-gray">目标</th><th background-color="light-gray">产出</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>第 1 个月</td><td>从 MVP 走向可试用版本。</td><td>完善权限、埋点、测试、异常处理、指标口径和真实业务数据样例。</td></tr>
+    <tr><td>第 2 个月</td><td>探索产品化和中台对齐。</td><td>标准化工具接口、知识库初版、招聘 SOP、Agent 中台对接方案、灰度试用计划。</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h1>11. 当前风险与待确认事项</h1>
+<table>
+  <thead>
+    <tr><th background-color="light-gray">事项</th><th background-color="light-gray">当前判断</th><th background-color="light-gray">建议处理</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>真实招聘场景问题不足</td><td>目前 AI 助手问题设计仍基于系统能力和假设场景。</td><td>通过埋点收集真实问题，再迭代 Prompt、工具和知识库。</td></tr>
+    <tr><td>权限粒度仍需细化</td><td>MVP 已有角色权限，但 AI 查询工具的数据范围还需要进一步收紧。</td><td>两周内优先补强 AI 查询权限。</td></tr>
+    <tr><td>中台接入规范未完全明确</td><td>当前先保留工具化边界，不提前绑定具体实现。</td><td>后续与中台团队确认工具 schema、鉴权、审计和日志规范。</td></tr>
+    <tr><td>真实业务数据验证不足</td><td>当前偏 MVP 演示数据和基础流程验证。</td><td>选取小范围招聘场景进行试用，收集反馈。</td></tr>
+  </tbody>
+</table>
+
+<h1>12. 为什么这样设计适合公司现阶段</h1>
+<p>当前方案采用「先业务闭环、再工具化、最后中台化」的路径，主要是为了贴合公司现阶段 AI 化转型的节奏：先用一个具体业务场景验证价值，再把稳定能力沉淀为可复用工具。</p>
+
+<table>
+  <thead>
+    <tr><th background-color="light-gray">设计选择</th><th background-color="light-gray">合理性</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>先做招聘业务闭环</td><td>招聘流程天然包含数据录入、匹配推荐、流程推进、评价反馈和管理分析，适合验证 AI 在真实业务中的端到端价值。</td></tr>
+    <tr><td>先做 MVP，而不是一开始追求完整平台</td><td>公司 AI 化转型需要可演示、可试用、可反馈的业务样板。MVP 能快速暴露真实流程、权限、数据口径和使用习惯问题。</td></tr>
+    <tr><td>AI 助手先做工具调用和埋点</td><td>真实用户会问什么需要通过使用数据验证。先收集问题，再优化 Prompt、知识库和工具，比一开始设计复杂助手更稳。</td></tr>
+    <tr><td>后续再接入 Agent 中台</td><td>当前系统先沉淀招聘领域的稳定能力；等工具边界、权限规则、知识内容明确后，再接入中台会更容易复用和治理。</td></tr>
+  </tbody>
+</table>
+
+<callout emoji="📌" background-color="light-blue" border-color="blue">
+  <p><b>总结判断：</b>这个系统适合作为公司 AI 化转型中的一个业务样板：它不只是展示 AI 能生成内容，而是展示 AI 如何进入具体业务流程、调用系统工具、接受权限约束，并通过真实使用数据持续迭代。</p>
+</callout>
+
+<h1>13. 总结</h1>
+<callout emoji="✅" background-color="light-green" border-color="green">
+  <p>招聘系统当前完成的是 AI 招聘业务闭环的 MVP 验证：用文档驱动 AI 辅助研发，快速搭建可运行系统；用模块化架构保证后续可扩展；用 AI 助手和埋点机制验证业务 Agent 的演进方向；后续再逐步接入 Agent 中台、知识库、工具调用、工作流编排和权限审计。</p>
+</callout>

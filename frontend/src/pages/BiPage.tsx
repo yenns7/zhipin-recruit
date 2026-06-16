@@ -276,15 +276,15 @@ function TeamOverview({
               accent="#34C759"
             />
             <KpiCard
-              label="整体转化率"
+              label="流程内入职占比"
               value={<AnimatedNumber value={safeNum(data.funnel.conversion_rate)} decimals={1} suffix="%" />}
-              sub="待筛选 → 入职"
+              sub="当前流程人数口径"
               accent="#AF52DE"
             />
             <KpiCard
-              label="简历总量"
-              value={<AnimatedNumber value={safeNum(data.funnel.pending)} />}
-              sub="流入简历"
+              label="当前流程人数"
+              value={<AnimatedNumber value={safeNum(data.funnel.pipeline_total)} />}
+              sub="按当前阶段去重"
               accent="#FF9500"
             />
           </Reveal>
@@ -294,7 +294,7 @@ function TeamOverview({
             {/* 团队招聘漏斗 */}
             <Card variant="elevated">
               <CardHeader>
-                <CardTitle>团队招聘漏斗</CardTitle>
+                <CardTitle>团队当前阶段分布</CardTitle>
               </CardHeader>
               <CardBody>
                 <FunnelDiagram
@@ -312,12 +312,13 @@ function TeamOverview({
             {/* 转化率仪表 + 阶段汇总 */}
             <Card variant="elevated">
               <CardHeader>
-                <CardTitle>转化总览</CardTitle>
+                <CardTitle>流程状态总览</CardTitle>
               </CardHeader>
               <CardBody>
                 <div className="mb-5 flex justify-center">
                   <ConversionRing
                     percent={safeNum(data.funnel.conversion_rate)}
+                    label="流程内入职占比"
                     color="#007AFF"
                   />
                 </div>
@@ -415,7 +416,7 @@ function StaffDrilldown({
           <KpiCard label="简历量" value={<AnimatedNumber value={safeNum(staffMember.resumes)} />} accent="#007AFF" />
           <KpiCard label="初筛量" value={<AnimatedNumber value={safeNum(staffMember.screens)} />} accent="#5856D6" />
           <KpiCard label="入职数" value={<AnimatedNumber value={safeNum(staffMember.onboarded)} />} accent="#34C759" />
-          <KpiCard label="转化率" value={<AnimatedNumber value={safeNum(staffMember.conversion_rate)} decimals={1} suffix="%" />} accent="#AF52DE" />
+            <KpiCard label="入职占比" value={<AnimatedNumber value={safeNum(staffMember.conversion_rate)} decimals={1} suffix="%" />} accent="#AF52DE" />
         </Reveal>
       )}
 
@@ -453,7 +454,7 @@ function StaffDrilldown({
               <div className="flex justify-center lg:px-4">
                 <ConversionRing
                   percent={safeNum(data.funnel.conversion_rate)}
-                  label="个人转化率"
+                  label="个人入职占比"
                   color="#007AFF"
                   size={160}
                 />

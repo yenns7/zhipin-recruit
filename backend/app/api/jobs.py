@@ -1,12 +1,12 @@
 import sys
 from pathlib import Path
 from flask import Blueprint, request, jsonify, g
-from ..middleware.auth import require_auth
+from ..middleware.auth import require_auth, require_role
 from ..middleware.events import record_event
 from ..services.match_service import MatchService
 from .. import db
 from ..models import Job
-from .access import assigned_job_ids_for_interviewer
+from .access import assigned_job_ids_for_interviewer, can_manage_job, visible_candidate_query
 
 BASE_AGENT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "base_agent"
 if str(BASE_AGENT_DIR) not in sys.path:
@@ -122,6 +122,7 @@ def clarify_job():
 
 @bp.post("/jobs")
 @require_auth
+@require_role("recruiter", "manager", "admin")
 def create_job():
     data = request.get_json()
     if not data or not data.get("title") or not data.get("jd_text"):
@@ -189,9 +190,7 @@ def get_job(job_id):
 
 def _can_manage_job(job):
     """岗位归属校验：owner 本人，或 manager/admin。"""
-    if g.role in ("manager", "admin"):
-        return True
-    return job.owner_hr_id == g.user_id
+    return can_manage_job(g.user_id, g.role, job)
 
 
 @bp.put("/jobs/<int:job_id>")
@@ -246,8 +245,14 @@ def close_job(job_id):
 def match_job(job_id):
     if g.role not in ("recruiter", "manager", "admin"):
         return jsonify({"error": "Forbidden"}), 403
+    job = Job.query.get_or_404(job_id)
+    if not can_manage_job(g.user_id, g.role, job):
+        return jsonify({"error": "Forbidden"}), 403
     svc = MatchService()
-    results = svc.rank_for_job(job_id)
+    results = svc.rank_for_job(
+        job_id,
+        candidate_query=visible_candidate_query(g.user_id, g.role),
+    )
     record_event("match.run", entity_id=job_id, entity_type="job", payload={"count": len(results)})
     return jsonify({"job_id": job_id, "results": results})
 
@@ -264,6 +269,8 @@ def batch_add_to_pipeline(job_id):
         return jsonify({"error": "candidate_ids required"}), 400
 
     job = Job.query.get_or_404(job_id)
+    if not can_manage_job(g.user_id, g.role, job):
+        return jsonify({"error": "Forbidden"}), 403
 
     candidate_ids = []
     seen = set()
@@ -288,9 +295,10 @@ def batch_add_to_pipeline(job_id):
         .distinct()
         .all()
     }
-    valid_ids = {
+    visible_ids = {
         row[0]
-        for row in db.session.query(Candidate.id)
+        for row in visible_candidate_query(g.user_id, g.role)
+        .with_entities(Candidate.id)
         .filter(Candidate.id.in_(candidate_ids))
         .all()
     }
@@ -299,7 +307,7 @@ def batch_add_to_pipeline(job_id):
     skipped_existing = 0
     skipped_missing = 0
     for candidate_id in candidate_ids:
-        if candidate_id not in valid_ids:
+        if candidate_id not in visible_ids:
             skipped_missing += 1
             continue
         if candidate_id in existing_ids:

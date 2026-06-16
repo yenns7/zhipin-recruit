@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { RotateCcw, Target, Upload, Users } from 'lucide-react';
+import { RotateCcw, Target, Upload, UserPlus, Users } from 'lucide-react';
 import { candidatesApi as api } from '../api';
 import { formatDate } from '../../../lib/formatDate';
 import { useDebounce } from '../../../lib/useDebounce';
@@ -23,9 +23,47 @@ import {
   Spinner,
 } from '../../../components/ui';
 import { Reveal, AnimatedNumber } from '../../../components/motion';
-import type { CandidateListItem, CandidateTag } from '../types';
+import type { CandidateListItem, CandidateTag, ParseStatus } from '../types';
 
 const TAG_TONES = ['accent', 'purple', 'teal', 'info', 'neutral'] as const;
+const COMMON_SOURCE_OPTIONS = [
+  'BOSS直聘',
+  '猎聘',
+  '智联招聘',
+  '前程无忧',
+  '内推',
+  '官网',
+  'LinkedIn',
+] as const;
+const COMMON_CITY_OPTIONS = [
+  '北京',
+  '上海',
+  '深圳',
+  '广州',
+  '杭州',
+  '成都',
+  '武汉',
+  '南京',
+  '苏州',
+  '西安',
+  '长沙',
+  '重庆',
+  '天津',
+  '厦门',
+  '合肥',
+  '郑州',
+  '青岛',
+  '宁波',
+  '佛山',
+  '东莞',
+  '远程',
+] as const;
+const PARSE_STATUS_LABELS: Record<ParseStatus, string> = {
+  pending: '待解析',
+  processing: '解析中',
+  ok: '解析成功',
+  failed: '解析失败',
+};
 
 function candidateTags(candidate: CandidateListItem): CandidateTag[] {
   return Array.isArray(candidate.top_tags) ? candidate.top_tags : [];
@@ -37,6 +75,7 @@ function searchableText(candidate: CandidateListItem): string {
     candidate.name_masked,
     candidate.email_masked,
     candidate.phone_masked,
+    candidate.intent_city,
     candidate.education_summary,
     exp?.company,
     exp?.position,
@@ -60,6 +99,12 @@ function ScorePill({ score }: { score: number }) {
   return <Badge tone={scoreTone(score)}>{score} 分</Badge>;
 }
 
+function ParseStatusPill({ status }: { status?: ParseStatus }) {
+  if (!status) return null;
+  const tone = status === 'failed' ? 'danger' : status === 'ok' ? 'success' : 'warning';
+  return <Badge tone={tone}>{PARSE_STATUS_LABELS[status]}</Badge>;
+}
+
 function ResumeSummary({ candidate }: { candidate: CandidateListItem }) {
   const exp = candidate.latest_experience;
   return (
@@ -72,6 +117,9 @@ function ResumeSummary({ candidate }: { candidate: CandidateListItem }) {
         <p className="text-muted-soft">暂无工作经历</p>
       )}
       {exp?.duration && <p className="text-xs text-muted-soft">{exp.duration}</p>}
+      {candidate.intent_city && (
+        <p className="text-xs text-muted">意向城市：{candidate.intent_city}</p>
+      )}
       {candidate.education_summary && (
         <p className="text-xs text-muted">{candidate.education_summary}</p>
       )}
@@ -98,7 +146,16 @@ function SkillBadges({ candidate }: { candidate: CandidateListItem }) {
 
 function SourceSummary({ candidate }: { candidate: CandidateListItem }) {
   const source = candidate.source;
-  if (!source) return <span className="text-muted-soft">未记录来源</span>;
+  if (!source) {
+    return (
+      <div className="space-y-2">
+        <span className="text-muted-soft">未记录来源</span>
+        <div>
+          <ParseStatusPill status={candidate.parse_status} />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="min-w-[160px] space-y-1 text-xs">
       <p className="font-medium text-ink">
@@ -107,12 +164,33 @@ function SourceSummary({ candidate }: { candidate: CandidateListItem }) {
       <p className="text-muted">
         目标岗位：{source.target_job_title || '未关联'}
       </p>
+      {(source.target_job_city || source.target_job_department) && (
+        <p className="text-muted-soft">
+          岗位归属：{source.target_job_city || '未设置'} / {source.target_job_department || '未设置'}
+        </p>
+      )}
       {source.referrer && <p className="text-muted-soft">推荐人：{source.referrer}</p>}
+      <div className="pt-1">
+        <ParseStatusPill status={candidate.parse_status} />
+      </div>
     </div>
   );
 }
 
-function CandidateRow({ candidate }: { candidate: CandidateListItem }) {
+interface CandidateRowProps {
+  candidate: CandidateListItem;
+  targetJobId: string;
+  addingCandidateId: number | null;
+  onAddToJob: (candidateId: number) => void;
+}
+
+function CandidateRow({
+  candidate,
+  targetJobId,
+  addingCandidateId,
+  onAddToJob,
+}: CandidateRowProps) {
+  const isAdding = addingCandidateId === candidate.id;
   return (
     <tr className="border-b border-hairline-soft transition-colors hover:bg-surface-soft last:border-0">
       <td className="px-5 py-4">
@@ -143,12 +221,25 @@ function CandidateRow({ candidate }: { candidate: CandidateListItem }) {
       </td>
       <td className="px-5 py-4 text-sm text-muted">{formatDate(candidate.created_at)}</td>
       <td className="px-5 py-4 text-right">
-        <Link
-          to={`/candidates/${candidate.id}`}
-          className="text-xs font-medium text-accent-blue transition-colors hover:underline"
-        >
-          查看完整简历
-        </Link>
+        <div className="flex flex-col items-end gap-2">
+          <Link
+            to={`/candidates/${candidate.id}`}
+            className="text-xs font-medium text-accent-blue transition-colors hover:underline"
+          >
+            查看完整简历
+          </Link>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            loading={isAdding}
+            disabled={!targetJobId || isAdding}
+            onClick={() => onAddToJob(candidate.id)}
+          >
+            <UserPlus className="h-4 w-4" />
+            加入岗位
+          </Button>
+        </div>
       </td>
     </tr>
   );
@@ -156,28 +247,48 @@ function CandidateRow({ candidate }: { candidate: CandidateListItem }) {
 
 export function CandidatesPage() {
   const [query, setQuery] = useState('');
+  const [cityFilter, setCityFilter] = useState('all');
   const [tagFilter, setTagFilter] = useState('all');
+  const [sourceChannelFilter, setSourceChannelFilter] = useState('all');
+  const [parseStatusFilter, setParseStatusFilter] = useState<'all' | ParseStatus>('all');
+  const [pipelineStatusFilter, setPipelineStatusFilter] = useState<'all' | 'in_pipeline' | 'not_in_pipeline'>('all');
   const [scoreFilter, setScoreFilter] = useState('0');
+  const [targetJobId, setTargetJobId] = useState('');
+  const [addingCandidateId, setAddingCandidateId] = useState<number | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const debouncedQuery = useDebounce(query, 300);
+  const jobsAsync = useAsync(() => api.listJobs(), []);
 
   const { data, loading, error, reload } = useAsync(
     () => api.searchCandidates({
       search: debouncedQuery || undefined,
+      city: cityFilter === 'all' ? undefined : cityFilter,
+      source_channel: sourceChannelFilter === 'all' ? undefined : sourceChannelFilter,
+      parse_status: parseStatusFilter === 'all' ? undefined : parseStatusFilter,
+      pipeline_status: pipelineStatusFilter === 'all' ? undefined : pipelineStatusFilter,
       page,
       per_page: 20,
       sort_by: 'created_at',
       sort_order: 'desc',
     }),
-    [debouncedQuery, page],
+    [debouncedQuery, cityFilter, sourceChannelFilter, parseStatusFilter, pipelineStatusFilter, page],
   );
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedQuery]);
+  }, [debouncedQuery, cityFilter, sourceChannelFilter, parseStatusFilter, pipelineStatusFilter]);
 
   const candidates = useMemo(() => data?.candidates ?? [], [data]);
   const totalCandidates = data?.total ?? candidates.length;
+
+  const cityOptions = useMemo(() => {
+    const parsedCities = candidates
+      .map((candidate) => candidate.intent_city)
+      .filter((city): city is string => Boolean(city));
+    return Array.from(new Set([...COMMON_CITY_OPTIONS, ...parsedCities]));
+  }, [candidates]);
 
   const tagOptions = useMemo(() => {
     const counts = new Map<string, number>();
@@ -191,32 +302,85 @@ export function CandidatesPage() {
       .slice(0, 30);
   }, [candidates]);
 
+  const sourceOptions = useMemo(() => {
+    const values = new Set<string>(COMMON_SOURCE_OPTIONS);
+    if (sourceChannelFilter !== 'all') values.add(sourceChannelFilter);
+    for (const candidate of candidates) {
+      const channel = candidate.source?.channel?.trim();
+      if (channel) values.add(channel);
+    }
+    return Array.from(values);
+  }, [candidates, sourceChannelFilter]);
+
   const filteredCandidates = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     const minScore = Number(scoreFilter);
     return candidates
       .filter((candidate) => {
         const matchesQuery = !normalizedQuery || searchableText(candidate).includes(normalizedQuery);
+        const matchesCity = cityFilter === 'all' || candidate.intent_city === cityFilter;
         const matchesTag =
           tagFilter === 'all' || candidateTags(candidate).some((skill) => skill.tag === tagFilter);
         const matchesScore = (candidate.max_score ?? 0) >= minScore;
-        return matchesQuery && matchesTag && matchesScore;
+        return matchesQuery && matchesCity && matchesTag && matchesScore;
       })
       .sort((a, b) => {
         const scoreDiff = (b.max_score ?? 0) - (a.max_score ?? 0);
         if (scoreDiff !== 0) return scoreDiff;
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
-  }, [candidates, query, scoreFilter, tagFilter]);
+  }, [candidates, cityFilter, query, scoreFilter, tagFilter]);
 
   const uniqueTagCount = tagOptions.length;
   const highScoreCount = candidates.filter((c) => (c.max_score ?? 0) >= 4).length;
+  const hasActiveFilters =
+    query.trim() !== '' ||
+    cityFilter !== 'all' ||
+    tagFilter !== 'all' ||
+    sourceChannelFilter !== 'all' ||
+    parseStatusFilter !== 'all' ||
+    pipelineStatusFilter !== 'all' ||
+    scoreFilter !== '0';
 
   function resetFilters() {
     setQuery('');
+    setCityFilter('all');
     setTagFilter('all');
+    setSourceChannelFilter('all');
+    setParseStatusFilter('all');
+    setPipelineStatusFilter('all');
     setScoreFilter('0');
+    setActionError(null);
+    setActionMessage(null);
     setPage(1);
+  }
+
+  async function handleAddToJob(candidateId: number) {
+    const jobId = Number(targetJobId);
+    if (!targetJobId || Number.isNaN(jobId)) {
+      setActionError('请先选择要加入的岗位');
+      setActionMessage(null);
+      return;
+    }
+
+    setAddingCandidateId(candidateId);
+    setActionError(null);
+    setActionMessage(null);
+    try {
+      const result = await api.batchAddToPipeline(jobId, [candidateId]);
+      if (result.added > 0) {
+        setActionMessage('已加入岗位流程，当前阶段为待筛选');
+        reload();
+      } else if (result.skipped_existing > 0) {
+        setActionMessage('这位候选人已经在该岗位流程中');
+      } else {
+        setActionMessage('未加入岗位流程，请刷新后重试');
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : '加入岗位失败');
+    } finally {
+      setAddingCandidateId(null);
+    }
   }
 
   if (loading) {
@@ -271,7 +435,7 @@ export function CandidatesPage() {
           <CardBody className="py-4">
             <p className="text-xs text-muted-soft">简历总量</p>
             <p className="mt-1 text-2xl font-semibold text-ink">
-              <AnimatedNumber value={candidates.length} />
+              <AnimatedNumber value={totalCandidates} />
             </p>
           </CardBody>
         </Card>
@@ -293,7 +457,7 @@ export function CandidatesPage() {
         </Card>
       </div>
 
-      {candidates.length === 0 ? (
+      {candidates.length === 0 && !hasActiveFilters ? (
         <Card variant="elevated">
           <EmptyState
             icon={Users}
@@ -313,13 +477,25 @@ export function CandidatesPage() {
         <>
           <Card>
             <CardBody>
-              <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr_1fr_auto]">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <Input
                   label="搜索简历"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="姓名、邮箱、公司、岗位、学校或技能"
                 />
+                <Select
+                  label="意向城市"
+                  value={cityFilter}
+                  onChange={(event) => setCityFilter(event.target.value)}
+                >
+                  <option value="all">全部城市</option>
+                  {cityOptions.map((city) => (
+                    <option key={city} value={city}>
+                      {city}
+                    </option>
+                  ))}
+                </Select>
                 <Select
                   label="技能标签"
                   value={tagFilter}
@@ -331,6 +507,40 @@ export function CandidatesPage() {
                       {tag}（{count}）
                     </option>
                   ))}
+                </Select>
+                <Select
+                  label="来源渠道"
+                  value={sourceChannelFilter}
+                  onChange={(event) => setSourceChannelFilter(event.target.value)}
+                >
+                  <option value="all">全部来源</option>
+                  {sourceOptions.map((channel) => (
+                    <option key={channel} value={channel}>
+                      {channel}
+                    </option>
+                  ))}
+                </Select>
+                <Select
+                  label="解析状态"
+                  value={parseStatusFilter}
+                  onChange={(event) => setParseStatusFilter(event.target.value as 'all' | ParseStatus)}
+                >
+                  <option value="all">全部状态</option>
+                  <option value="ok">解析成功</option>
+                  <option value="failed">解析失败</option>
+                  <option value="pending">待解析</option>
+                  <option value="processing">解析中</option>
+                </Select>
+                <Select
+                  label="岗位流程"
+                  value={pipelineStatusFilter}
+                  onChange={(event) =>
+                    setPipelineStatusFilter(event.target.value as 'all' | 'in_pipeline' | 'not_in_pipeline')
+                  }
+                >
+                  <option value="all">全部简历</option>
+                  <option value="not_in_pipeline">未进入岗位流程</option>
+                  <option value="in_pipeline">已进入岗位流程</option>
                 </Select>
                 <Select
                   label="最低技能分"
@@ -349,6 +559,41 @@ export function CandidatesPage() {
                   </Button>
                 </div>
               </div>
+              <div className="mt-4 border-t border-hairline-soft pt-4">
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.6fr)]">
+                  <Select
+                    label="加入岗位"
+                    value={targetJobId}
+                    onChange={(event) => {
+                      setTargetJobId(event.target.value);
+                      setActionError(null);
+                      setActionMessage(null);
+                    }}
+                  >
+                    <option value="">选择目标岗位</option>
+                    {(jobsAsync.data ?? []).map((job) => (
+                      <option key={job.id} value={job.id}>
+                        {[job.job_code, job.title, job.city, job.department].filter(Boolean).join(' · ')}
+                      </option>
+                    ))}
+                  </Select>
+                  <div className="flex items-end">
+                    <div className="w-full rounded-md border border-hairline bg-surface-soft px-3 py-2 text-xs text-muted">
+                      {jobsAsync.loading ? (
+                        <span>正在加载岗位…</span>
+                      ) : jobsAsync.error ? (
+                        <span className="text-danger-600">{jobsAsync.error.message}</span>
+                      ) : targetJobId ? (
+                        <span>点击列表中的“加入岗位”，候选人会进入该岗位待筛选阶段。</span>
+                      ) : (
+                        <span>先选择目标岗位，再把筛选出的简历加入流程。</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                {actionMessage && <p className="mt-2 text-xs text-success-700">{actionMessage}</p>}
+                {actionError && <p className="mt-2 text-xs text-danger-600">{actionError}</p>}
+              </div>
             </CardBody>
           </Card>
 
@@ -357,7 +602,7 @@ export function CandidatesPage() {
               <div className="flex items-center justify-between gap-3">
                 <CardTitle>简历库列表</CardTitle>
                 <span className="text-xs text-muted-soft">
-                  当前显示 {filteredCandidates.length} / {candidates.length} 份
+                  当前显示 {filteredCandidates.length} / {totalCandidates} 份
                 </span>
               </div>
             </CardHeader>
@@ -366,7 +611,7 @@ export function CandidatesPage() {
                 <EmptyState
                   icon={Users}
                   title="没有符合条件的简历"
-                  description="调整搜索词、技能标签或最低分后再查看"
+                  description="调整搜索词、城市、来源、解析状态、岗位流程或技能条件后再查看"
                 />
               </CardBody>
             ) : (
@@ -385,7 +630,13 @@ export function CandidatesPage() {
                   </thead>
                   <Reveal as="tbody" stagger={0.035} y={10}>
                     {filteredCandidates.map((candidate) => (
-                      <CandidateRow key={candidate.id} candidate={candidate} />
+                      <CandidateRow
+                        key={candidate.id}
+                        candidate={candidate}
+                        targetJobId={targetJobId}
+                        addingCandidateId={addingCandidateId}
+                        onAddToJob={handleAddToJob}
+                      />
                     ))}
                   </Reveal>
                 </table>

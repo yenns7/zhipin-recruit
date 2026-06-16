@@ -14,11 +14,21 @@ import {
   PageHeader,
   Card,
 } from '../components/ui';
-import type { CandidateDispositionInput, PipelineStage, PipelineBoardCandidate } from '../types';
+import type {
+  CandidateDispositionInput,
+  JobListItem,
+  PipelineStage,
+  PipelineBoardCandidate,
+} from '../types';
 import { STAGES, stageLabel } from '../lib/pipelineStages';
 import { KanbanColumn } from '../components/pipeline/KanbanColumn';
 import { AddToPipeline } from '../components/pipeline/AddToPipeline';
 import { Reveal } from '../components/motion';
+
+function formatJobOption(job: JobListItem) {
+  const code = job.job_code || `JOB-${job.id}`;
+  return [code, job.title, job.city, job.department].filter(Boolean).join(' · ');
+}
 
 export function PipelinePage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -119,7 +129,7 @@ export function PipelinePage() {
       />
 
       <div className="rounded-md border border-hairline bg-surface-soft px-4 py-3 text-sm text-muted">
-        岗位 → 匹配候选人 → 加入流程 → 安排面试 → 面试反馈 → Offer / 淘汰沉淀
+        岗位 → 匹配候选人 → 加入流程 → AI 初筛 → 业务反馈 → 安排面试 → 面试反馈 → Offer / 淘汰沉淀
       </div>
 
       {jobsAsync.loading && (
@@ -166,7 +176,7 @@ export function PipelinePage() {
               >
                 {(jobsAsync.data ?? []).map((j) => (
                   <option key={j.id} value={j.id}>
-                    {j.title}
+                    {formatJobOption(j)}
                   </option>
                 ))}
               </select>
@@ -202,7 +212,7 @@ export function PipelinePage() {
           {highlightedCandidate && (
             <div className="rounded-md border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700">
               已定位到 {highlightedCandidate.name_masked}。下一步可在卡片上推进到「AI 初筛」、
-              「一面」，或选择「淘汰」结束流程。
+              「业务待反馈」，或选择「淘汰」结束流程。
             </div>
           )}
 

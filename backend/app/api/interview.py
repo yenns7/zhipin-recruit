@@ -4,8 +4,8 @@ from ..middleware.auth import require_auth
 from ..middleware.events import record_event
 from ..services.interview_service import PreScreenService
 from .. import db
-from ..models import Interview, InterviewAssignment, Job
-from .access import interviewer_has_assignment
+from ..models import Candidate, Interview, InterviewAssignment, Job
+from .access import can_access_candidate, visible_candidate_query
 
 bp = Blueprint("interview", __name__)
 
@@ -155,7 +155,14 @@ def start_interview():
     if not candidate_id or not job_id:
         return jsonify({"error": "candidate_id and job_id required"}), 400
 
+    from ..models import Candidate
+
+    candidate = Candidate.query.get(candidate_id)
+    if candidate is None:
+        return jsonify({"error": "候选人不存在"}), 404
     job = Job.query.get_or_404(job_id)
+    if not can_access_candidate(g.user_id, g.role, candidate_id, job_id):
+        return jsonify({"error": "Forbidden"}), 403
     svc = PreScreenService()
     questions = svc.generate_questions(job.jd_text, count=data.get("count", 5))
     record_event("interview.started", entity_id=candidate_id, entity_type="candidate",
@@ -174,7 +181,14 @@ def submit_interview():
     if not candidate_id or not job_id or not qa_pairs:
         return jsonify({"error": "candidate_id, job_id, qa_pairs required"}), 400
 
+    from ..models import Candidate
+
+    candidate = Candidate.query.get(candidate_id)
+    if candidate is None:
+        return jsonify({"error": "候选人不存在"}), 404
     job = Job.query.get_or_404(job_id)
+    if not can_access_candidate(g.user_id, g.role, candidate_id, job_id):
+        return jsonify({"error": "Forbidden"}), 403
     svc = PreScreenService()
     pairs = [(item["q"], item["a"]) for item in qa_pairs]
     report = svc.build_report(pairs, job.jd_text)
@@ -213,6 +227,8 @@ def submit_interview():
 @require_auth
 def get_report(interview_id):
     iv = Interview.query.get_or_404(interview_id)
+    if not can_access_candidate(g.user_id, g.role, iv.candidate_id, iv.job_id):
+        return jsonify({"error": "Forbidden"}), 403
     return jsonify({
         "id": iv.id,
         "candidate_id": iv.candidate_id,
@@ -239,9 +255,7 @@ def interview_guide():
 
     candidate = Candidate.query.get_or_404(candidate_id)
     job = Job.query.get_or_404(job_id)
-    if g.role == "recruiter" and candidate.owner_hr_id != g.user_id:
-        return jsonify({"error": "Forbidden"}), 403
-    if g.role == "interviewer" and not interviewer_has_assignment(g.user_id, candidate_id, job_id, round_name):
+    if not can_access_candidate(g.user_id, g.role, candidate_id, job_id, round_name):
         return jsonify({"error": "Forbidden"}), 403
     return jsonify(_build_interview_guide(candidate, job, round_name))
 
@@ -259,10 +273,9 @@ def submit_feedback():
         return jsonify({"error": "候选人不存在"}), 404
     if Job.query.get(data["job_id"]) is None:
         return jsonify({"error": "岗位不存在"}), 404
-    if g.role == "recruiter" and candidate.owner_hr_id != g.user_id:
-        return jsonify({"error": "Forbidden"}), 403
-    if g.role == "interviewer" and not interviewer_has_assignment(
+    if not can_access_candidate(
         g.user_id,
+        g.role,
         data["candidate_id"],
         data["job_id"],
         data["round"],
@@ -293,6 +306,9 @@ def list_feedback():
     q = InterviewFeedback.query
     if g.role == "interviewer":
         q = q.filter_by(interviewer_id=g.user_id)
+    elif g.role == "recruiter":
+        visible_ids = visible_candidate_query(g.user_id, g.role).with_entities(Candidate.id)
+        q = q.filter(InterviewFeedback.candidate_id.in_(visible_ids))
     if cid: q = q.filter_by(candidate_id=cid)
     if jid: q = q.filter_by(job_id=jid)
     rows = q.order_by(InterviewFeedback.id.desc()).all()
@@ -408,7 +424,7 @@ def create_assignment():
     candidate = Candidate.query.get(data["candidate_id"])
     if candidate is None:
         return jsonify({"error": "候选人不存在"}), 404
-    if g.role == "recruiter" and candidate.owner_hr_id != g.user_id:
+    if not can_access_candidate(g.user_id, g.role, data["candidate_id"], data["job_id"], data["round"]):
         return jsonify({"error": "Forbidden"}), 403
     if Job.query.get(data["job_id"]) is None:
         return jsonify({"error": "岗位不存在"}), 404

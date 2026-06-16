@@ -19,3 +19,35 @@ def test_active_user_can_login(client, make_user):
 def test_register_empty_body_returns_400(client):
     r = client.post("/api/auth/register", json={})
     assert r.status_code == 400
+
+
+def test_deactivated_user_token_is_rejected(client, make_user, app):
+    user_id, token = make_user("token-dead@x.com", role="recruiter")
+
+    with app.app_context():
+        from app import db
+        from app.models import User
+
+        user = User.query.get(user_id)
+        user.is_active = False
+        db.session.commit()
+
+    r = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+
+    assert r.status_code == 403
+
+
+def test_role_change_takes_effect_without_waiting_for_token_expiry(client, make_user, app):
+    user_id, token = make_user("token-role@x.com", role="admin")
+
+    with app.app_context():
+        from app import db
+        from app.models import User
+
+        user = User.query.get(user_id)
+        user.role = "recruiter"
+        db.session.commit()
+
+    r = client.get("/api/admin/users", headers={"Authorization": f"Bearer {token}"})
+
+    assert r.status_code == 403

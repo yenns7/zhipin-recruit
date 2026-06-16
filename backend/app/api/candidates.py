@@ -1,3 +1,6 @@
+import json
+import re
+
 from flask import Blueprint, jsonify, request, g
 from sqlalchemy import func, select
 from ..middleware.auth import require_auth, require_role
@@ -20,6 +23,51 @@ from .access import assigned_candidate_ids_for_interviewer, interviewer_has_assi
 
 bp = Blueprint("candidates", __name__)
 
+COMMON_CITIES = [
+    "北京",
+    "上海",
+    "深圳",
+    "广州",
+    "杭州",
+    "成都",
+    "武汉",
+    "南京",
+    "苏州",
+    "西安",
+    "长沙",
+    "重庆",
+    "天津",
+    "厦门",
+    "合肥",
+    "郑州",
+    "青岛",
+    "宁波",
+    "佛山",
+    "东莞",
+    "远程",
+]
+CITY_FIELD_KEYS = {
+    "intent_city",
+    "target_city",
+    "expected_city",
+    "preferred_city",
+    "desired_city",
+    "work_city",
+    "city",
+    "location",
+    "意向城市",
+    "目标城市",
+    "期望城市",
+    "求职城市",
+    "工作城市",
+    "所在城市",
+    "城市",
+}
+CITY_LABEL_PATTERN = re.compile(
+    rf"(?:意向城市|目标城市|期望城市|求职城市|工作城市|希望城市|投递城市|城市)"
+    rf"\s*[：:：]?\s*({'|'.join(COMMON_CITIES)})市?"
+)
+
 
 def _resume_info(candidate):
     resume = candidate.resume_json or {}
@@ -27,6 +75,48 @@ def _resume_info(candidate):
         return {}
     info = resume.get("extracted_info") or {}
     return info if isinstance(info, dict) else {}
+
+
+def _normalize_city_value(value):
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    for city in COMMON_CITIES:
+        if text == city or text == f"{city}市" or city in text:
+            return city
+    return ""
+
+
+def _walk_resume_values(value):
+    if isinstance(value, dict):
+        for key, child in value.items():
+            yield str(key), child
+            yield from _walk_resume_values(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _walk_resume_values(child)
+
+
+def _candidate_intent_city(candidate):
+    resume = candidate.resume_json or {}
+    if not isinstance(resume, dict):
+        return ""
+
+    info = _resume_info(candidate)
+    for key in CITY_FIELD_KEYS:
+        city = _normalize_city_value(info.get(key))
+        if city:
+            return city
+
+    for key, value in _walk_resume_values(info):
+        if key in CITY_FIELD_KEYS:
+            city = _normalize_city_value(value)
+            if city:
+                return city
+
+    raw_text = json.dumps(resume, ensure_ascii=False)
+    match = CITY_LABEL_PATTERN.search(raw_text)
+    return _normalize_city_value(match.group(1)) if match else ""
 
 
 def _latest_experience(info):
@@ -72,6 +162,7 @@ def _candidate_library_item(candidate):
         "tag_count": len(candidate.tags),
         "top_tags": tags[:6],
         "max_score": tags[0]["score"] if tags else 0,
+        "intent_city": _candidate_intent_city(candidate),
         "latest_experience": _latest_experience(info),
         "education_summary": _education_summary(info),
         "source": _candidate_source_payload(candidate),
@@ -92,6 +183,8 @@ def _candidate_source_payload(candidate):
         "referrer": batch.referrer or "",
         "target_job_id": batch.target_job_id,
         "target_job_title": target_job.title if target_job else None,
+        "target_job_city": target_job.city if target_job else "",
+        "target_job_department": target_job.department if target_job else "",
         "note": batch.note or "",
         "created_at": batch.created_at.isoformat() if batch.created_at else None,
     }
@@ -152,7 +245,19 @@ def _decision_summary(timeline, ai_interviews, feedback, dispositions):
 def list_candidates():
     wants_paginated = any(
         key in request.args
-        for key in ("search", "stage", "job_id", "sort_by", "sort_order", "page", "per_page")
+        for key in (
+            "search",
+            "stage",
+            "job_id",
+            "city",
+            "source_channel",
+            "parse_status",
+            "pipeline_status",
+            "sort_by",
+            "sort_order",
+            "page",
+            "per_page",
+        )
     )
 
     if g.role == "recruiter":
@@ -169,6 +274,10 @@ def list_candidates():
     search = request.args.get("search", "").strip()
     stage = request.args.get("stage", "").strip()
     job_id = request.args.get("job_id", type=int)
+    city = _normalize_city_value(request.args.get("city", "").strip())
+    source_channel = request.args.get("source_channel", "").strip()
+    parse_status = request.args.get("parse_status", "").strip()
+    pipeline_status = request.args.get("pipeline_status", "").strip()
     sort_by = request.args.get("sort_by", "created_at")
     sort_order = request.args.get("sort_order", "desc")
     page = max(1, request.args.get("page", 1, type=int) or 1)
@@ -196,6 +305,26 @@ def list_candidates():
     if job_id:
         job_subquery = select(PipelineStage.candidate_id).where(PipelineStage.job_id == job_id)
         query = query.filter(Candidate.id.in_(job_subquery))
+
+    if source_channel:
+        query = (
+            query.join(UploadBatch, Candidate.upload_batch_id == UploadBatch.id)
+            .filter(UploadBatch.source_channel == source_channel)
+        )
+
+    if parse_status in {"pending", "processing", "ok", "failed"}:
+        query = query.filter(Candidate.parse_status == parse_status)
+
+    if pipeline_status in {"in_pipeline", "not_in_pipeline"}:
+        pipeline_subquery = select(PipelineStage.candidate_id).distinct()
+        if pipeline_status == "in_pipeline":
+            query = query.filter(Candidate.id.in_(pipeline_subquery))
+        else:
+            query = query.filter(Candidate.id.notin_(pipeline_subquery))
+
+    if city:
+        candidate_ids = [c.id for c in query.all() if _candidate_intent_city(c) == city]
+        query = query.filter(Candidate.id.in_(candidate_ids or [-1]))
 
     sort_column = Candidate.created_at
     if sort_by == "name_masked":
@@ -342,6 +471,8 @@ def reassign_owner(candidate_id):
     target = User.query.get(new_owner)
     if target is None:
         return jsonify({"error": "目标用户不存在"}), 404
+    if target.role != "recruiter" or not target.is_active:
+        return jsonify({"error": "候选人负责人必须是启用中的招聘专员"}), 400
     old_owner = cand.owner_hr_id
     cand.owner_hr_id = new_owner
     db.session.commit()

@@ -85,12 +85,127 @@ class ResumeBatchService:
         candidate.parse_status = "ok"
         candidate.parse_error = None
 
+        self._replace_candidate_tags(candidate, result.get("skills", []) if isinstance(result, dict) else [])
+
+    def update_candidate_profile(self, candidate: Candidate, profile: dict, skills=None) -> Candidate:
+        """保存 HR 手动修正后的候选人档案，并同步候选人主信息与技能标签。"""
+        resume = candidate.resume_json if isinstance(candidate.resume_json, dict) else {}
+        next_resume = dict(resume)
+        existing_info = next_resume.get("extracted_info")
+        if not isinstance(existing_info, dict):
+            existing_info = {}
+
+        next_info = dict(existing_info)
+        next_info.update(self._sanitize_profile(profile))
+        next_resume["extracted_info"] = next_info
+
+        if skills is not None:
+            next_resume["skills"] = self._sanitize_skills(skills)
+
+        candidate.resume_json = next_resume
+        candidate.name_masked = str(next_info.get("name") or "")[:100]
+        candidate.email_masked = str(next_info.get("email") or "")[:100]
+        candidate.phone_masked = str(next_info.get("phone") or "")[:30]
+        candidate.parse_status = "ok"
+        candidate.parse_error = None
+
+        if skills is not None:
+            self._replace_candidate_tags(candidate, next_resume.get("skills", []))
+
+        db.session.commit()
+        return candidate
+
+    def _sanitize_profile(self, profile: dict) -> dict:
+        if not isinstance(profile, dict):
+            return {}
+
+        scalar_fields = {
+            "name": 100,
+            "email": 100,
+            "phone": 30,
+            "summary": 2000,
+            "intent_city": 80,
+            "additional_info": 4000,
+        }
+        list_fields = {
+            "education",
+            "experience",
+            "projects",
+            "certifications",
+            "languages",
+        }
+
+        cleaned = {}
+        for field, limit in scalar_fields.items():
+            if field in profile:
+                cleaned[field] = str(profile.get(field) or "").strip()[:limit]
+        for field in list_fields:
+            if field in profile:
+                cleaned[field] = self._sanitize_item_list(profile.get(field))
+        return cleaned
+
+    def _sanitize_item_list(self, value) -> list:
+        if not isinstance(value, list):
+            return []
+        items = []
+        for raw in value[:20]:
+            if isinstance(raw, dict):
+                item = {}
+                for key, val in raw.items():
+                    clean_key = str(key or "").strip()[:40]
+                    clean_val = str(val or "").strip()[:2000]
+                    if clean_key and clean_val:
+                        item[clean_key] = clean_val
+                if item:
+                    items.append(item)
+            else:
+                text = str(raw or "").strip()[:2000]
+                if text:
+                    items.append(text)
+        return items
+
+    def _sanitize_skills(self, skills: list) -> list:
+        if not isinstance(skills, list):
+            return []
+        cleaned = []
+        seen = set()
+        for raw in skills[:50]:
+            if not isinstance(raw, dict):
+                continue
+            name = str(raw.get("skill_name") or raw.get("tag") or "").strip()[:100]
+            if not name or name in seen:
+                continue
+            try:
+                score = int(raw.get("score", 3))
+            except (TypeError, ValueError):
+                score = 3
+            score = min(5, max(1, score))
+            cleaned.append({
+                "skill_name": name,
+                "score": score,
+                "category": str(raw.get("category") or "人工修正")[:40],
+            })
+            seen.add(name)
+        return cleaned
+
+    def _replace_candidate_tags(self, candidate: Candidate, skills: list) -> None:
         CandidateTag.query.filter_by(candidate_id=candidate.id).delete()
-        skills = result.get("skills", []) if isinstance(result, dict) else []
         for skill in skills:
+            if not isinstance(skill, dict):
+                continue
+            tag_name = str(skill.get("skill_name") or skill.get("tag") or "").strip()
+            if not tag_name:
+                continue
             tag = CandidateTag(
                 candidate_id=candidate.id,
-                tag=skill.get("skill_name", ""),
-                score=skill.get("score", 3),
+                tag=tag_name[:100],
+                score=self._coerce_score(skill.get("score", 3)),
             )
             db.session.add(tag)
+
+    def _coerce_score(self, value) -> int:
+        try:
+            score = int(value)
+        except (TypeError, ValueError):
+            score = 3
+        return min(5, max(1, score))

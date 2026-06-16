@@ -17,8 +17,11 @@ import type {
   CandidateListResponse,
   CandidateJourney,
   CandidatePipelines,
+  CandidateProfileUpdateRequest,
   CreateJobRequest,
   CreateJobResponse,
+  DemandCloseInput,
+  DemandDowngradeInput,
   InterviewFeedbackInput,
   InterviewAssignment,
   InterviewAssignmentInput,
@@ -46,6 +49,8 @@ import type {
   PipelineMoveResponse,
   RegisterRequest,
   RegisterResponse,
+  RecruitmentDemand,
+  RecruitmentDemandInput,
   RetryParseResponse,
   ResumeUploadResponse,
   Role,
@@ -188,6 +193,12 @@ export const api = {
   retryCandidateParse(candidateId: number): Promise<RetryParseResponse> {
     return request(`/resume/${candidateId}/retry-parse`, { method: 'POST' });
   },
+  updateCandidateProfile(
+    candidateId: number,
+    payload: CandidateProfileUpdateRequest,
+  ): Promise<CandidateDetail> {
+    return request(`/resume/${candidateId}/profile`, { method: 'PATCH', body: payload });
+  },
   listCandidates(): Promise<CandidateListItem[]> {
     return request('/candidates');
   },
@@ -216,8 +227,17 @@ export const api = {
   getJob(jobId: number): Promise<JobDetail> {
     return request(`/jobs/${jobId}`);
   },
-  // Edit a job's title / JD (JD change re-runs structuring server-side).
-  updateJob(jobId: number, payload: { title?: string; jd_text?: string }): Promise<JobDetail> {
+  // Edit a job's title / JD / attribution fields. JD change re-runs structuring server-side.
+  updateJob(
+    jobId: number,
+    payload: {
+      title?: string;
+      jd_text?: string;
+      city?: string;
+      department?: string;
+      job_code?: string;
+    },
+  ): Promise<JobDetail> {
     return request(`/jobs/${jobId}`, { method: 'PUT', body: payload });
   },
   // Close (take offline) a job — soft close, status=closed.
@@ -226,6 +246,28 @@ export const api = {
   },
   listJobs(): Promise<JobListItem[]> {
     return request('/jobs');
+  },
+  // ---- Recruitment demands ----
+  listDemands(): Promise<RecruitmentDemand[]> {
+    return request('/demands');
+  },
+  getDemand(demandId: number): Promise<RecruitmentDemand> {
+    return request(`/demands/${demandId}`);
+  },
+  createDemand(payload: RecruitmentDemandInput): Promise<RecruitmentDemand> {
+    return request('/demands', { method: 'POST', body: payload });
+  },
+  updateDemand(
+    demandId: number,
+    payload: Partial<RecruitmentDemandInput>,
+  ): Promise<RecruitmentDemand> {
+    return request(`/demands/${demandId}`, { method: 'PATCH', body: payload });
+  },
+  closeDemand(demandId: number, payload: DemandCloseInput): Promise<RecruitmentDemand> {
+    return request(`/demands/${demandId}/close`, { method: 'POST', body: payload });
+  },
+  downgradeDemand(demandId: number, payload: DemandDowngradeInput): Promise<RecruitmentDemand> {
+    return request(`/demands/${demandId}/downgrade`, { method: 'POST', body: payload });
   },
   // CANONICAL match endpoint — feature pages (F3 job-to-candidate match) should
   // use this RESTful, job-scoped method.

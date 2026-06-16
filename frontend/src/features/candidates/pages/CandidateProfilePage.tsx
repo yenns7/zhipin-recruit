@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Edit3, Plus, RefreshCw, Save, Trash2, X } from 'lucide-react';
 import {
   Radar,
   RadarChart,
@@ -15,7 +15,7 @@ import { candidatesApi as api } from '../api';
 import { formatDate } from '../../../lib/formatDate';
 import { useAsync } from '../../../lib/useAsync';
 import { useAuth } from '../../../lib/auth';
-import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Spinner, ErrorState, useToast } from '../../../components/ui';
+import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Spinner, ErrorState, Input, useToast } from '../../../components/ui';
 import { Reveal } from '../../../components/motion';
 import { PipelineProgress } from '../../../components/candidate/PipelineProgress';
 import { ReassignOwner } from '../../../components/candidate/ReassignOwner';
@@ -257,21 +257,32 @@ const SECTION_LABELS: Record<string, string> = {
   skills: '技能',
   summary: '个人简介',
   projects: '项目经历',
+  project_experience: '项目经历',
   certifications: '资质证书',
   languages: '语言能力',
   contact: '联系方式',
   name: '姓名',
+  email: '邮箱',
+  phone: '电话',
+  intent_city: '意向城市',
+  additional_info: '其他备注',
 };
 
 // 优先展示顺序
 const SECTION_ORDER = [
   'summary',
+  'name',
+  'email',
+  'phone',
+  'intent_city',
   'contact',
   'education',
   'experience',
   'work_experience',
   'skills',
   'projects',
+  'project_experience',
+  'additional_info',
   'certifications',
   'languages',
 ];
@@ -351,6 +362,410 @@ function ResumeJsonView({ resumeJson }: { resumeJson: ResumeJson }) {
   );
 }
 
+interface ProfileDraft {
+  name: string;
+  email: string;
+  phone: string;
+  intentCity: string;
+  summary: string;
+  experienceItems: ExperienceDraftItem[];
+  projectItems: ProjectDraftItem[];
+  additionalInfo: string;
+  skillsText: string;
+}
+
+interface ExperienceDraftItem {
+  id: string;
+  company: string;
+  position: string;
+  duration: string;
+  description: string;
+}
+
+interface ProjectDraftItem {
+  id: string;
+  name: string;
+  role: string;
+  duration: string;
+  description: string;
+}
+
+type StructuredDraftItem = ExperienceDraftItem | ProjectDraftItem;
+type StructuredDraftField<Item extends StructuredDraftItem> = {
+  key: Exclude<keyof Item, 'id'>;
+  label: string;
+  placeholder: string;
+  multiline?: boolean;
+  className?: string;
+};
+
+let structuredItemSeed = 0;
+
+function nextStructuredItemId(prefix: string): string {
+  structuredItemSeed += 1;
+  return `${prefix}-${structuredItemSeed}`;
+}
+
+function getExtractedInfo(resumeJson: ResumeJson): Record<string, unknown> {
+  const info = resumeJson?.extracted_info;
+  return isObject(info) ? info : {};
+}
+
+function textValue(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function createExperienceDraftItem(seed?: Partial<Omit<ExperienceDraftItem, 'id'>>): ExperienceDraftItem {
+  return {
+    id: nextStructuredItemId('experience'),
+    company: seed?.company ?? '',
+    position: seed?.position ?? '',
+    duration: seed?.duration ?? '',
+    description: seed?.description ?? '',
+  };
+}
+
+function createProjectDraftItem(seed?: Partial<Omit<ProjectDraftItem, 'id'>>): ProjectDraftItem {
+  return {
+    id: nextStructuredItemId('project'),
+    name: seed?.name ?? '',
+    role: seed?.role ?? '',
+    duration: seed?.duration ?? '',
+    description: seed?.description ?? '',
+  };
+}
+
+function buildExperienceDraftItems(value: unknown): ExperienceDraftItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.reduce<ExperienceDraftItem[]>((items, entry) => {
+    if (isObject(entry)) {
+      items.push(
+        createExperienceDraftItem({
+          company: textValue(entry.company),
+          position: textValue(entry.position),
+          duration: textValue(entry.duration),
+          description: textValue(entry.description),
+        }),
+      );
+      return items;
+    }
+    const description = String(entry || '').trim();
+    if (description) {
+      items.push(createExperienceDraftItem({ description }));
+    }
+    return items;
+  }, []);
+}
+
+function buildProjectDraftItems(value: unknown): ProjectDraftItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.reduce<ProjectDraftItem[]>((items, entry) => {
+    if (isObject(entry)) {
+      items.push(
+        createProjectDraftItem({
+          name: textValue(entry.name),
+          role: textValue(entry.role),
+          duration: textValue(entry.duration),
+          description: textValue(entry.description),
+        }),
+      );
+      return items;
+    }
+    const name = String(entry || '').trim();
+    if (name) {
+      items.push(createProjectDraftItem({ name }));
+    }
+    return items;
+  }, []);
+}
+
+function compactRecord(entries: Array<[string, string]>): Record<string, string> {
+  const record: Record<string, string> = {};
+  entries.forEach(([key, value]) => {
+    const cleaned = value.trim();
+    if (cleaned) record[key] = cleaned;
+  });
+  return record;
+}
+
+function experienceItemsToPayload(items: ExperienceDraftItem[]): Record<string, string>[] {
+  return items
+    .map((item) =>
+      compactRecord([
+        ['company', item.company],
+        ['position', item.position],
+        ['duration', item.duration],
+        ['description', item.description],
+      ]),
+    )
+    .filter((item) => Object.keys(item).length > 0);
+}
+
+function projectItemsToPayload(items: ProjectDraftItem[]): Record<string, string>[] {
+  return items
+    .map((item) =>
+      compactRecord([
+        ['name', item.name],
+        ['role', item.role],
+        ['duration', item.duration],
+        ['description', item.description],
+      ]),
+    )
+    .filter((item) => Object.keys(item).length > 0);
+}
+
+function skillsToLines(tags: CandidateTag[]): string {
+  return tags.map((tag) => `${tag.tag}:${tag.score}`).join('\n');
+}
+
+function linesToSkills(text: string): CandidateTag[] {
+  const seen = new Set<string>();
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [nameRaw, scoreRaw] = line.split(/[:：]/);
+      const tag = (nameRaw || '').trim();
+      const parsed = Number((scoreRaw || '3').trim());
+      const score = Number.isFinite(parsed) ? Math.min(5, Math.max(1, parsed)) : 3;
+      return { tag, score };
+    })
+    .filter((item) => {
+      if (!item.tag || seen.has(item.tag)) return false;
+      seen.add(item.tag);
+      return true;
+    });
+}
+
+function buildProfileDraft(resumeJson: ResumeJson, tags: CandidateTag[]): ProfileDraft {
+  const info = getExtractedInfo(resumeJson);
+  const experienceSource = info.experience ?? info.work_experience;
+  const projectSource = info.projects ?? info.project_experience;
+  return {
+    name: textValue(info.name),
+    email: textValue(info.email),
+    phone: textValue(info.phone),
+    intentCity: textValue(info.intent_city),
+    summary: textValue(info.summary),
+    experienceItems: buildExperienceDraftItems(experienceSource),
+    projectItems: buildProjectDraftItems(projectSource),
+    additionalInfo: textValue(info.additional_info),
+    skillsText: skillsToLines(tags),
+  };
+}
+
+function StructuredItemsEditor<Item extends StructuredDraftItem>({
+  title,
+  addLabel,
+  items,
+  fields,
+  emptyHint,
+  createItem,
+  onChange,
+}: {
+  title: string;
+  addLabel: string;
+  items: Item[];
+  fields: StructuredDraftField<Item>[];
+  emptyHint: string;
+  createItem: () => Item;
+  onChange: (items: Item[]) => void;
+}) {
+  const updateItem = (id: string, key: Exclude<keyof Item, 'id'>, value: string) => {
+    onChange(
+      items.map((item) =>
+        item.id === id ? ({ ...item, [key]: value } as Item) : item,
+      ),
+    );
+  };
+
+  const removeItem = (id: string) => {
+    onChange(items.filter((item) => item.id !== id));
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-medium text-ink">{title}</span>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          onClick={() => onChange([...items, createItem()])}
+        >
+          <Plus className="h-4 w-4" />
+          {addLabel}
+        </Button>
+      </div>
+      {items.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-hairline bg-surface-soft/60 px-3 py-4 text-sm text-muted-soft">
+          {emptyHint}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {items.map((item, index) => (
+            <div
+              key={item.id}
+              className="rounded-lg border border-hairline bg-canvas px-3 py-3"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-medium text-ink">
+                  {title} {index + 1}
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => removeItem(item.id)}
+                  aria-label={`删除${title}${index + 1}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  删除
+                </Button>
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                {fields.map((field) => {
+                  const value = item[field.key];
+                  return (
+                    <div key={String(field.key)} className={field.className}>
+                      {field.multiline ? (
+                        <label className="block">
+                          <span className="mb-1.5 block text-sm font-medium text-ink">
+                            {field.label}
+                          </span>
+                          <textarea
+                            className="min-h-[96px] w-full rounded-md border border-hairline bg-canvas px-3 py-2 text-sm text-ink placeholder:text-muted-soft focus:border-ink focus:outline-none focus:shadow-apple-focus"
+                            placeholder={field.placeholder}
+                            value={typeof value === 'string' ? value : ''}
+                            onChange={(event) => updateItem(item.id, field.key, event.target.value)}
+                          />
+                        </label>
+                      ) : (
+                        <Input
+                          label={field.label}
+                          placeholder={field.placeholder}
+                          value={typeof value === 'string' ? value : ''}
+                          onChange={(event) => updateItem(item.id, field.key, event.target.value)}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProfileEditForm({
+  draft,
+  onChange,
+}: {
+  draft: ProfileDraft;
+  onChange: (draft: ProfileDraft) => void;
+}) {
+  const patch = <K extends keyof ProfileDraft>(field: K, value: ProfileDraft[K]) => {
+    onChange({ ...draft, [field]: value });
+  };
+
+  const experienceFields: StructuredDraftField<ExperienceDraftItem>[] = [
+    { key: 'company', label: '公司', placeholder: '例如：某 AI 公司' },
+    { key: 'position', label: '职位', placeholder: '例如：算法工程师' },
+    { key: 'duration', label: '时间', placeholder: '例如：2022-2025' },
+    {
+      key: 'description',
+      label: '经历描述',
+      placeholder: '补充这段工作里做了什么、结果如何',
+      multiline: true,
+      className: 'sm:col-span-3',
+    },
+  ];
+
+  const projectFields: StructuredDraftField<ProjectDraftItem>[] = [
+    { key: 'name', label: '项目名', placeholder: '例如：智能招聘助手' },
+    { key: 'role', label: '角色', placeholder: '例如：项目负责人' },
+    { key: 'duration', label: '时间', placeholder: '例如：2024.03-2024.12' },
+    {
+      key: 'description',
+      label: '项目描述',
+      placeholder: '补充项目目标、职责和结果',
+      multiline: true,
+      className: 'sm:col-span-3',
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Input label="姓名" value={draft.name} onChange={(event) => patch('name', event.target.value)} />
+        <Input label="邮箱" value={draft.email} onChange={(event) => patch('email', event.target.value)} />
+        <Input label="电话" value={draft.phone} onChange={(event) => patch('phone', event.target.value)} />
+        <Input
+          label="意向城市"
+          value={draft.intentCity}
+          onChange={(event) => patch('intentCity', event.target.value)}
+          placeholder="例如：上海"
+        />
+      </div>
+      <label className="block">
+        <span className="mb-1.5 block text-sm font-medium text-ink">个人简介</span>
+        <textarea
+          className="min-h-[88px] w-full rounded-md border border-hairline bg-canvas px-3 py-2 text-sm text-ink placeholder:text-muted-soft focus:border-ink focus:outline-none focus:shadow-apple-focus"
+          value={draft.summary}
+          onChange={(event) => patch('summary', event.target.value)}
+        />
+      </label>
+      <StructuredItemsEditor
+        title="工作经历"
+        addLabel="新增工作经历"
+        items={draft.experienceItems}
+        fields={experienceFields}
+        emptyHint="还没有补充工作经历，点击右上角可以新增一条。"
+        createItem={() => createExperienceDraftItem()}
+        onChange={(items) => patch('experienceItems', items)}
+      />
+      <StructuredItemsEditor
+        title="项目经历"
+        addLabel="新增项目经历"
+        items={draft.projectItems}
+        fields={projectFields}
+        emptyHint="还没有补充项目经历，点击右上角可以新增一条。"
+        createItem={() => createProjectDraftItem()}
+        onChange={(items) => patch('projectItems', items)}
+      />
+      <label className="block">
+        <span className="mb-1.5 block text-sm font-medium text-ink">其他备注</span>
+        <textarea
+          className="min-h-[88px] w-full rounded-md border border-hairline bg-canvas px-3 py-2 text-sm text-ink placeholder:text-muted-soft focus:border-ink focus:outline-none focus:shadow-apple-focus"
+          value={draft.additionalInfo}
+          onChange={(event) => patch('additionalInfo', event.target.value)}
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-sm font-medium text-ink">技能标签</span>
+        <textarea
+          className="min-h-[88px] w-full rounded-md border border-hairline bg-canvas px-3 py-2 text-sm text-ink placeholder:text-muted-soft focus:border-ink focus:outline-none focus:shadow-apple-focus"
+          placeholder="每行一个：Python:5"
+          value={draft.skillsText}
+          onChange={(event) => patch('skillsText', event.target.value)}
+        />
+      </label>
+    </div>
+  );
+}
+
+function rematchToastMessage(jobs: { id: number; title: string }[]): string {
+  if (jobs.length === 0) return '候选人档案已保存';
+  if (jobs.length === 1) {
+    return `候选人档案已保存，已同步刷新「${jobs[0].title}」的匹配结果`;
+  }
+  return `候选人档案已保存，已同步刷新 ${jobs.length} 个岗位的匹配结果`;
+}
+
 function SourceInfoCard({ source }: { source: CandidateSourceInfo | null | undefined }) {
   if (!source) {
     return (
@@ -378,6 +793,12 @@ function SourceInfoCard({ source }: { source: CandidateSourceInfo | null | undef
           <div>
             <dt className="text-xs text-muted">目标岗位</dt>
             <dd className="text-body">{source.target_job_title || '未关联'}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">岗位带出城市/部门</dt>
+            <dd className="text-body">
+              {source.target_job_city || '未设置'} / {source.target_job_department || '未设置'}
+            </dd>
           </div>
           {source.referrer && (
             <div>
@@ -409,8 +830,12 @@ export function CandidateProfilePage() {
   const isInvalidId = !id || Number.isNaN(candidateId);
   const { role } = useAuth();
   const canReassign = role === 'manager' || role === 'admin';
+  const canEditProfile = role !== 'interviewer';
   const toast = useToast();
   const [retryingParse, setRetryingParse] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileDraft, setProfileDraft] = useState<ProfileDraft | null>(null);
 
   // useAsync 无条件调用，fetch 函数在 id 无效时短路，不发送请求
   const { data, loading, error, reload } = useAsync(
@@ -432,6 +857,45 @@ export function CandidateProfilePage() {
       toast.error(err instanceof Error ? err.message : '重新解析失败');
     } finally {
       setRetryingParse(false);
+    }
+  };
+
+  const handleStartEditProfile = () => {
+    if (!data) return;
+    setProfileDraft(buildProfileDraft(data.resume_json, data.tags));
+    setEditingProfile(true);
+  };
+
+  const handleCancelEditProfile = () => {
+    setEditingProfile(false);
+    setProfileDraft(null);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!profileDraft) return;
+    setSavingProfile(true);
+    try {
+      const saved = await api.updateCandidateProfile(candidateId, {
+        profile: {
+          name: profileDraft.name,
+          email: profileDraft.email,
+          phone: profileDraft.phone,
+          intent_city: profileDraft.intentCity,
+          summary: profileDraft.summary,
+          experience: experienceItemsToPayload(profileDraft.experienceItems),
+          projects: projectItemsToPayload(profileDraft.projectItems),
+          additional_info: profileDraft.additionalInfo,
+        },
+        skills: linesToSkills(profileDraft.skillsText),
+      });
+      toast.success(rematchToastMessage(saved.rematched_jobs ?? []));
+      setEditingProfile(false);
+      setProfileDraft(null);
+      reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '保存候选人档案失败');
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -537,8 +1001,42 @@ export function CandidateProfilePage() {
         {/* 右栏 — 简历详情 */}
         <div className="lg:col-span-2">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle>简历详情</CardTitle>
+              {editingProfile ? (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleCancelEditProfile}
+                    disabled={savingProfile}
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                    取消
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="accent"
+                    size="sm"
+                    loading={savingProfile}
+                    onClick={handleSaveProfile}
+                  >
+                    <Save className="h-4 w-4" aria-hidden="true" />
+                    保存修改
+                  </Button>
+                </div>
+              ) : canEditProfile ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleStartEditProfile}
+                >
+                  <Edit3 className="h-4 w-4" aria-hidden="true" />
+                  编辑档案
+                </Button>
+              ) : null}
             </CardHeader>
             <CardBody>
               {parseFailed && (
@@ -549,7 +1047,7 @@ export function CandidateProfilePage() {
                       <div>
                         <p className="text-sm font-semibold text-danger-700">简历解析失败</p>
                         <p className="mt-1 text-sm leading-relaxed text-danger-700">
-                          {parse_error || '原始文件已保留，可以重新解析。'}
+                          {parse_error || '原始文件已保留，可以重新解析，也可以直接手动补全档案。'}
                         </p>
                       </div>
                     </div>
@@ -567,7 +1065,9 @@ export function CandidateProfilePage() {
                   </div>
                 </div>
               )}
-              {resume_json && Object.keys(resume_json).length > 0 ? (
+              {editingProfile && profileDraft ? (
+                <ProfileEditForm draft={profileDraft} onChange={setProfileDraft} />
+              ) : resume_json && Object.keys(resume_json).length > 0 ? (
                 <ResumeJsonView resumeJson={resume_json} />
               ) : (
                 <p className="text-sm text-muted-soft">暂无简历结构化内容</p>
