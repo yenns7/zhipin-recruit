@@ -128,8 +128,8 @@ export function InterviewListPage() {
   const showInterviewerFilter = role === 'manager' || role === 'admin';
 
   const focusOptions = [
-    { value: 'all' as const, label: '全部记录' },
-    { value: 'pending' as const, label: `待填写 ${pending.length}` },
+    { value: 'pending' as const, label: `待我处理 ${pending.length}` },
+    { value: 'all' as const, label: '面试记录' },
     { value: 'passed' as const, label: '已通过' },
     { value: 'failed' as const, label: '未通过' },
   ];

@@ -20,7 +20,11 @@ assert.match(app, /NotificationCenterPage/, 'App should import the notification 
 assert.match(app, /path="\/notifications"/, 'App should expose the notifications route');
 
 const nav = readSource('lib/nav.ts');
-assert.match(nav, /label:\s*'通知中心'/, 'Sidebar should expose notification center');
+assert.doesNotMatch(nav, /label:\s*'通知中心'/, 'Notification center should not compete with primary HR workflow navigation');
+
+const shell = readSource('components/AppShell.tsx');
+assert.match(shell, /Bell/, 'Top bar should expose notification center as a utility');
+assert.match(shell, /to="\/notifications"/, 'Top bar notification entry should link to the notification center');
 
 const api = readSource('lib/api.ts');
 assert.match(api, /getNotifications/, 'API client should list notifications');

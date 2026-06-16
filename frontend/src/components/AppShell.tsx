@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { LogOut, ArrowLeft, KeyRound } from 'lucide-react';
+import { LogOut, ArrowLeft, KeyRound, Bell } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { navItemsForRole } from '../lib/nav';
 import { cn } from '../lib/cn';
@@ -61,6 +61,7 @@ export function AppShell() {
     '/',
     '/agent',
     ...featureTopLevelPaths,
+    '/notifications',
     '/jobs',
     '/pipeline',
     '/interviews',
@@ -262,6 +263,19 @@ export function AppShell() {
           </div>
 
           <div className="flex items-center gap-3">
+            <NavLink
+              to="/notifications"
+              title="通知中心"
+              aria-label="通知中心"
+              className={({ isActive }) =>
+                cn(
+                  'flex h-9 w-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-soft hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500',
+                  isActive && 'bg-surface-card text-ink shadow-apple-xs',
+                )
+              }
+            >
+              <Bell className="h-4 w-4" aria-hidden="true" />
+            </NavLink>
             <div className="flex items-center gap-2.5">
               <div
                 className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold text-white"

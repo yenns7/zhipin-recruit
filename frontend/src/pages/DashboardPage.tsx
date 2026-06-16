@@ -9,11 +9,18 @@ import {
   ShieldCheck,
   ClipboardCheck,
   ArrowRight,
+  Upload,
+  Briefcase,
+  KanbanSquare,
+  Bot,
+  BarChart3,
+  Settings,
+  Sparkles,
+  Users,
   type LucideIcon,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { navItemsForRole } from '../lib/nav';
 import { Badge, Card } from '../components/ui';
 import { Reveal, AnimatedNumber } from '../components/motion';
 import type { Role } from '../types';
@@ -64,17 +71,88 @@ const ROLE_INFO: Record<Role, RoleInfo> = {
   },
 };
 
-// ─── 功能入口描述 ─────────────────────────────────────────────────────────────
+// ─── 角色常用动作 ─────────────────────────────────────────────────────────────
 
-const FEATURE_DESC: Record<string, string> = {
-  '/agent': '用自然语言完成招聘操作，智能问答与建议',
-  '/candidates': '浏览简历库，查看候选人档案与技能标签',
-  '/upload': '批量上传简历，自动解析为结构化信息',
-  '/jobs': '创建岗位、维护 JD，运行候选人智能匹配',
-  '/pipeline': '看板式追踪候选人在各阶段的流转',
-  '/interviews': '生成面试题、记录问答并获取 AI 评估',
-  '/bi': '洞察招聘漏斗与专员效能，把控全局',
+interface WorkflowAction {
+  to: string;
+  label: string;
+  desc: string;
+  icon: LucideIcon;
+  roles: Role[];
+}
+
+const WORKFLOW_ACTIONS: WorkflowAction[] = [
+  {
+    to: '/upload',
+    label: '上传简历',
+    desc: '把新候选人放进简历库，解析失败也能重试',
+    icon: Upload,
+    roles: ['recruiter', 'manager', 'admin'],
+  },
+  {
+    to: '/jobs',
+    label: '选择岗位匹配',
+    desc: '先选岗位，再运行候选人匹配并加入流程',
+    icon: Briefcase,
+    roles: ['recruiter', 'manager', 'admin'],
+  },
+  {
+    to: '/pipeline',
+    label: '跟进招聘流程',
+    desc: '推进初筛、面试、Offer、淘汰沉淀',
+    icon: KanbanSquare,
+    roles: ['recruiter', 'manager', 'admin', 'interviewer'],
+  },
+  {
+    to: '/interviews',
+    label: '处理面试反馈',
+    desc: '安排面试、填写反馈、查看面试记录',
+    icon: Bot,
+    roles: ['recruiter', 'manager', 'admin', 'interviewer'],
+  },
+  {
+    to: '/bi',
+    label: '查看团队看板',
+    desc: '看漏斗、转化率和专员效能',
+    icon: BarChart3,
+    roles: ['manager', 'admin'],
+  },
+  {
+    to: '/candidates',
+    label: '查看候选人',
+    desc: '面试前快速查看简历、标签和流程进展',
+    icon: Users,
+    roles: ['interviewer'],
+  },
+  {
+    to: '/agent',
+    label: '问 AI 助手',
+    desc: '用自然语言查询候选人、岗位和流程',
+    icon: Sparkles,
+    roles: ['recruiter', 'manager', 'admin', 'interviewer'],
+  },
+  {
+    to: '/admin/settings',
+    label: '系统设置',
+    desc: '管理账号、审计日志和 AI 助手边界',
+    icon: Settings,
+    roles: ['admin'],
+  },
+];
+
+const ACTION_ORDER_BY_ROLE: Record<Role, string[]> = {
+  recruiter: ['/upload', '/jobs', '/pipeline', '/interviews'],
+  manager: ['/bi', '/pipeline', '/interviews', '/agent'],
+  admin: ['/bi', '/admin/settings', '/interviews', '/agent'],
+  interviewer: ['/interviews', '/candidates', '/pipeline', '/agent'],
 };
+
+function workflowActionsForRole(role: Role): WorkflowAction[] {
+  const allowed = WORKFLOW_ACTIONS.filter((item) => item.roles.includes(role));
+  return ACTION_ORDER_BY_ROLE[role]
+    .map((to) => allowed.find((item) => item.to === to))
+    .filter((item): item is WorkflowAction => Boolean(item));
+}
 
 // ─── KPI 数据 ─────────────────────────────────────────────────────────────────
 
@@ -231,7 +309,7 @@ export function DashboardPage() {
   const RoleIcon = info.icon;
   const showFunnelKpis = role === 'manager' || role === 'admin' || userId != null;
 
-  const features = navItemsForRole(role).filter((item) => item.to !== '/');
+  const actions = workflowActionsForRole(role);
 
   return (
     <div className="space-y-8">
@@ -282,15 +360,15 @@ export function DashboardPage() {
         </Reveal>
       </section>
 
-      {/* C. 功能入口宫格 */}
+      {/* C. 常用动作 */}
       <section>
-        <h2 className="mb-4 font-display text-lg text-ink">快速进入</h2>
+        <h2 className="mb-4 font-display text-lg text-ink">常用动作</h2>
         <Reveal
           className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
           stagger={0.06}
           y={16}
         >
-          {features.map((item, i) => {
+          {actions.map((item, i) => {
             const gradients = [
               'linear-gradient(135deg, #007AFF, #5856D6)',
               'linear-gradient(135deg, #AF52DE, #FF2D55)',
@@ -304,7 +382,7 @@ export function DashboardPage() {
                 key={item.to}
                 to={item.to}
                 label={item.label}
-                desc={FEATURE_DESC[item.to] ?? ''}
+                desc={item.desc}
                 icon={item.icon}
                 gradient={gradients[i % gradients.length]}
               />
