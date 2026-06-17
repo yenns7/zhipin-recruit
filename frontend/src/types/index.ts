@@ -282,6 +282,97 @@ export interface DemandDowngradeInput {
   downgrade_reason?: string;
 }
 
+// ---- Talent map ----
+export type TalentMapBoardJson = Record<string, unknown>;
+
+export interface TalentMapCompany {
+  id: number;
+  map_id: number;
+  company_name: string;
+  city: string;
+  region: string;
+  industry: string;
+  priority: string;
+  note: string;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface TalentMapPerson {
+  id: number;
+  map_id: number;
+  company_id: number | null;
+  company_name: string;
+  name: string;
+  title: string;
+  city: string;
+  tags: string[];
+  salary_range: string;
+  contact_status: string;
+  evaluation: string;
+  source: string;
+  next_follow_at: string | null;
+  note: string;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface TalentMapSummary {
+  id: number;
+  name: string;
+  job_id: number | null;
+  job_title: string;
+  department: string;
+  owner_hr_id: number;
+  companies_count: number;
+  people_count: number;
+  updated_at: string | null;
+}
+
+export interface TalentMap extends TalentMapSummary {
+  board_json: TalentMapBoardJson;
+  companies: TalentMapCompany[];
+  people: TalentMapPerson[];
+  created_at: string | null;
+}
+
+export interface TalentMapInput {
+  name: string;
+  job_id?: number | null;
+  department?: string;
+  board_json?: TalentMapBoardJson;
+}
+
+export interface TalentMapCompanyInput {
+  company_name: string;
+  city?: string;
+  region?: string;
+  industry?: string;
+  priority?: string;
+  note?: string;
+}
+
+export interface TalentMapPersonInput {
+  company_id?: number | null;
+  name: string;
+  title?: string;
+  city?: string;
+  tags?: string[];
+  salary_range?: string;
+  contact_status?: string;
+  evaluation?: string;
+  source?: string;
+  next_follow_at?: string;
+  note?: string;
+}
+
+export interface TalentMapFilters {
+  company?: string;
+  city?: string;
+  status?: string;
+  keyword?: string;
+}
+
 // ---- Matching ----
 export interface MatchResultItem {
   candidate_id: number;

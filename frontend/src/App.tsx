@@ -20,6 +20,7 @@ import { BiPage } from './pages/BiPage';
 import { UploadPage } from './pages/UploadPage';
 import { JobsPage } from './pages/JobsPage';
 import { JobMatchPage } from './pages/JobMatchPage';
+import { TalentMapPage } from './pages/TalentMapPage';
 import { PipelinePage } from './pages/PipelinePage';
 import { InterviewListPage } from './pages/InterviewListPage';
 import { InterviewsPage } from './pages/InterviewsPage';
@@ -103,6 +104,15 @@ function AppRoutes() {
             <RequireRole
               allow={['recruiter', 'manager', 'admin']}
               element={<JobMatchPage />}
+            />
+          }
+        />
+        <Route
+          path="/talent-map"
+          element={
+            <RequireRole
+              allow={['recruiter', 'manager', 'admin']}
+              element={<TalentMapPage />}
             />
           }
         />

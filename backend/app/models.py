@@ -87,6 +87,70 @@ class RecruitmentDemand(db.Model):
     job = db.relationship("Job", backref="demands")
 
 
+class TalentMap(db.Model):
+    __tablename__ = "talent_maps"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    job_id = db.Column(db.Integer, db.ForeignKey("jobs.id"))
+    department = db.Column(db.String(120), default="")
+    owner_hr_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    board_json = db.Column(db.JSON)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    job = db.relationship("Job", backref="talent_maps")
+    companies = db.relationship(
+        "TalentMapCompany",
+        backref="talent_map",
+        cascade="all,delete-orphan",
+        order_by="TalentMapCompany.id",
+    )
+    people = db.relationship(
+        "TalentMapPerson",
+        backref="talent_map",
+        cascade="all,delete-orphan",
+        order_by="TalentMapPerson.id",
+    )
+
+
+class TalentMapCompany(db.Model):
+    __tablename__ = "talent_map_companies"
+    id = db.Column(db.Integer, primary_key=True)
+    map_id = db.Column(db.Integer, db.ForeignKey("talent_maps.id", ondelete="CASCADE"), nullable=False)
+    company_name = db.Column(db.String(200), nullable=False)
+    city = db.Column(db.String(80), default="")
+    region = db.Column(db.String(80), default="")
+    industry = db.Column(db.String(120), default="")
+    priority = db.Column(db.String(40), default="medium")
+    note = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    people = db.relationship(
+        "TalentMapPerson",
+        backref="company",
+        cascade="all",
+        order_by="TalentMapPerson.id",
+    )
+
+
+class TalentMapPerson(db.Model):
+    __tablename__ = "talent_map_people"
+    id = db.Column(db.Integer, primary_key=True)
+    map_id = db.Column(db.Integer, db.ForeignKey("talent_maps.id", ondelete="CASCADE"), nullable=False)
+    company_id = db.Column(db.Integer, db.ForeignKey("talent_map_companies.id"))
+    name = db.Column(db.String(120), nullable=False)
+    title = db.Column(db.String(160), default="")
+    city = db.Column(db.String(80), default="")
+    tags = db.Column(db.JSON)
+    salary_range = db.Column(db.String(120), default="")
+    contact_status = db.Column(db.String(80), default="未接触")
+    evaluation = db.Column(db.String(120), default="")
+    source = db.Column(db.String(160), default="")
+    next_follow_at = db.Column(db.Date)
+    note = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class Match(db.Model):
     __tablename__ = "matches"
     id = db.Column(db.Integer, primary_key=True)

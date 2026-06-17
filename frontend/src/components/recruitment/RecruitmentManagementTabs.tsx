@@ -1,10 +1,11 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Briefcase, ClipboardList } from 'lucide-react';
+import { Briefcase, ClipboardList, Map } from 'lucide-react';
 import { cn } from '../../lib/cn';
 
 const TABS = [
   { to: '/demands', label: '用人需求', icon: ClipboardList },
   { to: '/jobs', label: '岗位画像', icon: Briefcase },
+  { to: '/talent-map', label: '人才地图', icon: Map },
 ] as const;
 
 function isActivePath(pathname: string, to: string) {

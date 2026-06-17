@@ -6,7 +6,7 @@ export const demandsFeature: AppFeature = {
   id: 'demands',
   navItems: demandsNavItems,
   routes: demandsRoutes,
-  topLevelPaths: ['/demands', '/jobs'],
+  topLevelPaths: ['/demands', '/jobs', '/talent-map'],
 };
 
 export { demandsApi } from './api';

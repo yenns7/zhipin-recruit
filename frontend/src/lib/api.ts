@@ -54,6 +54,14 @@ import type {
   RetryParseResponse,
   ResumeUploadResponse,
   Role,
+  TalentMap,
+  TalentMapCompany,
+  TalentMapCompanyInput,
+  TalentMapFilters,
+  TalentMapInput,
+  TalentMapPerson,
+  TalentMapPersonInput,
+  TalentMapSummary,
 } from '../types';
 
 const API_BASE = '/api';
@@ -268,6 +276,42 @@ export const api = {
   },
   downgradeDemand(demandId: number, payload: DemandDowngradeInput): Promise<RecruitmentDemand> {
     return request(`/demands/${demandId}/downgrade`, { method: 'POST', body: payload });
+  },
+
+  // ---- Talent maps ----
+  listTalentMaps(): Promise<TalentMapSummary[]> {
+    return request('/talent-maps');
+  },
+  createTalentMap(payload: TalentMapInput): Promise<TalentMap> {
+    return request('/talent-maps', { method: 'POST', body: payload });
+  },
+  getTalentMap(mapId: number, filters: TalentMapFilters = {}): Promise<TalentMap> {
+    const search = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value).trim() !== '') {
+        search.set(key, String(value));
+      }
+    });
+    const suffix = search.toString() ? `?${search.toString()}` : '';
+    return request(`/talent-maps/${mapId}${suffix}`);
+  },
+  updateTalentMap(mapId: number, payload: Partial<TalentMapInput>): Promise<TalentMap> {
+    return request(`/talent-maps/${mapId}`, { method: 'PATCH', body: payload });
+  },
+  createTalentMapCompany(
+    mapId: number,
+    payload: TalentMapCompanyInput,
+  ): Promise<TalentMapCompany> {
+    return request(`/talent-maps/${mapId}/companies`, { method: 'POST', body: payload });
+  },
+  createTalentMapPerson(mapId: number, payload: TalentMapPersonInput): Promise<TalentMapPerson> {
+    return request(`/talent-maps/${mapId}/people`, { method: 'POST', body: payload });
+  },
+  updateTalentMapPerson(
+    personId: number,
+    payload: Partial<TalentMapPersonInput>,
+  ): Promise<TalentMapPerson> {
+    return request(`/talent-map-people/${personId}`, { method: 'PATCH', body: payload });
   },
   // CANONICAL match endpoint — feature pages (F3 job-to-candidate match) should
   // use this RESTful, job-scoped method.
