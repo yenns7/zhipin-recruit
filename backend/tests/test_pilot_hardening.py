@@ -64,3 +64,45 @@ def test_public_register_closed_by_default():
 
 class _DefaultClosed(TestingConfig):
     ALLOW_PUBLIC_REGISTRATION = False
+
+
+class _RuntimeHardeningConfig(_DefaultClosed):
+    RATE_LIMIT_ENABLED = True
+    RATE_LIMITS = {
+        "auth.login": {"limit": 2, "window_seconds": 60},
+    }
+
+
+def test_security_headers_are_added_to_api_responses():
+    app = create_app(_DefaultClosed)
+    client = app.test_client()
+
+    response = client.post("/api/auth/register", json={"email": "a@b.com", "password": "pw123456"})
+
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["X-Frame-Options"] == "DENY"
+    assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    assert "camera=()" in response.headers["Permissions-Policy"]
+    assert "frame-ancestors 'none'" in response.headers["Content-Security-Policy"]
+
+
+def test_login_rate_limit_blocks_repeated_failures():
+    app = create_app(_RuntimeHardeningConfig)
+    client = app.test_client()
+
+    for _ in range(2):
+        response = client.post(
+            "/api/auth/login",
+            json={"email": "missing@example.com", "password": "wrong"},
+            environ_base={"REMOTE_ADDR": "203.0.113.10"},
+        )
+        assert response.status_code == 401
+
+    blocked = client.post(
+        "/api/auth/login",
+        json={"email": "missing@example.com", "password": "wrong"},
+        environ_base={"REMOTE_ADDR": "203.0.113.10"},
+    )
+
+    assert blocked.status_code == 429
+    assert "请求过于频繁" in blocked.get_json()["error"]

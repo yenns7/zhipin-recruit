@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, g, current_app
 import jwt
 from ..middleware.auth import require_auth
+from ..middleware.rate_limit import rate_limit
 from .. import db
 from ..models import User
 
@@ -46,6 +47,7 @@ def register():
 
 
 @bp.post("/auth/login")
+@rate_limit("auth.login")
 def login():
     data = request.get_json(silent=True) or {}
     user = User.query.filter_by(email=data.get("email")).first()

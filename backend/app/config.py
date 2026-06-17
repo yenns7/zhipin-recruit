@@ -38,6 +38,15 @@ class Config:
     # CORS 允许来源：逗号分隔的域名白名单；留空表示不限制（仅限开发）
     CORS_ORIGINS = [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
 
+    # 试点上线安全头和轻量限流。Nginx 层也应配置限流，这里是应用侧兜底。
+    SECURITY_HEADERS_ENABLED = os.environ.get("SECURITY_HEADERS_ENABLED", "true").lower() == "true"
+    RATE_LIMIT_ENABLED = os.environ.get("RATE_LIMIT_ENABLED", "true").lower() == "true"
+    RATE_LIMITS = {
+        "auth.login": {"limit": int(os.environ.get("RATE_LIMIT_LOGIN", "10")), "window_seconds": 60},
+        "agent.chat": {"limit": int(os.environ.get("RATE_LIMIT_AGENT_CHAT", "20")), "window_seconds": 60},
+        "resume.upload": {"limit": int(os.environ.get("RATE_LIMIT_RESUME_UPLOAD", "8")), "window_seconds": 60},
+    }
+
     # 视为弱/默认的密钥，生产启动时拒绝
     WEAK_SECRETS = {"dev-secret-change-in-prod", "dev-secret", "test-secret", "change-me-in-production", ""}
     MIN_SECRET_LENGTH = 32
@@ -67,3 +76,4 @@ class TestingConfig(Config):
     JWT_SECRET = "test-secret"
     # 测试保留公开注册以覆盖既有 register 用例；生产默认关闭
     ALLOW_PUBLIC_REGISTRATION = True
+    RATE_LIMIT_ENABLED = False

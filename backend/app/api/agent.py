@@ -2,6 +2,7 @@ import json
 from datetime import datetime
 from flask import Blueprint, request, Response, jsonify, g, current_app, stream_with_context
 from ..middleware.auth import require_auth
+from ..middleware.rate_limit import rate_limit
 from .. import db
 from ..models import Conversation, ConversationMessage
 from ..services.agent_service import (
@@ -88,6 +89,7 @@ def execute():
 
 @bp.post("/agent/chat")
 @require_auth
+@rate_limit("agent.chat")
 def chat():
     """
     智能体对话 SSE 流式端点。

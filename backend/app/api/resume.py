@@ -4,6 +4,7 @@ from flask import current_app
 from flask import Blueprint, request, jsonify, g
 from werkzeug.utils import secure_filename
 from ..middleware.auth import require_auth, require_role
+from ..middleware.rate_limit import rate_limit
 from ..middleware.events import record_event
 from ..services.resume_service import ResumeBatchService
 from .. import db
@@ -317,6 +318,7 @@ def _process_zip(svc, zip_path, zip_display_name, folder, results, upload_batch_
 @bp.post("/resume/upload")
 @require_auth
 @require_role("recruiter", "manager", "admin")
+@rate_limit("resume.upload")
 def upload():
     files = request.files.getlist("files")
     if not files or all(f.filename == "" for f in files):

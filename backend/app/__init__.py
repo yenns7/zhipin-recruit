@@ -35,6 +35,8 @@ def create_app(config=None):
     for bp in [auth.bp, resume.bp, jobs.bp, demands.bp, talent_maps.bp, candidates.bp, match.bp, interview.bp, pipeline.bp, bi.bp, agent.bp, admin.bp, notifications.bp]:
         app.register_blueprint(bp, url_prefix="/api")
 
+    _register_security_headers(app)
+
     with app.app_context():
         db.create_all()
         _ensure_job_metadata_columns()
@@ -43,6 +45,33 @@ def create_app(config=None):
     _register_frontend(app)
 
     return app
+
+
+def _register_security_headers(app):
+    @app.after_request
+    def add_security_headers(response):
+        if not app.config.get("SECURITY_HEADERS_ENABLED", True):
+            return response
+
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "; ".join([
+                "default-src 'self'",
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+                "style-src 'self' 'unsafe-inline'",
+                "img-src 'self' data: https:",
+                "font-src 'self' data:",
+                "connect-src 'self'",
+                "frame-ancestors 'none'",
+                "base-uri 'self'",
+                "form-action 'self'",
+            ]),
+        )
+        return response
 
 
 def _enforce_production_security(app):
