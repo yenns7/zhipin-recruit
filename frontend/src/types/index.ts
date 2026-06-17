@@ -452,6 +452,25 @@ export interface BiStaffMember {
   conversion_rate: number;
 }
 
+export interface BiDemandMetrics {
+  active_total: number;
+  priority_counts: Record<DemandPriority, number>;
+  overdue: number;
+  hr_no_recommendation: number;
+  business_feedback_pending: number;
+}
+
+export interface BiResumeMetrics {
+  total_candidates: number;
+  linked_to_job: number;
+  unassigned: number;
+  matched_candidates: number;
+  in_pipeline: number;
+  not_in_pipeline: number;
+  match_rate: number;
+  pipeline_entry_rate: number;
+}
+
 export interface BiManagerAlert {
   kind: 'stale_pipeline' | 'pending_interview_feedback' | 'business_feedback_overdue' | string;
   priority: 'high' | 'medium' | 'low' | string;
@@ -471,6 +490,8 @@ export interface BiOverview {
   funnel: BiFunnel;
   staff: BiStaffMember[];
   alerts: BiManagerAlert[];
+  demands: BiDemandMetrics;
+  resumes: BiResumeMetrics;
 }
 
 export interface BiStaffDetail {

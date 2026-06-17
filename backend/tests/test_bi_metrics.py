@@ -1,8 +1,17 @@
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from app import db
 from app.api.bi import _funnel
-from app.models import Candidate, InterviewAssignment, Job, PipelineStage, User
+from app.models import (
+    Candidate,
+    InterviewAssignment,
+    Job,
+    Match,
+    PipelineStage,
+    RecruitmentDemand,
+    UploadBatch,
+    User,
+)
 
 
 def _auth(token):
@@ -128,3 +137,127 @@ def test_bi_overview_surfaces_manager_action_alerts(client, make_user, app):
     assert feedback_alert["candidate_id"] == feedback_id
     assert feedback_alert["job_id"] == job_id
     assert feedback_alert["action_path"] == f"/pipeline?job={job_id}&candidate={feedback_id}"
+
+
+def test_bi_overview_includes_demand_health_metrics(client, make_user, app):
+    hr_id, _ = make_user("demand-hr@example.com", role="recruiter", name="需求HR")
+    _, manager_token = make_user("demand-manager@example.com", role="manager", name="经理")
+
+    with app.app_context():
+        overdue_job = Job(title="财务主管", city="上海", department="财务部", jd_text="财务管理")
+        no_recommend_job = Job(title="销售经理", city="深圳", department="销售部", jd_text="销售管理")
+        feedback_job = Job(title="运营经理", city="广州", department="运营部", jd_text="运营管理")
+        db.session.add_all([overdue_job, no_recommend_job, feedback_job])
+        db.session.flush()
+
+        db.session.add_all([
+            RecruitmentDemand(
+                job_id=overdue_job.id,
+                owner_hr_id=hr_id,
+                priority="A",
+                status="active",
+                requested_at=date.today() - timedelta(days=3),
+                target_date=date.today() - timedelta(days=1),
+            ),
+            RecruitmentDemand(
+                job_id=no_recommend_job.id,
+                owner_hr_id=hr_id,
+                priority="B",
+                status="active",
+                requested_at=date.today() - timedelta(days=10),
+                accepted_at=date.today() - timedelta(days=9),
+                target_date=date.today() + timedelta(days=20),
+            ),
+            RecruitmentDemand(
+                job_id=feedback_job.id,
+                owner_hr_id=hr_id,
+                priority="C",
+                status="active",
+                requested_at=date.today() - timedelta(days=2),
+                target_date=date.today() + timedelta(days=15),
+            ),
+        ])
+        candidate = Candidate(
+            owner_hr_id=hr_id,
+            name_masked="业务待反馈候选人",
+            resume_json={"extracted_info": {"skills": ["运营"]}},
+        )
+        db.session.add(candidate)
+        db.session.flush()
+        db.session.add(PipelineStage(
+            candidate_id=candidate.id,
+            job_id=feedback_job.id,
+            stage="business_review",
+            updated_by=hr_id,
+            ts=datetime.utcnow() - timedelta(days=1),
+        ))
+        db.session.commit()
+
+    response = client.get("/api/bi/overview", headers=_auth(manager_token))
+
+    assert response.status_code == 200
+    demands = response.get_json()["demands"]
+    assert demands["active_total"] == 3
+    assert demands["priority_counts"] == {"A": 1, "B": 1, "C": 1}
+    assert demands["overdue"] == 1
+    assert demands["hr_no_recommendation"] == 1
+    assert demands["business_feedback_pending"] == 1
+
+
+def test_bi_overview_includes_resume_consumption_metrics(client, make_user, app):
+    hr_id, _ = make_user("resume-hr@example.com", role="recruiter", name="简历HR")
+    _, manager_token = make_user("resume-manager@example.com", role="manager", name="经理")
+
+    with app.app_context():
+        job = Job(title="后端工程师", city="深圳", department="研发部", jd_text="Python")
+        db.session.add(job)
+        db.session.flush()
+        targeted_batch = UploadBatch(owner_hr_id=hr_id, target_job_id=job.id, source_channel="猎聘")
+        pool_batch = UploadBatch(owner_hr_id=hr_id, source_channel="内推")
+        db.session.add_all([targeted_batch, pool_batch])
+        db.session.flush()
+        in_pipeline = Candidate(
+            owner_hr_id=hr_id,
+            upload_batch_id=targeted_batch.id,
+            name_masked="候选人A",
+            resume_json={"extracted_info": {"skills": ["Python"]}},
+        )
+        matched_only = Candidate(
+            owner_hr_id=hr_id,
+            upload_batch_id=targeted_batch.id,
+            name_masked="候选人B",
+            resume_json={"extracted_info": {"skills": ["Flask"]}},
+        )
+        pool_only = Candidate(
+            owner_hr_id=hr_id,
+            upload_batch_id=pool_batch.id,
+            name_masked="候选人C",
+            resume_json={"extracted_info": {"skills": ["SQL"]}},
+        )
+        db.session.add_all([in_pipeline, matched_only, pool_only])
+        db.session.flush()
+        db.session.add_all([
+            Match(job_id=job.id, candidate_id=in_pipeline.id, score=0.88, reason="技能匹配"),
+            Match(job_id=job.id, candidate_id=matched_only.id, score=0.72, reason="技能匹配"),
+            PipelineStage(
+                candidate_id=in_pipeline.id,
+                job_id=job.id,
+                stage="pending",
+                updated_by=hr_id,
+                ts=datetime.utcnow() - timedelta(days=1),
+            ),
+        ])
+        db.session.commit()
+
+    response = client.get("/api/bi/overview", headers=_auth(manager_token))
+
+    assert response.status_code == 200
+    resumes = response.get_json()["resumes"]
+    assert resumes["total_candidates"] == 3
+    assert resumes["linked_to_job"] == 2
+    assert resumes["unassigned"] == 1
+    assert resumes["matched_candidates"] == 2
+    assert resumes["in_pipeline"] == 1
+    assert resumes["not_in_pipeline"] == 2
+    assert resumes["match_rate"] == 66.7
+    assert resumes["pipeline_entry_rate"] == 33.3

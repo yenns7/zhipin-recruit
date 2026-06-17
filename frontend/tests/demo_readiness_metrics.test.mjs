@@ -11,10 +11,52 @@ function readSource(path) {
 }
 
 const biPage = readSource('pages/BiPage.tsx');
+const types = readSource('types/index.ts');
+
+assert.match(
+  types,
+  /interface BiDemandMetrics/,
+  'BI overview should type the demand health metrics returned by the backend',
+);
+assert.match(
+  types,
+  /interface BiResumeMetrics/,
+  'BI overview should type the resume consumption metrics returned by the backend',
+);
+assert.match(
+  types,
+  /demands:\s*BiDemandMetrics/,
+  'BiOverview should expose demand health metrics',
+);
+assert.match(
+  types,
+  /resumes:\s*BiResumeMetrics/,
+  'BiOverview should expose resume consumption metrics',
+);
 assert.match(
   biPage,
   /流程内入职占比/,
   'BI KPI copy should describe the bounded delivery-safe rate',
+);
+assert.match(
+  biPage,
+  /需求健康/,
+  'BI page should surface demand health metrics from the database',
+);
+assert.match(
+  biPage,
+  /简历消化/,
+  'BI page should surface resume consumption metrics from the database',
+);
+assert.match(
+  biPage,
+  /data\.demands\.active_total/,
+  'BI page should render active demand counts from the backend',
+);
+assert.match(
+  biPage,
+  /data\.resumes\.pipeline_entry_rate/,
+  'BI page should render resume pipeline entry rate from the backend',
 );
 assert.match(
   biPage,

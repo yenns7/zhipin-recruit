@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from flask import Blueprint, request, jsonify, g
 from ..middleware.auth import require_auth, require_role
 from .. import db
@@ -8,7 +8,10 @@ from ..models import (
     InterviewAssignment,
     InterviewFeedback,
     Job,
+    Match,
     PipelineStage,
+    RecruitmentDemand,
+    UploadBatch,
     User,
 )
 from .pipeline import _latest_stage_subquery
@@ -28,6 +31,7 @@ STAGE_LABELS = {
     "rejected": "已淘汰",
 }
 TERMINAL_STAGES = {"onboarded", "rejected"}
+OPEN_DEMAND_STATUSES = {"pending", "active"}
 
 
 def _safe_rate(numerator, denominator):
@@ -171,6 +175,124 @@ def _manager_alerts(limit=8, stale_days=7):
     return alerts
 
 
+def _demand_health_metrics():
+    """招聘需求健康度：从需求表和当前流程状态直接汇总。"""
+    today = date.today()
+    open_demands = (
+        RecruitmentDemand.query
+        .filter(RecruitmentDemand.status.in_(OPEN_DEMAND_STATUSES))
+        .all()
+    )
+    priority_counts = {"A": 0, "B": 0, "C": 0}
+
+    latest = _latest_stage_subquery()
+    business_job_ids = {
+        row[0]
+        for row in (
+            db.session.query(PipelineStage.job_id)
+            .join(latest, PipelineStage.id == latest.c.max_id)
+            .filter(PipelineStage.stage == "business_review")
+            .distinct()
+            .all()
+        )
+    }
+    recommended_job_ids = {
+        row[0]
+        for row in (
+            db.session.query(PipelineStage.job_id)
+            .filter(PipelineStage.job_id.in_([demand.job_id for demand in open_demands] or [-1]))
+            .distinct()
+            .all()
+        )
+    }
+
+    overdue = 0
+    hr_no_recommendation = 0
+    business_feedback_pending = 0
+    for demand in open_demands:
+        priority = (demand.priority or "B").upper()
+        priority_counts[priority if priority in priority_counts else "B"] += 1
+
+        if demand.target_date and demand.target_date < today:
+            overdue += 1
+
+        start_date = demand.accepted_at or demand.requested_at
+        if (
+            start_date
+            and demand.job_id not in recommended_job_ids
+            and (today - start_date).days >= 7
+        ):
+            hr_no_recommendation += 1
+
+        if demand.job_id in business_job_ids:
+            business_feedback_pending += 1
+
+    return {
+        "active_total": len(open_demands),
+        "priority_counts": priority_counts,
+        "overdue": overdue,
+        "hr_no_recommendation": hr_no_recommendation,
+        "business_feedback_pending": business_feedback_pending,
+    }
+
+
+def _resume_consumption_metrics(days=30):
+    """简历消化度：统计入库简历是否被匹配、是否进入流程。"""
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    candidate_ids = [
+        row[0]
+        for row in (
+            db.session.query(Candidate.id)
+            .filter(Candidate.created_at >= cutoff)
+            .all()
+        )
+    ]
+    total_candidates = len(candidate_ids)
+    if total_candidates == 0:
+        return {
+            "total_candidates": 0,
+            "linked_to_job": 0,
+            "unassigned": 0,
+            "matched_candidates": 0,
+            "in_pipeline": 0,
+            "not_in_pipeline": 0,
+            "match_rate": 0.0,
+            "pipeline_entry_rate": 0.0,
+        }
+
+    linked_to_job = (
+        db.session.query(func.count(func.distinct(Candidate.id)))
+        .join(UploadBatch, Candidate.upload_batch_id == UploadBatch.id)
+        .filter(Candidate.id.in_(candidate_ids))
+        .filter(UploadBatch.target_job_id.isnot(None))
+        .scalar()
+        or 0
+    )
+    matched_candidates = (
+        db.session.query(func.count(func.distinct(Match.candidate_id)))
+        .filter(Match.candidate_id.in_(candidate_ids))
+        .scalar()
+        or 0
+    )
+    in_pipeline = (
+        db.session.query(func.count(func.distinct(PipelineStage.candidate_id)))
+        .filter(PipelineStage.candidate_id.in_(candidate_ids))
+        .scalar()
+        or 0
+    )
+
+    return {
+        "total_candidates": total_candidates,
+        "linked_to_job": linked_to_job,
+        "unassigned": total_candidates - linked_to_job,
+        "matched_candidates": matched_candidates,
+        "in_pipeline": in_pipeline,
+        "not_in_pipeline": total_candidates - in_pipeline,
+        "match_rate": _safe_rate(matched_candidates, total_candidates),
+        "pipeline_entry_rate": _safe_rate(in_pipeline, total_candidates),
+    }
+
+
 @bp.get("/bi/overview")
 @require_auth
 @require_role("manager", "admin")
@@ -208,7 +330,13 @@ def overview():
             "conversion_rate": _safe_rate(onboarded or 0, resumes or 0),
         })
 
-    return jsonify({"funnel": funnel, "staff": staff, "alerts": _manager_alerts()})
+    return jsonify({
+        "funnel": funnel,
+        "staff": staff,
+        "alerts": _manager_alerts(),
+        "demands": _demand_health_metrics(),
+        "resumes": _resume_consumption_metrics(days=days),
+    })
 
 
 @bp.get("/bi/staff/<int:hr_id>")

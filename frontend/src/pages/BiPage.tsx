@@ -95,6 +95,33 @@ function KpiCard({ label, value, sub, accent }: { label: string; value: ReactNod
   );
 }
 
+function MetricTile({
+  label,
+  value,
+  sub,
+  tone = 'neutral',
+}: {
+  label: string;
+  value: ReactNode;
+  sub?: string;
+  tone?: 'neutral' | 'danger' | 'warning' | 'success';
+}) {
+  const toneClass = {
+    neutral: 'text-ink',
+    danger: 'text-danger-700',
+    warning: 'text-warning-700',
+    success: 'text-success-700',
+  }[tone];
+
+  return (
+    <div className="rounded-md border border-hairline bg-surface-soft px-3 py-2.5">
+      <p className="text-xs text-muted">{label}</p>
+      <p className={`mt-1 text-xl font-display ${toneClass}`}>{value}</p>
+      {sub && <p className="mt-0.5 text-xs text-muted-soft">{sub}</p>}
+    </div>
+  );
+}
+
 // 专员行内条形图
 function InlineBar({ value, max, color }: { value: number; max: number; color: string }) {
   const width = max > 0 ? Math.round((value / max) * 100) : 0;
@@ -287,6 +314,94 @@ function TeamOverview({
               sub="按当前阶段去重"
               accent="#FF9500"
             />
+          </Reveal>
+
+          <Reveal as="div" className="grid grid-cols-1 gap-6 lg:grid-cols-2" stagger={0.08} y={16}>
+            <Card variant="elevated">
+              <CardHeader>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <CardTitle>需求健康</CardTitle>
+                  <Badge tone="neutral">
+                    A/B/C {safeNum(data.demands.priority_counts.A)} / {safeNum(data.demands.priority_counts.B)} / {safeNum(data.demands.priority_counts.C)}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardBody>
+                <div className="grid grid-cols-2 gap-3">
+                  <MetricTile
+                    label="活跃需求"
+                    value={<AnimatedNumber value={data.demands.active_total} />}
+                    sub="待处理与招聘中"
+                  />
+                  <MetricTile
+                    label="逾期需求"
+                    value={<AnimatedNumber value={data.demands.overdue} />}
+                    sub="超过目标日期"
+                    tone={data.demands.overdue > 0 ? 'danger' : 'success'}
+                  />
+                  <MetricTile
+                    label="HR 无推荐"
+                    value={<AnimatedNumber value={data.demands.hr_no_recommendation} />}
+                    sub="接手 7 天未推荐"
+                    tone={data.demands.hr_no_recommendation > 0 ? 'warning' : 'success'}
+                  />
+                  <MetricTile
+                    label="业务待反馈"
+                    value={<AnimatedNumber value={data.demands.business_feedback_pending} />}
+                    sub="卡在业务复核"
+                    tone={data.demands.business_feedback_pending > 0 ? 'warning' : 'success'}
+                  />
+                </div>
+              </CardBody>
+            </Card>
+
+            <Card variant="elevated">
+              <CardHeader>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <CardTitle>简历消化</CardTitle>
+                  <Badge tone="neutral">
+                    进流程 {pct(safeNum(data.resumes.pipeline_entry_rate))}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardBody>
+                <div className="grid grid-cols-2 gap-3">
+                  <MetricTile
+                    label="入库简历"
+                    value={<AnimatedNumber value={data.resumes.total_candidates} />}
+                    sub="当前周期"
+                  />
+                  <MetricTile
+                    label="绑定岗位"
+                    value={<AnimatedNumber value={data.resumes.linked_to_job} />}
+                    sub={`${data.resumes.unassigned} 份暂未绑定`}
+                  />
+                  <MetricTile
+                    label="已匹配"
+                    value={<AnimatedNumber value={data.resumes.matched_candidates} />}
+                    sub={`匹配率 ${pct(safeNum(data.resumes.match_rate))}`}
+                  />
+                  <MetricTile
+                    label="已进流程"
+                    value={<AnimatedNumber value={data.resumes.in_pipeline} />}
+                    sub={`${data.resumes.not_in_pipeline} 份未进流程`}
+                    tone={data.resumes.not_in_pipeline > 0 ? 'warning' : 'success'}
+                  />
+                  <MetricTile
+                    label="进流程率"
+                    value={
+                      <AnimatedNumber
+                        value={safeNum(data.resumes.pipeline_entry_rate)}
+                        decimals={1}
+                        suffix="%"
+                      />
+                    }
+                    sub="入库到流程转化"
+                    tone={data.resumes.pipeline_entry_rate > 0 ? 'success' : 'neutral'}
+                  />
+                </div>
+              </CardBody>
+            </Card>
           </Reveal>
 
           {/* 图表行 */}
