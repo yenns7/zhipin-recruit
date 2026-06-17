@@ -19,8 +19,16 @@ const registry = readSource('app/featureRegistry.ts');
 assert.match(registry, /demandsFeature/, 'Feature registry should include demand management');
 
 const nav = readSource('features/demands/nav.ts');
-assert.match(nav, /label:\s*'需求管理'/, 'Demand feature should expose a sidebar entry');
-assert.match(nav, /\/demands/, 'Demand nav should link to the demand list');
+assert.match(nav, /label:\s*'招聘管理'/, 'Demand feature should expose the consolidated recruitment sidebar entry');
+assert.match(nav, /\/demands/, 'Recruitment nav should still land on the demand list first');
+assert.match(nav, /activePaths:\s*\[[\s\S]*'\/jobs'[\s\S]*\]/, 'Recruitment nav should stay active on job portrait pages');
+
+const demandFeature = readSource('features/demands/index.ts');
+assert.match(
+  demandFeature,
+  /topLevelPaths:\s*\[[\s\S]*'\/demands'[\s\S]*'\/jobs'[\s\S]*\]/,
+  'Recruitment feature should treat both demand and job portrait pages as top-level pages',
+);
 
 const routes = readSource('features/demands/routes.tsx');
 assert.match(routes, /path:\s*'\/demands'/, 'Demand feature should register the list route');
@@ -36,7 +44,11 @@ assert.match(types, /interface RecruitmentDemand/, 'Shared types should expose R
 assert.match(types, /business_review_count/, 'Demand metrics should expose business feedback backlog');
 
 const page = readSource('features/demands/pages/DemandsPage.tsx');
-assert.match(page, /需求管理/, 'Demand page should be named plainly');
+const recruitmentTabs = readSource('components/recruitment/RecruitmentManagementTabs.tsx');
+assert.match(page, /招聘管理/, 'Demand page should live under the consolidated recruitment management title');
+assert.match(page, /RecruitmentManagementTabs/, 'Demand page should reuse the shared recruitment tabs');
+assert.match(recruitmentTabs, /用人需求/, 'Recruitment tabs should expose the demand tab label');
+assert.match(recruitmentTabs, /岗位画像/, 'Recruitment tabs should expose the job portrait tab label');
 assert.match(page, /业务提需求时间/, 'Demand form should capture when business raised the request');
 assert.match(page, /HR 接手时间/, 'Demand form should capture when HR accepted the request');
 assert.match(page, /关闭需求/, 'Demand cards should support closing stale or invalid requests');

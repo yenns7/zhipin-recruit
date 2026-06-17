@@ -18,6 +18,7 @@ import {
   PageHeader,
   Spinner,
 } from '../../../components/ui';
+import { RecruitmentManagementTabs } from '../../../components/recruitment/RecruitmentManagementTabs';
 import type {
   DemandPriority,
   DemandStatus,
@@ -378,9 +379,11 @@ export function DemandsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="需求管理"
-        description="记录用人部门提出需求的时间、HR 接手时间、优先级与招聘卡点"
+        title="招聘管理"
+        description="先确认用人需求，再维护岗位画像，并用流程数据判断招聘卡点"
       />
+
+      <RecruitmentManagementTabs />
 
       <Card variant="elevated">
         <CardHeader>
@@ -398,7 +401,7 @@ export function DemandsPage() {
             <EmptyState
               icon={ClipboardList}
               title="暂无可关联岗位"
-              description="请先在岗位管理里创建岗位，再登记招聘需求"
+              description="请先创建岗位画像，再登记招聘需求"
             />
           ) : (
             <>

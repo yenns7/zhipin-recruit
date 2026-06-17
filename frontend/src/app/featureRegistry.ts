@@ -9,6 +9,7 @@ export interface FeatureNavItem {
   label: string;
   icon: LucideIcon;
   roles: Role[];
+  activePaths?: string[];
 }
 
 export interface FeatureRoute {

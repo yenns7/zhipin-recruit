@@ -14,6 +14,8 @@ gunicorn==26.0.0
 
 # ── 数据库 / ORM ──────────────────────────────────────────
 SQLAlchemy==2.0.50
+# 生产 PostgreSQL 驱动（SQLAlchemy URL 使用 postgresql+psycopg://）
+psycopg[binary]==3.3.4
 
 # ── 认证 ─────────────────────────────────────────────────
 PyJWT==2.13.0

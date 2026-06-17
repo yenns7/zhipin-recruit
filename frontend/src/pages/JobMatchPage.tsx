@@ -293,7 +293,7 @@ export function JobMatchPage() {
           to="/jobs"
           className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-body"
         >
-          ← 返回岗位管理
+          ← 返回岗位画像
         </Link>
         <div className="mt-4">
           <ErrorState message="无效的岗位 ID" />
@@ -308,7 +308,7 @@ export function JobMatchPage() {
       <div>
         <nav className="mb-2 flex items-center gap-1.5 text-sm text-muted">
           <Link to="/jobs" className="hover:text-body hover:underline">
-            岗位管理
+            岗位画像
           </Link>
           <span className="text-muted-soft">›</span>
           <span className="text-ink">匹配候选人</span>

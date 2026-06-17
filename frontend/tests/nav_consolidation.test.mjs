@@ -34,6 +34,12 @@ assert.doesNotMatch(
 
 assert.doesNotMatch(
   nav,
+  /\{\s*to:\s*'\/jobs'[\s\S]*label:\s*'岗位管理'[\s\S]*\}/,
+  '岗位管理 should not remain as a separate top-level sidebar item after recruitment consolidation',
+);
+
+assert.doesNotMatch(
+  nav,
   /label:\s*'AI 提示词看板'/,
   'AI 提示词看板 should be nested inside 系统设置 instead of a separate sidebar item',
 );
@@ -66,6 +72,12 @@ assert.match(
   shell,
   /'\/admin\/settings'/,
   'System settings should be treated as a top-level shell path',
+);
+
+assert.match(
+  shell,
+  /isNavItemActive/,
+  'App shell should support explicit active path groups for consolidated nav entries',
 );
 
 assert.ok(

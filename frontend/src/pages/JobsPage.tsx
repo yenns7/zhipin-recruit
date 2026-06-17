@@ -1,4 +1,4 @@
-// 岗位管理页 — 新建岗位 + 岗位列表。
+// 岗位画像页 — 新建岗位 + 岗位列表。
 
 import { useState, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
@@ -27,6 +27,7 @@ import type {
   JdClarificationAnswer,
 } from '../types';
 import { Reveal } from '../components/motion';
+import { RecruitmentManagementTabs } from '../components/recruitment/RecruitmentManagementTabs';
 
 const COMMON_JOB_CITY_OPTIONS = [
   '北京',
@@ -521,8 +522,8 @@ export function JobsPage() {
     <div className="space-y-6">
       {/* Page header */}
       <PageHeader
-        title="岗位管理"
-        description="查看在招岗位、运行候选人匹配，必要时再新增岗位"
+        title="岗位画像"
+        description="维护在招岗位画像、运行候选人匹配，必要时再新增岗位"
         actions={
           <Button
             type="button"
@@ -544,6 +545,8 @@ export function JobsPage() {
           </Button>
         }
       />
+
+      <RecruitmentManagementTabs />
 
       {/* Create form */}
       {showCreateForm && (

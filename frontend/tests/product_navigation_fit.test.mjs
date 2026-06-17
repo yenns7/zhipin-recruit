@@ -12,6 +12,7 @@ function readSource(path) {
 
 const nav = readSource('lib/nav.ts');
 const candidatesNav = readSource('features/candidates/nav.ts');
+const demandsNav = readSource('features/demands/nav.ts');
 const shell = readSource('components/AppShell.tsx');
 const dashboard = readSource('pages/DashboardPage.tsx');
 const interviews = readSource('pages/InterviewListPage.tsx');
@@ -24,10 +25,16 @@ assert.doesNotMatch(
 
 assert.ok(
   /label:\s*'简历库'/.test(candidatesNav) &&
-    nav.indexOf('...featureNavItems') < nav.indexOf("label: '岗位管理'") &&
-    nav.indexOf("label: '岗位管理'") < nav.indexOf("label: '招聘流程'") &&
+    /label:\s*'招聘管理'/.test(demandsNav) &&
+    nav.indexOf('...featureNavItems') < nav.indexOf("label: '招聘流程'") &&
     nav.indexOf("label: '招聘流程'") < nav.indexOf("label: '面试中心'"),
-  'Sidebar should follow the HR workflow: resume library -> jobs -> pipeline -> interviews',
+  'Sidebar should follow the HR workflow: resume library -> recruitment management -> pipeline -> interviews',
+);
+
+assert.doesNotMatch(
+  nav,
+  /label:\s*'岗位管理'/,
+  'Job management should be nested under 招聘管理 instead of competing as another sidebar module',
 );
 
 assert.ok(

@@ -21,7 +21,14 @@ def create_app(config=None):
     else:
         app.config.from_object(config)
 
-    CORS(app)
+    _enforce_production_security(app)
+
+    cors_origins = app.config.get("CORS_ORIGINS") or []
+    if cors_origins:
+        CORS(app, origins=cors_origins, supports_credentials=True)
+    else:
+        # 未配置白名单：仅开发可接受，生产已被 _enforce_production_security 拦截
+        CORS(app)
     db.init_app(app)
 
     from .api import resume, jobs, demands, candidates, match, interview, pipeline, bi, auth, agent, admin, notifications
@@ -36,6 +43,35 @@ def create_app(config=None):
     _register_frontend(app)
 
     return app
+
+
+def _enforce_production_security(app):
+    """生产模式（非 TESTING 且 FLASK_DEBUG=false）下，拒绝以不安全配置启动。
+
+    校验项（任一不满足即 RuntimeError，阻止服务起来）：
+    - JWT_SECRET 不能是默认/弱值，长度需 >= MIN_SECRET_LENGTH
+    - CORS_ORIGINS 必须配置白名单，禁止生产全开放
+    开发与测试不受影响（debug 默认 true / TESTING=true）。
+    """
+    if app.config.get("TESTING") or app.config.get("FLASK_DEBUG", True):
+        return
+
+    weak = app.config.get("WEAK_SECRETS", set())
+    min_len = app.config.get("MIN_SECRET_LENGTH", 32)
+    secret = app.config.get("JWT_SECRET", "")
+    problems = []
+    if secret in weak:
+        problems.append("JWT_SECRET 仍为默认/弱密钥，请设置强随机值")
+    elif len(secret) < min_len:
+        problems.append(f"JWT_SECRET 长度 {len(secret)} < 生产要求 {min_len}")
+    if not (app.config.get("CORS_ORIGINS") or []):
+        problems.append("生产必须设置 CORS_ORIGINS 白名单，禁止全开放")
+
+    if problems:
+        raise RuntimeError(
+            "生产安全校验未通过，拒绝启动：\n  - " + "\n  - ".join(problems)
+            + "\n（如为本地开发，请设置 FLASK_DEBUG=true）"
+        )
 
 
 def _ensure_job_metadata_columns():

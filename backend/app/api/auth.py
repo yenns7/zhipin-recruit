@@ -27,6 +27,8 @@ def _verify(pw: str, hashed: str) -> bool:
 
 @bp.post("/auth/register")
 def register():
+    if not current_app.config.get("ALLOW_PUBLIC_REGISTRATION", False):
+        return jsonify({"error": "公开注册已关闭，请联系管理员创建账号"}), 403
     data = request.get_json(silent=True) or {}
     if not data.get("email") or not data.get("password"):
         return jsonify({"error": "email and password required"}), 400

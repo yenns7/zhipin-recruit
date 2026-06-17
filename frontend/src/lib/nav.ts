@@ -2,7 +2,6 @@
 
 import {
   LayoutDashboard,
-  Briefcase,
   KanbanSquare,
   BarChart3,
   Bot,
@@ -19,9 +18,8 @@ export interface NavItem {
   icon: LucideIcon;
   // Roles allowed to see this item.
   roles: Role[];
+  activePaths?: string[];
 }
-
-const ALL_STAFF: Role[] = ['recruiter', 'manager', 'admin'];
 
 export const NAV_ITEMS: NavItem[] = [
   {
@@ -31,7 +29,6 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ['recruiter', 'manager', 'admin', 'interviewer'],
   },
   ...featureNavItems,
-  { to: '/jobs', label: '岗位管理', icon: Briefcase, roles: ALL_STAFF },
   {
     to: '/pipeline',
     label: '招聘流程',

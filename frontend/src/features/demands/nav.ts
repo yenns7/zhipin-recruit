@@ -5,8 +5,9 @@ import { DEMAND_ROLES } from './permissions';
 export const demandsNavItems: FeatureNavItem[] = [
   {
     to: '/demands',
-    label: '需求管理',
+    label: '招聘管理',
     icon: ClipboardList,
     roles: DEMAND_ROLES,
+    activePaths: ['/jobs'],
   },
 ];

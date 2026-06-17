@@ -5,6 +5,10 @@ import assert from 'node:assert/strict';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(__dirname, '../src/pages/JobsPage.tsx'), 'utf8');
+const recruitmentTabs = readFileSync(
+  join(__dirname, '../src/components/recruitment/RecruitmentManagementTabs.tsx'),
+  'utf8',
+);
 
 assert.match(
   source,
@@ -16,6 +20,24 @@ assert.match(
   source,
   /<PageHeader[\s\S]*actions=\{/,
   'JobsPage should expose create-job as a header action instead of a full-width default form',
+);
+
+assert.match(
+  source,
+  /title="岗位画像"/,
+  'JobsPage should be presented as the job portrait page inside recruitment management',
+);
+
+assert.match(
+  source,
+  /RecruitmentManagementTabs/,
+  'JobsPage should reuse the shared recruitment tabs',
+);
+
+assert.match(
+  recruitmentTabs,
+  /用人需求/,
+  'JobsPage should provide a tab back to demand management',
 );
 
 assert.match(

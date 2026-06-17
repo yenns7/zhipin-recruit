@@ -190,7 +190,7 @@ npm run build    # 生成 frontend/dist/
 ```env
 FLASK_DEBUG=false
 JWT_SECRET=your-strong-random-secret-here
-DATABASE_URL=sqlite:///hireinsight.db   # 或 postgresql://user:pass@host/db
+DATABASE_URL=sqlite:///hireinsight.db   # 或 postgresql://user:pass@host:5432/db
 ```
 
 3. 启动（Flask 会自动托管 `frontend/dist`）：

@@ -13,6 +13,7 @@ import { AgentChatProvider } from '../lib/agentChat';
 import { featureTopLevelPaths } from '../app/featureRegistry';
 import { gsap, useGSAP, EASE, DUR, STAGGER } from '../lib/motion';
 import type { Role } from '../types';
+import type { NavItem } from '../lib/nav';
 
 const ROLE_LABELS: Record<Role, string> = {
   recruiter: '招聘专员',
@@ -45,6 +46,15 @@ function restoreSidebarNavItems(sidebar: HTMLElement | null) {
   });
 }
 
+function isPathActive(pathname: string, path: string) {
+  if (path === '/') return pathname === '/';
+  return pathname === path || pathname.startsWith(`${path}/`);
+}
+
+function isNavItemActive(item: NavItem, pathname: string, defaultActive: boolean) {
+  return defaultActive || (item.activePaths ?? []).some((path) => isPathActive(pathname, path));
+}
+
 export function AppShell() {
   const { name, role, logout } = useAuth();
   const navigate = useNavigate();
@@ -62,7 +72,6 @@ export function AppShell() {
     '/agent',
     ...featureTopLevelPaths,
     '/notifications',
-    '/jobs',
     '/pipeline',
     '/interviews',
     '/bi',
@@ -184,31 +193,35 @@ export function AppShell() {
               to={item.to}
               end={item.to === '/'}
               data-shell="nav-item"
-              className={({ isActive }) =>
-                cn(
+              className={({ isActive }) => {
+                const active = isNavItemActive(item, location.pathname, isActive);
+                return cn(
                   'group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-200',
-                  isActive
+                  active
                     ? 'bg-surface-card text-ink font-semibold shadow-apple-xs'
                     : 'text-muted hover:bg-surface-soft hover:text-ink hover:translate-x-0.5',
-                )
-              }
+                );
+              }}
             >
-              {({ isActive }) => (
-                <>
-                  <span
-                    className={cn(
-                      'absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full transition-all duration-300',
-                      isActive ? 'opacity-100' : 'opacity-0',
-                    )}
-                    style={{ background: 'linear-gradient(180deg, #007AFF, #5856D6)' }}
-                  />
-                  <item.icon
-                    className="h-[18px] w-[18px] transition-transform duration-200 group-hover:scale-110"
-                    strokeWidth={2}
-                  />
-                  {item.label}
-                </>
-              )}
+              {({ isActive }) => {
+                const active = isNavItemActive(item, location.pathname, isActive);
+                return (
+                  <>
+                    <span
+                      className={cn(
+                        'absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full transition-all duration-300',
+                        active ? 'opacity-100' : 'opacity-0',
+                      )}
+                      style={{ background: 'linear-gradient(180deg, #007AFF, #5856D6)' }}
+                    />
+                    <item.icon
+                      className="h-[18px] w-[18px] transition-transform duration-200 group-hover:scale-110"
+                      strokeWidth={2}
+                    />
+                    {item.label}
+                  </>
+                );
+              }}
             </NavLink>
           ))}
         </nav>

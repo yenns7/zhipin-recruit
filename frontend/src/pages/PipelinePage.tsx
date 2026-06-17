@@ -148,11 +148,11 @@ export function PipelinePage() {
           <EmptyState
             icon={KanbanSquare}
             title="暂无岗位"
-            description="请先在「岗位管理」创建岗位，再查看招聘流程"
+            description="请先创建岗位画像，再查看招聘流程"
             action={
               <Link to="/jobs">
                 <Button variant="secondary" size="sm">
-                  前往创建岗位
+                  前往岗位画像
                 </Button>
               </Link>
             }
