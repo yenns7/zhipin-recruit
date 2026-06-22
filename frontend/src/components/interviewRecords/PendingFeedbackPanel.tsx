@@ -8,12 +8,14 @@ interface PendingFeedbackPanelProps {
   items: PendingFeedbackItem[];
   activeKey?: string | null;
   onStartFeedback?: (item: PendingFeedbackItem) => void;
+  canOpenPipeline?: boolean;
 }
 
 export function PendingFeedbackPanel({
   items,
   activeKey,
   onStartFeedback,
+  canOpenPipeline = true,
 }: PendingFeedbackPanelProps) {
   return (
     <Card>
@@ -37,6 +39,9 @@ export function PendingFeedbackPanel({
             {items.map((item) => {
               const key = `${item.job_id}-${item.candidate_id}-${item.round}`;
               const active = activeKey === key;
+              const detailLink = canOpenPipeline
+                ? `/pipeline?job=${item.job_id}&candidate=${item.candidate_id}`
+                : `/candidates/${item.candidate_id}`;
               return (
                 <div
                   key={key}
@@ -67,10 +72,10 @@ export function PendingFeedbackPanel({
                         </button>
                       )}
                       <Link
-                        to={`/pipeline?job=${item.job_id}&candidate=${item.candidate_id}`}
+                        to={detailLink}
                         className="inline-flex h-8 items-center gap-1 rounded-md bg-canvas px-3 text-xs font-semibold text-ink shadow-sm hover:bg-surface-soft"
                       >
-                        去流程
+                        {canOpenPipeline ? '去流程' : '查看候选人'}
                         <ArrowRight className="h-3.5 w-3.5" />
                       </Link>
                     </div>

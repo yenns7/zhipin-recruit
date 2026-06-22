@@ -17,6 +17,7 @@ const pipelinePage = readSource('pages/PipelinePage.tsx');
 const addToPipeline = readSource('components/pipeline/AddToPipeline.tsx');
 const pipelineCandidatePanel = readSource('components/pipeline/PipelineCandidatePanel.tsx');
 const interviewAssignment = readSource('components/interviewRecords/InterviewAssignmentPanel.tsx');
+const interviewListPage = readSource('pages/InterviewListPage.tsx');
 const reassignOwner = readSource('components/candidate/ReassignOwner.tsx');
 const biPage = readSource('pages/BiPage.tsx');
 const usersPage = readSource('pages/admin/UsersPage.tsx');
@@ -115,6 +116,16 @@ assert.match(
   interviewAssignment,
   /没有目标岗位？新建岗位/,
   'Interview assignment should keep a job creation entry visible next to job selection',
+);
+assert.match(
+  interviewListPage,
+  /暂无分配给你的面试任务，请等待 HR 或管理员安排/,
+  'Interviewer empty state should explain they need to wait for HR/admin assignment',
+);
+assert.match(
+  interviewListPage,
+  /role === 'interviewer'[\s\S]*暂无分配给你的面试任务/,
+  'Interviewer empty state copy should be role-specific instead of suggesting unavailable actions',
 );
 
 assert.match(

@@ -128,6 +128,9 @@ export function InterviewListPage() {
   const interviewerOptions = useMemo(() => uniqueInterviewers(records), [records]);
   const showInterviewerFilter = role === 'manager' || role === 'admin';
   const interviewTitle = role === 'interviewer' ? '我的面试' : '面试工作台';
+  const emptyInterviewDescription = role === 'interviewer'
+    ? '暂无分配给你的面试任务，请等待 HR 或管理员安排。'
+    : '可以先安排面试并填写人工反馈，也可以生成 AI 预筛参考';
 
   const focusOptions = [
     { value: 'pending' as const, label: `待我处理 ${pending.length}` },
@@ -168,7 +171,7 @@ export function InterviewListPage() {
             <EmptyState
               icon={Bot}
               title="暂无面试内容"
-              description="可以先安排面试并填写人工反馈，也可以生成 AI 预筛参考"
+              description={emptyInterviewDescription}
               action={role !== 'interviewer' ? (
                 <Link to="/interviews/new">
                   <Button variant="secondary" size="sm">
@@ -234,6 +237,7 @@ export function InterviewListPage() {
                 items={filteredPending}
                 activeKey={pendingFeedbackKey(selectedPending)}
                 onStartFeedback={setSelectedPending}
+                canOpenPipeline={!isInterviewer}
               />
 
               {selectedPending && (

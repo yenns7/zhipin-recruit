@@ -495,11 +495,18 @@ def create_assignment():
         return jsonify({"error": "候选人不存在"}), 404
     if not can_access_candidate(g.user_id, g.role, data["candidate_id"], data["job_id"], data["round"]):
         return jsonify({"error": "Forbidden"}), 403
-    if db.session.get(Job, data["job_id"]) is None:
+    job = db.session.get(Job, data["job_id"])
+    if job is None:
         return jsonify({"error": "岗位不存在"}), 404
+    if (job.status or "active") != "active":
+        return jsonify({"error": "岗位已关闭，请先恢复在招后再安排面试"}), 400
     interviewer = db.session.get(User, data["interviewer_id"])
-    if interviewer is None or interviewer.role not in ("interviewer", "manager", "admin"):
-        return jsonify({"error": "面试官不存在或角色不正确"}), 400
+    if (
+        interviewer is None
+        or interviewer.role not in ("interviewer", "manager", "admin")
+        or not interviewer.is_active
+    ):
+        return jsonify({"error": "面试官不存在、未启用或角色不正确"}), 400
 
     assignment = InterviewAssignment(
         candidate_id=data["candidate_id"],

@@ -298,6 +298,8 @@ rejected
 | `POST` | `/interview/feedback` | 登录 | 面试官提交反馈，可带 `reason_tags` 原因分类 |
 | `GET` | `/interview/feedback` | 登录 | 查询反馈，返回原因分类 |
 | `GET` | `/interviews` | 登录 | 面试记录列表，按角色过滤 |
+| `GET` | `/interview/interviewers` | 登录 | 返回启用中的面试官/经理/管理员选项 |
+| `POST` | `/interview/assignments` | recruiter/manager/admin | 创建面试安排；只允许启用中的面试官账号和在招岗位 |
 
 ### 7.6 BI / Admin / Agent
 
@@ -480,6 +482,8 @@ flowchart TD
 - 后端：`backend/app/api/interview.py`
 
 面试官反馈写入 `interview_feedback`，候选人详情 journey 会聚合展示流程时间线、AI 面试记录和面试官反馈。面试官在“我的面试”中只提交反馈；候选人是否进入 Offer 或淘汰，由 HR/经理/管理员在候选人管道中处理。
+
+面试安排由 HR/经理/管理员创建。后端会兜底校验：目标岗位必须存在且 `status=active`，面试官账号必须存在、已启用，且角色为面试官/经理/管理员。这样即使前端下拉数据过期，也不会把新面试分配给已关闭岗位或停用账号。
 
 `reason_tags` 用于 MVP 试点阶段的责任归因，前端提供固定原因分类，例如专业能力不匹配、项目经验不足、薪资期望不匹配、候选人已接受其他机会、面试时间无法协调、岗位画像变化、部门内部意见不一致、面试标准变化、HC 暂缓或冻结、岗位暂停招聘、需要加面确认等。后端只保存白名单内原因，避免自由文本污染后续 BI 口径。
 

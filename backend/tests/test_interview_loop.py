@@ -100,6 +100,49 @@ def test_feedback_requires_core_fields(client, make_user, app):
     assert r.status_code == 400
 
 
+def test_create_assignment_rejects_inactive_interviewer(client, make_user, app):
+    _, hr_token = make_user("assign-hr@x.com", role="recruiter")
+    inactive_id, _ = make_user(
+        "inactive-interviewer@x.com",
+        role="interviewer",
+        is_active=False,
+    )
+    jid, cid = _seed(app)
+
+    response = client.post("/api/interview/assignments", headers=_auth(hr_token), json={
+        "candidate_id": cid,
+        "job_id": jid,
+        "round": "round_1",
+        "interviewer_id": inactive_id,
+    })
+
+    assert response.status_code == 400
+    assert "启用" in response.get_json()["error"]
+
+
+def test_create_assignment_rejects_closed_job(client, make_user, app):
+    _, manager_token = make_user("assign-manager@x.com", role="manager")
+    active_interviewer_id, _ = make_user("active-interviewer@x.com", role="interviewer")
+    jid, cid = _seed(app)
+    with app.app_context():
+        from app import db
+        from app.models import Job
+
+        job = db.session.get(Job, jid)
+        job.status = "closed"
+        db.session.commit()
+
+    response = client.post("/api/interview/assignments", headers=_auth(manager_token), json={
+        "candidate_id": cid,
+        "job_id": jid,
+        "round": "round_1",
+        "interviewer_id": active_interviewer_id,
+    })
+
+    assert response.status_code == 400
+    assert "已关闭" in response.get_json()["error"]
+
+
 def _stub_report(monkeypatch, passed):
     """绕过 LLM：把 build_report 固定为给定通过与否，便于测回写逻辑。"""
     from app.services.interview_service import PreScreenService

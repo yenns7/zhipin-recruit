@@ -112,6 +112,24 @@ assert.match(
 );
 
 assert.match(
+  pendingPanel,
+  /canOpenPipeline\??:\s*boolean/,
+  'Pending feedback cards should know whether the current role may open the candidate pipeline',
+);
+
+assert.match(
+  pendingPanel,
+  /canOpenPipeline\s*\?\s*`\/pipeline\?job=\$\{item\.job_id\}&candidate=\$\{item\.candidate_id\}`\s*:\s*`\/candidates\/\$\{item\.candidate_id\}`/,
+  'Pending feedback cards should send interviewers to candidate detail instead of a forbidden pipeline route',
+);
+
+assert.match(
+  page,
+  /canOpenPipeline=\{!isInterviewer\}/,
+  'Interview page should only expose pipeline links to roles that can open the pipeline',
+);
+
+assert.match(
   feedbackForm,
   /initialRound/,
   'Feedback form should accept an initial round from the current pipeline stage',
