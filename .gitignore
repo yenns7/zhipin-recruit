@@ -41,6 +41,7 @@ frontend/dev.*.log
 .agents/
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+minutes/
 
 # ── OS / editor ──────────────────────────────────────────
 .DS_Store
