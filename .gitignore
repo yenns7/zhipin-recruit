@@ -36,6 +36,7 @@ uploads/
 *.log
 backend/server.log
 frontend/dev.*.log
+tmp/
 
 # ── Agent tooling (installed skills; reproducible via skills-lock.json) ──
 .agents/

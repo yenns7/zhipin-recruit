@@ -78,7 +78,8 @@ cd 智聘-招聘管理系统
 
 ```bash
 cd backend
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
 ### 3.3 配置环境变量
@@ -93,7 +94,10 @@ cp backend/.env.example backend/.env
 LLM_PROVIDER=deepseek
 LLM_MODEL=deepseek-v4-flash
 LLM_API_URL=https://api.deepseek.com/v1/chat/completions
-OPENAI_API_KEY=sk-your-deepseek-key-here   # DeepSeek 也用此字段
+OPENAI_API_KEY=sk-your-deepseek-key-here   # 主推荐字段
+DEEPSEEK_API_KEY=sk-your-deepseek-key-here  # 兼容旧模块，建议同值
+API_KEY=sk-your-deepseek-key-here           # 兼容旧模块，建议同值
+LLM_API_KEY=sk-your-deepseek-key-here       # 兼容旧模块，建议同值
 
 # JWT 密钥（生产环境请修改）
 JWT_SECRET=change-me-in-production
@@ -139,6 +143,20 @@ python seed_dev.py
 
 **无需 LLM API Key**，所有 AI 生成字段已预填。
 
+正式试点前不要把演示数据带到真实环境。清理时先预览：
+
+```bash
+python backend/scripts/cleanup_demo_data.py --dry-run
+```
+
+确认备份目录、数据库和上传目录后，再由负责人执行：
+
+```bash
+python backend/scripts/cleanup_demo_data.py --confirm
+```
+
+脚本会先备份，再删除 `@mvp.local` demo 账号及其关联业务数据，并清空 `backend/uploads/`、`uploads/` 文件；表结构会保留。
+
 ---
 
 ## 5. LLM API 配置
@@ -153,6 +171,9 @@ LLM_MODEL=deepseek-v4-flash
 LLM_API_URL=https://api.deepseek.com/v1/chat/completions
 LLM_MAX_TOKENS=8192
 OPENAI_API_KEY=sk-your-deepseek-key
+DEEPSEEK_API_KEY=sk-your-deepseek-key
+API_KEY=sk-your-deepseek-key
+LLM_API_KEY=sk-your-deepseek-key
 ```
 
 ### OpenAI
@@ -190,10 +211,27 @@ npm run build    # 生成 frontend/dist/
 ```env
 FLASK_DEBUG=false
 JWT_SECRET=your-strong-random-secret-here
-DATABASE_URL=sqlite:///hireinsight.db   # 或 postgresql://user:pass@host:5432/db
+JWT_EXPIRY_HOURS=8
+DATABASE_URL=postgresql://user:pass@host:5432/zhipin
+CORS_ORIGINS=https://zhipin.内网域名
+SECURITY_HEADERS_ENABLED=true
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_LOGIN=10
+RATE_LIMIT_AGENT_CHAT=20
+RATE_LIMIT_RESUME_UPLOAD=8
+BACKUP_DIR=/var/backups/zhipin
+ALLOW_PUBLIC_REGISTRATION=false
 ```
 
-3. 启动（Flask 会自动托管 `frontend/dist`）：
+3. 启动前自检（只读检查，不打印密钥）：
+```bash
+cd /path/to/project
+python backend/scripts/check_pilot_readiness.py
+```
+
+开发机上的 `.env` 可能会显示大量 FAIL，这代表服务器必填配置还没填好，不代表脚本本身失败。只有服务器真实 `.env` 填完后，自检通过，才继续启动和开放试点。
+
+4. 启动（Flask 会自动托管 `frontend/dist`）：
 ```bash
 cd backend
 python run.py
