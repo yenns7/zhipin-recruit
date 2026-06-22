@@ -5,7 +5,7 @@ from ..middleware.auth import require_auth, require_role
 from ..middleware.events import record_event
 from ..services.match_service import MatchService
 from .. import db
-from ..models import Job
+from ..models import Candidate, Job
 from .access import assigned_job_ids_for_interviewer, can_manage_job, visible_candidate_query
 
 BASE_AGENT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "base_agent"
@@ -272,6 +272,40 @@ def match_job(job_id):
         candidate_query=visible_candidate_query(g.user_id, g.role),
     )
     record_event("match.run", entity_id=job_id, entity_type="job", payload={"count": len(results)})
+    return jsonify({"job_id": job_id, "results": results})
+
+
+@bp.get("/jobs/<int:job_id>/match-preview")
+@require_auth
+def match_job_preview(job_id):
+    if g.role not in ("recruiter", "manager", "admin"):
+        return jsonify({"error": "Forbidden"}), 403
+    job = db.get_or_404(Job, job_id)
+    if not can_manage_job(g.user_id, g.role, job):
+        return jsonify({"error": "Forbidden"}), 403
+
+    candidate_ids = []
+    raw_ids = (request.args.get("candidate_ids") or "").strip()
+    if raw_ids:
+        try:
+            candidate_ids = [
+                int(item)
+                for item in raw_ids.split(",")
+                if item.strip()
+            ]
+        except ValueError:
+            return jsonify({"error": "candidate_ids must be comma-separated integers"}), 400
+
+    candidate_query = visible_candidate_query(g.user_id, g.role)
+    if candidate_ids:
+        candidate_query = candidate_query.filter(Candidate.id.in_(candidate_ids))
+
+    svc = MatchService()
+    results = svc.rank_for_job_readonly(
+        job_id,
+        top_n=max(len(candidate_ids), 20),
+        candidate_query=candidate_query,
+    )
     return jsonify({"job_id": job_id, "results": results})
 
 

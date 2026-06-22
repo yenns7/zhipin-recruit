@@ -49,6 +49,31 @@ def test_match_results_are_scoped_to_recruiter_owned_candidates(client, make_use
     assert other_candidate_id not in result_ids
 
 
+def test_match_preview_is_read_only(client, make_user, app):
+    owner_id, owner_token = make_user("match-preview-owner@x.com", role="recruiter")
+    job_id, candidate_id = _seed_owned_job_candidate(
+        app,
+        owner_id,
+        title="Python 后端",
+        name="预览候选人",
+    )
+
+    with app.app_context():
+        from app.models import Match
+
+        before_count = Match.query.count()
+
+    response = client.get(f"/api/jobs/{job_id}/match-preview", headers=_auth(owner_token))
+
+    assert response.status_code == 200
+    result_ids = {item["candidate_id"] for item in response.get_json()["results"]}
+    assert candidate_id in result_ids
+    with app.app_context():
+        from app.models import Match
+
+        assert Match.query.count() == before_count
+
+
 def test_recruiter_cannot_move_another_recruiters_candidate(client, make_user, app):
     owner_id, owner_token = make_user("pipeline-owner@x.com", role="recruiter")
     other_id, _ = make_user("pipeline-other@x.com", role="recruiter")

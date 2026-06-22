@@ -543,10 +543,11 @@ def get_agent_architecture_dashboard() -> Dict[str, Any]:
         ],
         "permission_model": {
             "database_access": True,
-            "read_tools_available_to_authenticated_users": True,
+            "read_tools_available_to_authenticated_users": False,
             "read_scope_note": (
-                "当前 AI 助手对话接口只要求登录；查询工具本身没有按角色或归属人再过滤，"
-                "因此登录用户可通过 AI 助手查询较宽范围的招聘数据。"
+                "AI 助手后端入口仅允许招聘专员、经理和管理员访问；"
+                "面试官即使直接请求 /api/agent/* 也会返回 403。"
+                "查询工具继续按当前登录用户角色与候选人归属过滤。"
             ),
             "write_requires_confirmation": True,
             "write_scope_note": (
@@ -561,16 +562,16 @@ def get_agent_architecture_dashboard() -> Dict[str, Any]:
             ],
         },
         "safeguards": [
-            "对话接口需要登录 token",
+            "AI 助手入口需要登录 token，并限制为招聘专员、经理、管理员",
             "写操作先生成确认卡片，用户确认后才执行",
             "写工具有角色白名单",
             "ReAct 最多迭代 5 步，避免无限循环调用工具",
             "所有工具固定注册，AI 不能临时创造新工具",
         ],
         "recommended_next_steps": [
-            "把 AI 助手查询工具也接入角色权限和候选人归属过滤",
             "把管理员看板标注为只读审计页",
             "给 AI 助手查询行为增加审计日志",
+            "如未来开放给面试官，单独做只看已分配候选人的面试官专用 AI 助手",
         ],
     }
 

@@ -8,7 +8,6 @@ from ..middleware.events import record_event
 from .. import db
 from ..models import (
     Candidate,
-    CandidateTag,
     CandidateDisposition,
     Job,
     PipelineStage,
@@ -96,6 +95,18 @@ def _walk_resume_values(value):
     elif isinstance(value, list):
         for child in value:
             yield from _walk_resume_values(child)
+
+
+def _candidate_search_blob(candidate):
+    resume = candidate.resume_json if isinstance(candidate.resume_json, (dict, list)) else {}
+    parts = [
+        candidate.name_masked or "",
+        candidate.email_masked or "",
+        candidate.phone_masked or "",
+        json.dumps(resume, ensure_ascii=False),
+    ]
+    parts.extend(tag.tag or "" for tag in candidate.tags)
+    return "\n".join(parts).casefold()
 
 
 def _candidate_intent_city(candidate):
@@ -285,14 +296,9 @@ def list_candidates():
     per_page = min(max(1, request.args.get("per_page", 20, type=int) or 20), 100)
 
     if search:
-        like = f"%{search}%"
-        tag_subquery = select(CandidateTag.candidate_id).where(CandidateTag.tag.ilike(like))
-        query = query.filter(db.or_(
-            Candidate.name_masked.ilike(like),
-            Candidate.email_masked.ilike(like),
-            Candidate.phone_masked.ilike(like),
-            Candidate.id.in_(tag_subquery),
-        ))
+        keyword = search.casefold()
+        matching_ids = [c.id for c in query.all() if keyword in _candidate_search_blob(c)]
+        query = query.filter(Candidate.id.in_(matching_ids or [-1]))
 
     if stage and stage in VALID_STAGES:
         latest = _latest_stage_subquery()

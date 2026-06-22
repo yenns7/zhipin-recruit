@@ -83,3 +83,32 @@ def test_agent_conversation_detail_is_user_scoped(client, make_user, app):
     response = client.get(f"/api/agent/conversations/{conv_id}", headers=_auth(other_token))
 
     assert response.status_code == 403
+
+
+def test_interviewer_cannot_access_agent_endpoints(client, make_user, monkeypatch):
+    """面试官前端没有 AI 助手入口，后端也必须拒绝直接调用。"""
+    _, token = make_user("agent-interviewer@example.com", role="interviewer")
+
+    class FakeAgent:
+        def run_stream(self, *args, **kwargs):
+            yield {"type": "done", "answer": "should not run"}
+
+    from app.api import agent as agent_api
+
+    monkeypatch.setattr(agent_api, "_get_agent", lambda: FakeAgent())
+
+    headers = _auth(token)
+    checks = [
+        client.get("/api/agent/tools", headers=headers),
+        client.get("/api/agent/conversations", headers=headers),
+        client.get("/api/agent/conversations/1", headers=headers),
+        client.post("/api/agent/execute", headers=headers, json={"tool": "create_job", "args": {}}),
+        client.post(
+            "/api/agent/chat",
+            headers=headers,
+            json={"message": "查一下候选人"},
+            buffered=True,
+        ),
+    ]
+
+    assert [response.status_code for response in checks] == [403, 403, 403, 403, 403]

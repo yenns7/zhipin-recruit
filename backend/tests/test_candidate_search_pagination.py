@@ -68,6 +68,53 @@ def test_candidates_support_search_stage_sort_and_pagination(client, make_user, 
     assert body["candidates"][0]["top_tags"][0] == {"tag": "Python", "score": 5}
 
 
+def test_candidates_search_includes_resume_company_position_and_school(client, make_user, app):
+    admin_id, admin_token = make_user("candidate-resume-search-admin@example.com", role="admin")
+
+    with app.app_context():
+        from app import db
+        from app.models import Candidate
+
+        db.session.add_all([
+            Candidate(
+                owner_hr_id=admin_id,
+                name_masked="候选人画像命中",
+                email_masked="resume-hit@example.com",
+                resume_json={
+                    "extracted_info": {
+                        "education": [{"school": "复旦大学", "major": "计算机科学"}],
+                        "experience": [{"company": "某AI公司", "position": "NLP算法工程师"}],
+                    }
+                },
+            ),
+            Candidate(
+                owner_hr_id=admin_id,
+                name_masked="候选人画像未命中",
+                email_masked="resume-miss@example.com",
+                resume_json={"extracted_info": {"education": [{"school": "普通大学"}]}},
+            ),
+        ])
+        db.session.commit()
+
+    company_response = client.get(
+        "/api/candidates?search=某AI公司&page=1&per_page=20",
+        headers=_auth(admin_token),
+    )
+    assert company_response.status_code == 200
+    company_body = company_response.get_json()
+    assert company_body["total"] == 1
+    assert company_body["candidates"][0]["name_masked"] == "候选人画像命中"
+
+    school_response = client.get(
+        "/api/candidates?search=复旦大学&page=1&per_page=20",
+        headers=_auth(admin_token),
+    )
+    assert school_response.status_code == 200
+    school_body = school_response.get_json()
+    assert school_body["total"] == 1
+    assert school_body["candidates"][0]["name_masked"] == "候选人画像命中"
+
+
 def test_candidates_support_intent_city_filter_from_resume(client, make_user, app):
     admin_id, admin_token = make_user("candidate-city-admin@example.com", role="admin")
 

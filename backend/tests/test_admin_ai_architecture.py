@@ -31,4 +31,5 @@ def test_admin_ai_architecture_dashboard_describes_prompt_tools_and_permissions(
     }
     assert body["permission_model"]["database_access"] is True
     assert body["permission_model"]["write_requires_confirmation"] is True
-    assert body["permission_model"]["read_tools_available_to_authenticated_users"] is True
+    assert body["permission_model"]["read_tools_available_to_authenticated_users"] is False
+    assert "面试官" in body["permission_model"]["read_scope_note"]

@@ -278,6 +278,29 @@ def close_demand(demand_id):
     return jsonify(_demand_payload(demand))
 
 
+@bp.post("/demands/<int:demand_id>/restore")
+@require_auth
+@require_role("recruiter", "manager", "admin")
+def restore_demand(demand_id):
+    demand = db.get_or_404(RecruitmentDemand, demand_id)
+    if not _can_manage_demand(demand):
+        return jsonify({"error": "无权恢复该需求"}), 403
+    data = request.get_json() or {}
+    restore_note = _clean(data.get("note"), 1000)
+    demand.status = "active"
+    demand.close_reason = ""
+    if restore_note:
+        demand.note = _clean(
+            f"{demand.note or ''}\n恢复说明：{restore_note}".strip(),
+            2000,
+        )
+    if demand.job:
+        demand.job.status = "active"
+    db.session.commit()
+    record_event("demand.restored", entity_id=demand.id, entity_type="demand")
+    return jsonify(_demand_payload(demand))
+
+
 @bp.post("/demands/<int:demand_id>/downgrade")
 @require_auth
 @require_role("recruiter", "manager", "admin")

@@ -78,6 +78,53 @@ def test_demands_can_be_created_listed_and_closed_with_metrics(client, make_user
         assert job.status == "closed"
 
 
+def test_closed_demands_can_be_restored_with_linked_job(client, make_user, app):
+    _, token = make_user("demand-restore@example.com", role="recruiter", name="恢复HR")
+
+    with app.app_context():
+        job = Job(title="运营负责人", city="广州", department="运营部", jd_text="负责运营团队")
+        db.session.add(job)
+        db.session.commit()
+        job_id = job.id
+
+    created = client.post(
+        "/api/demands",
+        headers=_auth(token),
+        json={
+            "job_id": job_id,
+            "requester_department": "运营部",
+            "priority": "B",
+            "headcount": 1,
+            "status": "active",
+        },
+    )
+    assert created.status_code == 201
+    demand_id = created.get_json()["id"]
+
+    closed = client.post(
+        f"/api/demands/{demand_id}/close",
+        headers=_auth(token),
+        json={"status": "cancelled", "close_reason": "业务误点关闭"},
+    )
+    assert closed.status_code == 200
+    assert closed.get_json()["status"] == "cancelled"
+
+    restored = client.post(
+        f"/api/demands/{demand_id}/restore",
+        headers=_auth(token),
+        json={"note": "业务确认继续招聘"},
+    )
+    assert restored.status_code == 200
+    body = restored.get_json()
+    assert body["status"] == "active"
+    assert body["close_reason"] == ""
+    assert "业务确认继续招聘" in body["note"]
+
+    with app.app_context():
+        job = db.session.get(Job, job_id)
+        assert job.status == "active"
+
+
 def test_demands_can_be_downgraded_and_expose_risk_flags(client, make_user, app):
     hr_id, token = make_user("demand-risk@example.com", role="recruiter", name="风险HR")
 

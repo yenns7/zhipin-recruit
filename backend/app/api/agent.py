@@ -1,6 +1,6 @@
 import json
 from flask import Blueprint, request, Response, jsonify, g, current_app, stream_with_context
-from ..middleware.auth import require_auth
+from ..middleware.auth import require_auth, require_role
 from ..middleware.rate_limit import rate_limit
 from .. import db
 from ..models import Conversation, ConversationMessage
@@ -27,6 +27,7 @@ def _get_agent() -> RecruitingAgent:
 
 @bp.get("/agent/tools")
 @require_auth
+@require_role("recruiter", "manager", "admin")
 def list_tools():
     """返回智能体可用的工具清单（供前端展示「能力」）。含只读与写操作。"""
     return jsonify({"tools": AGENT_TOOLS, "write_tools": AGENT_WRITE_TOOLS})
@@ -34,6 +35,7 @@ def list_tools():
 
 @bp.get("/agent/conversations")
 @require_auth
+@require_role("recruiter", "manager", "admin")
 def list_conversations():
     conversations = (
         Conversation.query
@@ -52,6 +54,7 @@ def list_conversations():
 
 @bp.get("/agent/conversations/<int:conversation_id>")
 @require_auth
+@require_role("recruiter", "manager", "admin")
 def get_conversation(conversation_id):
     conversation = db.get_or_404(Conversation, conversation_id)
     if conversation.user_id != g.user_id:
@@ -72,6 +75,7 @@ def get_conversation(conversation_id):
 
 @bp.post("/agent/execute")
 @require_auth
+@require_role("recruiter", "manager", "admin")
 def execute():
     """执行 AI 助手提议的写操作（用户确认后调用）。
     在正常请求上下文内运行，g.user_id / g.role 有效，做 RBAC 校验。
@@ -89,6 +93,7 @@ def execute():
 
 @bp.post("/agent/chat")
 @require_auth
+@require_role("recruiter", "manager", "admin")
 @rate_limit("agent.chat")
 def chat():
     """
