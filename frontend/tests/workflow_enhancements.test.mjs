@@ -24,8 +24,8 @@ function readSource(path) {
 const uploadPage = readSource('pages/UploadPage.tsx');
 assert.match(uploadPage, /来源信息/);
 assert.match(uploadPage, /source_channel/);
-assert.match(uploadPage, /target_job_id/);
-assert.match(uploadPage, /上传批次/);
+assert.doesNotMatch(uploadPage, /target_job_id/);
+assert.doesNotMatch(uploadPage, /上传批次/);
 
 const candidatesPage = readSource('features/candidates/pages/CandidatesPage.tsx');
 assert.match(candidatesPage, /来源渠道/);

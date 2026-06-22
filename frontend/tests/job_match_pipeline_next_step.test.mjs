@@ -23,7 +23,7 @@ assert.match(
 
 assert.match(
   jobMatchPage,
-  /查看候选人管道/,
+  /查看候选人流程/,
   'After joining a candidate, the match page should expose a visible next-step CTA',
 );
 

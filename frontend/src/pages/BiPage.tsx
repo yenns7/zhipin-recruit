@@ -90,68 +90,6 @@ function teamAvgConversion(staff: BiStaffMember[]): number {
   return safeRate(sumStaff(staff, 'onboarded'), resumes);
 }
 
-function MetricDefinitionStrip() {
-  const items = [
-    '有效推荐 = 已进入候选人管道',
-    '推荐成功面试 = 进入“面试中”阶段，不固定看一面/二面/三面',
-    '面试通过 = 面试反馈里标记通过的人',
-    'Offer = 已推进到 Offer 阶段',
-    '已入职 = 已推进到已入职阶段',
-    '待补反馈 = 已安排面试但未提交反馈',
-    '主绩效按候选人负责人归属',
-    '当前阶段分布 = 全量最新阶段，不受周期筛选影响',
-    '周期指标 = 按本期入库简历追踪后续结果',
-  ];
-
-  return (
-    <div className="rounded-md border border-hairline bg-surface-soft px-4 py-3">
-      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">口径说明</div>
-      <div className="grid gap-2 text-sm text-body md:grid-cols-2 xl:grid-cols-3">
-        {items.map((item) => (
-          <div key={item} className="rounded-md bg-canvas px-3 py-2">
-            {item}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ResponsibilityDefinitionCard() {
-  const items = [
-    '候选人负责人：算 HR 绩效',
-    '最后推进人：算操作留痕',
-    '面试反馈人：算面试官责任',
-    '用人部门：按岗位部门聚合',
-    '数字异常：先看数据质量提醒',
-  ];
-  const actions = [
-    '去候选人管道查看卡点',
-    '去面试工作台催反馈',
-    '检查是否跳过面试直接进入 Offer',
-  ];
-
-  return (
-    <div className="rounded-md border border-hairline bg-surface-soft px-4 py-3">
-      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">责任怎么算</div>
-      <div className="grid gap-2 text-sm text-body md:grid-cols-2 xl:grid-cols-5">
-        {items.map((item) => (
-          <div key={item} className="rounded-md bg-canvas px-3 py-2">
-            {item}
-          </div>
-        ))}
-      </div>
-      <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted">
-        {actions.map((item) => (
-          <span key={item} className="rounded-md bg-canvas px-2 py-1">
-            {item}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function DataQualityWarningsPanel({ warnings }: { warnings: BiDataQualityWarning[] }) {
   if (warnings.length === 0) return null;
 
@@ -616,6 +554,14 @@ function TeamOverview({
 
   const [selectedHrId, setSelectedHrId] = useState<number | null>(null);
   const sourceQuality = data?.source_quality ?? [];
+  const interviewerPendingFeedback = data?.interviewer_accountability.reduce(
+    (acc, item) => acc + safeNum(item.pending_feedback),
+    0,
+  ) ?? 0;
+  const departmentPendingFeedback = data?.department_accountability.reduce(
+    (acc, item) => acc + safeNum(item.pending_feedback),
+    0,
+  ) ?? 0;
 
   if (selectedHrId !== null) {
     const staffMember = data?.staff.find((s) => s.hr_id === selectedHrId) ?? null;
@@ -636,7 +582,7 @@ function TeamOverview({
       {/* Page Header */}
       <PageHeader
         title="数据看板"
-        description="当前存量、周期简历 cohort 与责任归因"
+        description="看团队招聘进度、卡点和协同跟进"
         actions={
           <SegmentedControl<number>
             options={DAYS_OPTIONS}
@@ -646,9 +592,6 @@ function TeamOverview({
           />
         }
       />
-
-      <MetricDefinitionStrip />
-      <ResponsibilityDefinitionCard />
 
       {loading && (
         <div className="flex items-center justify-center py-32">
@@ -701,7 +644,7 @@ function TeamOverview({
             <KpiCard
               label="有效推荐"
               value={<AnimatedNumber value={sumStaff(data.staff, 'effective_recommendations')} />}
-              sub="已进入候选人管道"
+              sub="已进入候选人流程"
               accent="#FF9500"
             />
             <KpiCard
@@ -895,10 +838,17 @@ function TeamOverview({
           <Reveal as="div" className="grid grid-cols-1 gap-6 xl:grid-cols-2" stagger={0.08} y={16}>
             <Card variant="elevated">
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>面试官责任</CardTitle>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <CardTitle>面试反馈跟进</CardTitle>
+                    <p className="mt-1 text-xs leading-5 text-muted">
+                      看谁还有反馈没补，不是用来简单排名面试官。
+                    </p>
+                  </div>
                   {data.interviewer_accountability.length > 0 && (
-                    <Badge tone="neutral">面试官 {data.interviewer_accountability.length}</Badge>
+                    <Badge tone={interviewerPendingFeedback > 0 ? 'warning' : 'neutral'}>
+                      待补 {interviewerPendingFeedback}
+                    </Badge>
                   )}
                 </div>
               </CardHeader>
@@ -909,10 +859,17 @@ function TeamOverview({
 
             <Card variant="elevated">
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>用人部门责任</CardTitle>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <CardTitle>部门协同情况</CardTitle>
+                    <p className="mt-1 text-xs leading-5 text-muted">
+                      看哪个部门需要同步反馈和判断标准，不是给部门贴标签。
+                    </p>
+                  </div>
                   {data.department_accountability.length > 0 && (
-                    <Badge tone="neutral">部门 {data.department_accountability.length}</Badge>
+                    <Badge tone={departmentPendingFeedback > 0 ? 'warning' : 'neutral'}>
+                      待补 {departmentPendingFeedback}
+                    </Badge>
                   )}
                 </div>
               </CardHeader>
@@ -1003,7 +960,7 @@ function StaffDrilldown({
           <KpiCard
             label="有效推荐"
             value={<AnimatedNumber value={safeNum(staffMember.effective_recommendations)} />}
-            sub="进入候选人管道"
+            sub="进入候选人流程"
             accent="#FF9500"
           />
           <KpiCard

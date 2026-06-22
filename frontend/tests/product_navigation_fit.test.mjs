@@ -26,9 +26,21 @@ assert.doesNotMatch(
 assert.ok(
   /label:\s*'简历库'/.test(candidatesNav) &&
     /label:\s*'招聘管理'/.test(demandsNav) &&
-    nav.indexOf('...featureNavItems') < nav.indexOf("label: '候选人管道'") &&
-    nav.indexOf("label: '候选人管道'") < nav.indexOf("label: '面试工作台'"),
-  'Sidebar should follow the HR workflow: resume library -> recruitment management -> candidate pipeline -> interview workbench',
+    nav.indexOf('...featureNavItems') < nav.indexOf("label: '候选人流程'") &&
+    nav.indexOf("label: '候选人流程'") < nav.indexOf("label: '数据看板'"),
+  'Sidebar should follow the HR workflow without adding interview as a second workbench',
+);
+
+assert.doesNotMatch(
+  nav,
+  /label:\s*'面试工作台'/,
+  'Interview tasks should not remain as a duplicate top-level workbench',
+);
+
+assert.match(
+  nav,
+  /label:\s*'我的面试'[\s\S]*roles:\s*\['interviewer'\]/,
+  'Interviewers should keep a narrow My Interviews sidebar entry',
 );
 
 assert.doesNotMatch(
@@ -38,7 +50,7 @@ assert.doesNotMatch(
 );
 
 assert.ok(
-  nav.indexOf("label: '面试工作台'") < nav.indexOf("label: 'AI 助手'"),
+  nav.indexOf("label: '数据看板'") < nav.indexOf("label: 'AI 助手'"),
   'AI assistant should support the workflow instead of interrupting the main HR path',
 );
 
@@ -57,6 +69,16 @@ assert.match(
   /'\/notifications'/,
   'Notification center should be treated as a top-level shell path',
 );
+assert.doesNotMatch(
+  shell,
+  /data-shell="identity"/,
+  'Sidebar should not repeat the current user card when the account menu already owns account actions',
+);
+assert.match(
+  shell,
+  /data-shell="account-menu"[\s\S]*aria-label="账户菜单"[\s\S]*修改密码[\s\S]*退出登录/,
+  'Password change and logout should live in one compact account menu instead of separate persistent top-bar buttons',
+);
 
 assert.match(
   dashboard,
@@ -67,6 +89,16 @@ assert.match(
   dashboard,
   /WORKFLOW_ACTIONS/,
   'Dashboard should use explicit role workflow actions',
+);
+assert.doesNotMatch(
+  dashboard,
+  /label:\s*'处理面试反馈'/,
+  'Dashboard common actions should not recreate a generic interview-workbench shortcut',
+);
+assert.match(
+  dashboard,
+  /to="\/interviews\?focus=pending"[\s\S]*label="待补反馈"/,
+  'Dashboard should keep interview feedback reachable as a specific todo',
 );
 assert.doesNotMatch(
   dashboard,
@@ -82,10 +114,10 @@ assert.doesNotMatch(
 assert.match(
   interviews,
   /待我处理/,
-  'Interview workbench should lead with pending work for HR and interviewers',
+  'Interview task page should lead with pending work for HR and interviewers',
 );
 assert.match(
   interviews,
   /面试记录/,
-  'Interview workbench should expose records as a clear workspace section',
+  'Interview task page should expose records as a clear workspace section',
 );

@@ -2,13 +2,14 @@ import { AlertTriangle, CalendarCheck2 } from 'lucide-react';
 import { formatDate } from '../../lib/formatDate';
 import { roundLabel } from '../../lib/interviewRecords';
 import type { InterviewAssignment } from '../../types';
-import { Badge, Card, CardBody, CardHeader, CardTitle } from '../ui';
+import { Badge, Button, Card, CardBody, CardHeader, CardTitle } from '../ui';
 
 interface MyInterviewsPanelProps {
   assignments: InterviewAssignment[];
+  onStartFeedback?: (assignment: InterviewAssignment) => void;
 }
 
-export function MyInterviewsPanel({ assignments }: MyInterviewsPanelProps) {
+export function MyInterviewsPanel({ assignments, onStartFeedback }: MyInterviewsPanelProps) {
   const pending = assignments.filter((item) => !item.feedback_submitted);
   const overdue = assignments.filter((item) => item.is_overdue);
   const done = assignments.filter((item) => item.feedback_submitted);
@@ -59,7 +60,19 @@ export function MyInterviewsPanel({ assignments }: MyInterviewsPanelProps) {
                       {item.interviewer_name ? ` · ${item.interviewer_name}` : ''}
                     </p>
                   </div>
-                  {item.is_overdue && <AlertTriangle className="h-4 w-4 shrink-0 text-danger-700" aria-hidden="true" />}
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    {item.is_overdue && <AlertTriangle className="h-4 w-4 text-danger-700" aria-hidden="true" />}
+                    {onStartFeedback && !item.feedback_submitted && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={item.is_overdue ? 'danger' : 'secondary'}
+                        onClick={() => onStartFeedback(item)}
+                      >
+                        填写反馈
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

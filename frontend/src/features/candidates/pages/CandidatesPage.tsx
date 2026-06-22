@@ -24,7 +24,7 @@ import {
   Spinner,
 } from '../../../components/ui';
 import { Reveal, AnimatedNumber } from '../../../components/motion';
-import type { CandidateListItem, CandidateTag, ParseStatus } from '../types';
+import type { CandidateListItem, CandidateTag, MatchResultItem, ParseStatus } from '../types';
 
 const TAG_TONES = ['accent', 'purple', 'teal', 'info', 'neutral'] as const;
 const COMMON_SOURCE_OPTIONS = RESUME_SOURCE_CHANNEL_OPTIONS.filter((channel) => channel !== '其他');
@@ -92,6 +92,22 @@ function ScorePill({ score }: { score: number }) {
   return <Badge tone={scoreTone(score)}>{score} 分</Badge>;
 }
 
+function fitRecommendation(score: number, missingCount: number) {
+  if (score >= 75 && missingCount <= 1) {
+    return { label: '建议初筛', tone: 'success' as const };
+  }
+  if (score >= 45) {
+    return { label: '谨慎推进', tone: 'warning' as const };
+  }
+  return { label: '暂不建议', tone: 'neutral' as const };
+}
+
+function fitScoreTone(score: number) {
+  if (score >= 75) return 'success';
+  if (score >= 45) return 'warning';
+  return 'neutral';
+}
+
 function ParseStatusPill({ status }: { status?: ParseStatus }) {
   if (!status) return null;
   const tone = status === 'failed' ? 'danger' : status === 'ok' ? 'success' : 'warning';
@@ -123,16 +139,88 @@ function ResumeSummary({ candidate }: { candidate: CandidateListItem }) {
 function SkillBadges({ candidate }: { candidate: CandidateListItem }) {
   const tags = candidateTags(candidate);
   if (tags.length === 0) return <span className="text-muted-soft">暂无标签</span>;
+  const visibleTags = tags.slice(0, 3);
+  const hiddenCount = Math.max((candidate.tag_count ?? tags.length) - visibleTags.length, 0);
   return (
     <div className="flex max-w-[360px] flex-wrap gap-1.5">
-      {tags.slice(0, 5).map((skill, index) => (
+      {visibleTags.map((skill, index) => (
         <Badge key={`${skill.tag}-${skill.score}`} tone={TAG_TONES[index % TAG_TONES.length]}>
           {skill.tag} · {skill.score}
         </Badge>
       ))}
-      {candidate.tag_count > tags.length && (
-        <Badge tone="neutral">+{candidate.tag_count - tags.length}</Badge>
+      {hiddenCount > 0 && (
+        <Badge tone="neutral">+{hiddenCount}</Badge>
       )}
+    </div>
+  );
+}
+
+function JobFitSummary({
+  candidate,
+  jobFit,
+  hasTargetJob,
+  loading,
+  error,
+}: {
+  candidate: CandidateListItem;
+  jobFit: MatchResultItem | null;
+  hasTargetJob: boolean;
+  loading: boolean;
+  error: boolean;
+}) {
+  if (!hasTargetJob) {
+    return <SkillBadges candidate={candidate} />;
+  }
+
+  if (loading) {
+    return <span className="text-xs text-muted-soft">正在计算岗位匹配…</span>;
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-2">
+        <span className="text-xs text-danger-600">岗位匹配预览失败</span>
+        <SkillBadges candidate={candidate} />
+      </div>
+    );
+  }
+
+  if (!jobFit) {
+    return (
+      <div className="space-y-2">
+        <span className="text-xs text-muted-soft">暂无岗位匹配结果</span>
+        <SkillBadges candidate={candidate} />
+      </div>
+    );
+  }
+
+  const matched = Array.isArray(jobFit.matched_tags) ? jobFit.matched_tags : [];
+  const missing = Array.isArray(jobFit.missing_tags) ? jobFit.missing_tags : [];
+  const recommendation = fitRecommendation(jobFit.score, missing.length);
+
+  return (
+    <div className="max-w-[460px] space-y-2">
+      <div className="flex flex-wrap gap-1.5">
+        <Badge tone={fitScoreTone(jobFit.score)}>匹配 {jobFit.score}%</Badge>
+        <Badge tone={recommendation.tone}>{recommendation.label}</Badge>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {matched.length > 0 ? (
+          matched.slice(0, 3).map((tag) => (
+            <Badge key={`matched-${tag}`} tone="success">
+              命中要求 · {tag}
+            </Badge>
+          ))
+        ) : (
+          <Badge tone="neutral">命中要求 · 暂无</Badge>
+        )}
+        {missing.slice(0, 2).map((tag) => (
+          <Badge key={`missing-${tag}`} tone="warning">
+            欠缺 · {tag}
+          </Badge>
+        ))}
+        {missing.length > 2 && <Badge tone="neutral">欠缺 +{missing.length - 2}</Badge>}
+      </div>
     </div>
   );
 }
@@ -173,6 +261,9 @@ function SourceSummary({ candidate }: { candidate: CandidateListItem }) {
 interface CandidateRowProps {
   candidate: CandidateListItem;
   targetJobId: string;
+  jobFit: MatchResultItem | null;
+  jobFitLoading: boolean;
+  jobFitError: boolean;
   addingCandidateId: number | null;
   onAddToJob: (candidateId: number) => void;
 }
@@ -180,6 +271,9 @@ interface CandidateRowProps {
 function CandidateRow({
   candidate,
   targetJobId,
+  jobFit,
+  jobFitLoading,
+  jobFitError,
   addingCandidateId,
   onAddToJob,
 }: CandidateRowProps) {
@@ -204,7 +298,13 @@ function CandidateRow({
         <ResumeSummary candidate={candidate} />
       </td>
       <td className="px-5 py-4">
-        <SkillBadges candidate={candidate} />
+        <JobFitSummary
+          candidate={candidate}
+          jobFit={jobFit}
+          hasTargetJob={Boolean(targetJobId)}
+          loading={jobFitLoading}
+          error={jobFitError}
+        />
       </td>
       <td className="px-5 py-4">
         <SourceSummary candidate={candidate} />
@@ -230,7 +330,7 @@ function CandidateRow({
             onClick={() => onAddToJob(candidate.id)}
           >
             <UserPlus className="h-4 w-4" />
-            加入岗位
+            加入所选岗位流程
           </Button>
         </div>
       </td>
@@ -275,6 +375,29 @@ export function CandidatesPage() {
 
   const candidates = useMemo(() => data?.candidates ?? [], [data]);
   const totalCandidates = data?.total ?? candidates.length;
+  const selectedJobId = targetJobId ? Number(targetJobId) : 0;
+  const selectedJob = useMemo(
+    () => (jobsAsync.data ?? []).find((job) => String(job.id) === targetJobId) ?? null,
+    [jobsAsync.data, targetJobId],
+  );
+  const candidateIds = useMemo(() => candidates.map((candidate) => candidate.id), [candidates]);
+  const candidateIdKey = candidateIds.join(',');
+  const matchPreviewAsync = useAsync(
+    () => {
+      if (!selectedJobId || candidateIds.length === 0) {
+        return Promise.resolve({ job_id: selectedJobId, results: [] });
+      }
+      return api.previewJobMatch(selectedJobId, candidateIds);
+    },
+    [selectedJobId, candidateIdKey],
+  );
+  const matchByCandidateId = useMemo(() => {
+    const map = new Map<number, MatchResultItem>();
+    for (const item of matchPreviewAsync.data?.results ?? []) {
+      map.set(item.candidate_id, item);
+    }
+    return map;
+  }, [matchPreviewAsync.data]);
 
   const cityOptions = useMemo(() => {
     const parsedCities = candidates
@@ -318,11 +441,15 @@ export function CandidatesPage() {
         return matchesQuery && matchesCity && matchesTag && matchesScore;
       })
       .sort((a, b) => {
+        if (selectedJobId) {
+          const fitDiff = (matchByCandidateId.get(b.id)?.score ?? 0) - (matchByCandidateId.get(a.id)?.score ?? 0);
+          if (fitDiff !== 0) return fitDiff;
+        }
         const scoreDiff = (b.max_score ?? 0) - (a.max_score ?? 0);
         if (scoreDiff !== 0) return scoreDiff;
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
-  }, [candidates, cityFilter, query, scoreFilter, tagFilter]);
+  }, [candidates, cityFilter, matchByCandidateId, query, scoreFilter, selectedJobId, tagFilter]);
 
   const uniqueTagCount = tagOptions.length;
   const highScoreCount = candidates.filter((c) => (c.max_score ?? 0) >= 4).length;
@@ -401,8 +528,14 @@ export function CandidatesPage() {
         title="简历库"
         description={
           <>
-            已匹配 <AnimatedNumber value={totalCandidates} /> 份简历 · 当前页 AI 技能标签{' '}
-            <AnimatedNumber value={uniqueTagCount} /> 类
+            已收录 <AnimatedNumber value={totalCandidates} /> 份简历
+            {selectedJob ? (
+              <> · 正在按「{selectedJob.title}」查看岗位适配</>
+            ) : (
+              <>
+                {' '}· 当前页核心技能 <AnimatedNumber value={uniqueTagCount} /> 类
+              </>
+            )}
           </>
         }
         actions={
@@ -434,7 +567,7 @@ export function CandidatesPage() {
         </Card>
         <Card>
           <CardBody className="py-4">
-            <p className="text-xs text-muted-soft">当前页高分候选人</p>
+            <p className="text-xs text-muted-soft">高匹配候选人</p>
             <p className="mt-1 text-2xl font-semibold text-ink">
               <AnimatedNumber value={highScoreCount} />
             </p>
@@ -442,9 +575,9 @@ export function CandidatesPage() {
         </Card>
         <Card>
           <CardBody className="py-4">
-            <p className="text-xs text-muted-soft">可筛选技能</p>
+            <p className="text-xs text-muted-soft">{selectedJob ? '当前页匹配结果' : '可筛选技能'}</p>
             <p className="mt-1 text-2xl font-semibold text-ink">
-              <AnimatedNumber value={uniqueTagCount} />
+              <AnimatedNumber value={selectedJob ? matchByCandidateId.size : uniqueTagCount} />
             </p>
           </CardBody>
         </Card>
@@ -525,15 +658,15 @@ export function CandidatesPage() {
                   <option value="processing">解析中</option>
                 </Select>
                 <Select
-                  label="岗位流程"
+                  label="入流程状态"
                   value={pipelineStatusFilter}
                   onChange={(event) =>
                     setPipelineStatusFilter(event.target.value as 'all' | 'in_pipeline' | 'not_in_pipeline')
                   }
                 >
-                  <option value="all">全部简历</option>
-                  <option value="not_in_pipeline">未进入岗位流程</option>
-                  <option value="in_pipeline">已进入岗位流程</option>
+                  <option value="all">全部状态</option>
+                  <option value="not_in_pipeline">未进入流程</option>
+                  <option value="in_pipeline">已进入流程</option>
                 </Select>
                 <Select
                   label="最低技能分"
@@ -555,7 +688,7 @@ export function CandidatesPage() {
               <div className="mt-4 border-t border-hairline-soft pt-4">
                 <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.6fr)]">
                   <Select
-                    label="加入岗位"
+                    label="目标岗位"
                     value={targetJobId}
                     onChange={(event) => {
                       setTargetJobId(event.target.value);
@@ -563,7 +696,7 @@ export function CandidatesPage() {
                       setActionMessage(null);
                     }}
                   >
-                    <option value="">选择目标岗位</option>
+                    <option value="">不限制岗位</option>
                     {(jobsAsync.data ?? []).map((job) => (
                       <option key={job.id} value={job.id}>
                         {[job.job_code, job.title, job.city, job.department].filter(Boolean).join(' · ')}
@@ -576,10 +709,14 @@ export function CandidatesPage() {
                         <span>正在加载岗位…</span>
                       ) : jobsAsync.error ? (
                         <span className="text-danger-600">{jobsAsync.error.message}</span>
+                      ) : targetJobId && matchPreviewAsync.loading ? (
+                        <span>正在计算当前页候选人与该岗位的命中、欠缺和建议。</span>
+                      ) : targetJobId && matchPreviewAsync.error ? (
+                        <span className="text-danger-600">岗位匹配预览失败，仍可查看核心技能并加入流程。</span>
                       ) : targetJobId ? (
-                        <span>点击列表中的“加入岗位”，候选人会进入该岗位待筛选阶段。</span>
+                        <span>列表已切换为岗位匹配摘要；点击“加入所选岗位流程”才会推进候选人。</span>
                       ) : (
-                        <span>先选择目标岗位，再把筛选出的简历加入流程。</span>
+                        <span>先扫简历库；选择岗位后，再看每位候选人的命中、欠缺和推进建议。</span>
                       )}
                     </div>
                   </div>
@@ -593,7 +730,7 @@ export function CandidatesPage() {
           <Card variant="elevated">
             <CardHeader>
               <div className="flex items-center justify-between gap-3">
-                <CardTitle>简历库列表</CardTitle>
+                <CardTitle>候选人列表</CardTitle>
                 <span className="text-xs text-muted-soft">
                   当前显示 {filteredCandidates.length} / {totalCandidates} 份
                 </span>
@@ -604,33 +741,36 @@ export function CandidatesPage() {
                 <EmptyState
                   icon={Users}
                   title="没有符合条件的简历"
-                  description="调整搜索词、城市、来源、解析状态、岗位流程或技能条件后再查看"
+                  description="调整搜索词、城市、来源、解析状态、入流程状态或技能条件后再查看"
                 />
               </CardBody>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-hairline bg-surface-soft text-left text-xs font-medium uppercase tracking-wide text-muted">
+	                  <thead>
+	                    <tr className="border-b border-hairline bg-surface-soft text-left text-xs font-medium uppercase tracking-wide text-muted">
 	                      <th className="px-5 py-3">候选人</th>
 	                      <th className="px-5 py-3">简历摘要</th>
-	                      <th className="px-5 py-3">AI 技能标签</th>
+	                      <th className="px-5 py-3">{targetJobId ? '岗位匹配摘要' : '核心技能'}</th>
 	                      <th className="px-5 py-3">来源信息</th>
 	                      <th className="px-5 py-3">最高分</th>
-                      <th className="px-5 py-3">入库时间</th>
-                      <th className="px-5 py-3 text-right">操作</th>
-                    </tr>
+	                      <th className="px-5 py-3">入库时间</th>
+	                      <th className="px-5 py-3 text-right">操作</th>
+	                    </tr>
                   </thead>
                   <Reveal as="tbody" stagger={0.035} y={10}>
-                    {filteredCandidates.map((candidate) => (
-                      <CandidateRow
-                        key={candidate.id}
-                        candidate={candidate}
-                        targetJobId={targetJobId}
-                        addingCandidateId={addingCandidateId}
-                        onAddToJob={handleAddToJob}
-                      />
-                    ))}
+	                    {filteredCandidates.map((candidate) => (
+	                      <CandidateRow
+	                        key={candidate.id}
+	                        candidate={candidate}
+	                        targetJobId={targetJobId}
+	                        jobFit={matchByCandidateId.get(candidate.id) ?? null}
+	                        jobFitLoading={Boolean(targetJobId && matchPreviewAsync.loading)}
+	                        jobFitError={Boolean(targetJobId && matchPreviewAsync.error)}
+	                        addingCandidateId={addingCandidateId}
+	                        onAddToJob={handleAddToJob}
+	                      />
+	                    ))}
                   </Reveal>
                 </table>
               </div>

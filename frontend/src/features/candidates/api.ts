@@ -10,5 +10,6 @@ export const candidatesApi = {
   getCandidateJourney: api.getCandidateJourney,
   reassignCandidate: api.reassignCandidate,
   listJobs: api.listJobs,
+  previewJobMatch: api.previewJobMatch,
   batchAddToPipeline: api.batchAddToPipeline,
 };

@@ -83,7 +83,7 @@ export function buildPipelineInsight(candidate: PipelineBoardCandidate | null): 
   if (isInterviewStage(candidate.stage)) {
     return {
       title: '处理面试动作',
-      detail: '优先确认是否已安排面试、是否待补反馈，必要时进入面试工作台处理。',
+      detail: '优先确认是否已安排面试、是否待补反馈，必要时进入面试任务页处理。',
       tone: 'warning',
     };
   }

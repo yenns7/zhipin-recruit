@@ -51,7 +51,7 @@ assert.doesNotMatch(
 
 assert.match(
   stageTabs,
-  /aria-label="候选人管道阶段"/,
+  /aria-label="候选人流程阶段"/,
   'Stage tabs should be accessible as the candidate-pipeline stage navigator',
 );
 
@@ -75,8 +75,8 @@ assert.match(
 
 assert.match(
   candidatePanel,
-  /去面试工作台/,
-  'Interview-stage actions should still send users to the interview workbench',
+  /填写面试反馈/,
+  'Interview-stage actions should send users to the concrete feedback task',
 );
 
 assert.match(

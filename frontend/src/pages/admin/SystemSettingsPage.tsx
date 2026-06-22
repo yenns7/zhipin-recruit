@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, FileCode2, ScrollText, ShieldCheck } from 'lucide-react';
+import { FileCode2, ScrollText, ShieldCheck } from 'lucide-react';
 import { Badge, PageHeader } from '../../components/ui';
 import { cn } from '../../lib/cn';
 import { AiArchitectureContent } from './AiArchitecturePage';
@@ -18,17 +18,10 @@ const SECTIONS: Array<{
 }> = [
   {
     id: 'users',
-    title: '用户管理',
+    title: '账号管理',
     description: '管理团队成员、角色权限和账号启停状态。',
     icon: ShieldCheck,
     badge: '账号',
-  },
-  {
-    id: 'ai',
-    title: 'AI 提示词看板',
-    description: '查看 AI 助手提示词、工具权限和后端接入边界。',
-    icon: FileCode2,
-    badge: 'AI',
   },
   {
     id: 'audit',
@@ -36,6 +29,13 @@ const SECTIONS: Array<{
     description: '查看关键写操作流水，排查谁在什么时候改了什么。',
     icon: ScrollText,
     badge: '审计',
+  },
+  {
+    id: 'ai',
+    title: 'AI 边界',
+    description: '查看 AI 助手提示词、工具权限和后端接入边界。',
+    icon: FileCode2,
+    badge: 'AI',
   },
 ];
 
@@ -50,7 +50,11 @@ export function SystemSettingsPage() {
         eyebrow={<Badge tone="glass">仅管理员可见</Badge>}
       />
 
-      <div className="grid gap-3 lg:grid-cols-3">
+      <div
+        role="tablist"
+        aria-label="系统设置分类"
+        className="flex flex-wrap gap-2 border-b border-hairline pb-3"
+      >
         {SECTIONS.map((section) => {
           const active = openSection === section.id;
           const Icon = section.icon;
@@ -58,42 +62,36 @@ export function SystemSettingsPage() {
             <button
               key={section.id}
               type="button"
+              role="tab"
               onClick={() => setOpenSection(section.id)}
               className={cn(
-                'flex items-start justify-between gap-4 rounded-lg border px-4 py-3 text-left transition-colors',
+                'inline-flex min-h-10 items-center gap-2 rounded-md border px-3 text-left text-sm font-medium transition-colors',
                 active
-                  ? 'border-ink bg-canvas shadow-apple-sm'
-                  : 'border-hairline bg-surface-soft hover:border-surface-strong hover:bg-canvas',
+                  ? 'border-ink bg-ink text-on-primary shadow-apple-xs'
+                  : 'border-hairline bg-surface-soft text-body hover:border-surface-strong hover:bg-surface-card',
               )}
-              aria-expanded={active}
+              aria-selected={active}
             >
-              <span className="flex min-w-0 gap-3">
-                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-canvas text-ink">
-                  <Icon className="h-[18px] w-[18px]" />
-                </span>
-                <span className="min-w-0">
-                  <span className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold text-ink">{section.title}</span>
-                    <Badge tone={active ? 'brand' : 'neutral'}>{section.badge}</Badge>
-                  </span>
-                  <span className="mt-1 block text-sm text-muted">{section.description}</span>
-                </span>
-              </span>
-              <ChevronDown
-                className={cn(
-                  'mt-1 h-4 w-4 shrink-0 text-muted transition-transform',
-                  active && 'rotate-180 text-ink',
-                )}
-              />
+              <Icon className="h-4 w-4" />
+              {section.title}
+              <Badge tone={active ? 'glass' : 'neutral'}>{section.badge}</Badge>
             </button>
           );
         })}
       </div>
 
       <section className="rounded-lg border border-hairline bg-canvas px-4 py-4">
+        <div className="mb-4 rounded-md border border-hairline bg-surface-soft px-4 py-3">
+          <p className="text-sm font-medium text-ink">
+            {SECTIONS.find((section) => section.id === openSection)?.title}
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            {SECTIONS.find((section) => section.id === openSection)?.description}
+          </p>
+        </div>
         {openSection === 'users' && <UsersManagementContent />}
-        {openSection === 'ai' && <AiArchitectureContent />}
         {openSection === 'audit' && <AuditLogContent />}
+        {openSection === 'ai' && <AiArchitectureContent />}
       </section>
     </div>
   );

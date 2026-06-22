@@ -35,16 +35,31 @@ assert.match(
 );
 assert.match(
   biPage,
-  /面试官责任/,
-  'BI page should show interviewer accountability',
+  /面试反馈跟进/,
+  'BI page should frame interviewer accountability as feedback follow-up',
 );
 assert.match(
   biPage,
-  /用人部门责任/,
-  'BI page should show department accountability',
+  /部门协同情况/,
+  'BI page should frame department accountability as collaboration health',
 );
 assert.match(
   biPage,
   /待补反馈/,
   'BI accountability view should expose pending feedback',
+);
+assert.match(
+  biPage,
+  /不是用来简单排名面试官/,
+  'Interviewer accountability should avoid a blame-oriented interpretation',
+);
+assert.match(
+  biPage,
+  /不是给部门贴标签/,
+  'Department accountability should avoid a blame-oriented interpretation',
+);
+assert.doesNotMatch(
+  biPage,
+  /<CardTitle>面试官责任<\/CardTitle>|<CardTitle>用人部门责任<\/CardTitle>/,
+  'BI accountability card titles should not use stiff responsibility labels',
 );

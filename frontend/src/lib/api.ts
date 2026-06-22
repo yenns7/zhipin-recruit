@@ -24,6 +24,7 @@ import type {
   CreateJobResponse,
   DemandCloseInput,
   DemandDowngradeInput,
+  DemandRestoreInput,
   InterviewFeedbackInput,
   InterviewAssignment,
   InterviewAssignmentInput,
@@ -287,6 +288,9 @@ export const api = {
   downgradeDemand(demandId: number, payload: DemandDowngradeInput): Promise<RecruitmentDemand> {
     return request(`/demands/${demandId}/downgrade`, { method: 'POST', body: payload });
   },
+  restoreDemand(demandId: number, payload: DemandRestoreInput = {}): Promise<RecruitmentDemand> {
+    return request(`/demands/${demandId}/restore`, { method: 'POST', body: payload });
+  },
 
   // ---- Talent maps ----
   listTalentMaps(): Promise<TalentMapSummary[]> {
@@ -327,6 +331,14 @@ export const api = {
   // use this RESTful, job-scoped method.
   matchJob(jobId: number): Promise<MatchResponse> {
     return request(`/jobs/${jobId}/match`, { method: 'POST' });
+  },
+  previewJobMatch(jobId: number, candidateIds?: number[]): Promise<MatchResponse> {
+    const search = new URLSearchParams();
+    if (candidateIds?.length) {
+      search.set('candidate_ids', candidateIds.join(','));
+    }
+    const suffix = search.toString() ? `?${search.toString()}` : '';
+    return request(`/jobs/${jobId}/match-preview${suffix}`);
   },
   batchAddToPipeline(
     jobId: number,

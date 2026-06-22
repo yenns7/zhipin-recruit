@@ -27,32 +27,26 @@ assert.match(
 
 assert.match(
   nav,
-  /label:\s*'候选人管道'/,
-  'Candidate pipeline should be the main candidate-stage progression entry',
+  /label:\s*'候选人流程'/,
+  'Candidate flow should be the main candidate-stage progression entry',
 );
 
 assert.match(
   nav,
-  /label:\s*'面试工作台'/,
-  'Interview navigation should be framed as an execution workbench, not a duplicate hiring pipeline',
-);
-
-assert.match(
-  nav,
-  /interviewer:\s*'我的面试'/,
-  'Interviewers should see their personal interview inbox instead of a broad center module',
+  /label:\s*'我的面试'[\s\S]*roles:\s*\['interviewer'\]/,
+  'Only interviewers should see a personal interview inbox in the sidebar',
 );
 
 assert.doesNotMatch(
   nav,
-  /label:\s*'(招聘流程|面试任务|面试中心)'/,
-  'The top-level navigation should use the more mature candidate-pipeline and interview-workbench labels',
+  /label:\s*'(招聘流程|面试工作台|面试任务|面试中心)'/,
+  'The top-level navigation should avoid adding interview as a duplicate workbench-style module',
 );
 
 assert.match(
   jobsPage,
-  /查看候选人管道/,
-  'Job rows should expose the next step from a job into its candidate pipeline',
+  /查看候选人流程/,
+  'Job rows should expose the next step from a job into its candidate flow',
 );
 
 assert.match(
@@ -63,7 +57,7 @@ assert.match(
 
 assert.match(
   jobMatchPage,
-  /去候选人管道查看/,
+  /去候选人流程查看/,
   'After joining from matching, the CTA should tell HR the next destination plainly',
 );
 
@@ -87,8 +81,8 @@ assert.match(
 
 assert.match(
   candidateCard,
-  /去面试工作台/,
-  'Interview-stage candidate cards should point HR to the interview workbench for scheduling and feedback',
+  /填写面试反馈/,
+  'Interview-stage candidate cards should point HR to the concrete feedback task',
 );
 
 assert.match(
@@ -111,6 +105,6 @@ assert.match(
 
 assert.match(
   interviewsPage,
-  /回面试工作台/,
-  'The standalone AI interview entry should send users back to the interview workbench',
+  /回面试任务/,
+  'The standalone AI interview entry should send users back to interview tasks',
 );

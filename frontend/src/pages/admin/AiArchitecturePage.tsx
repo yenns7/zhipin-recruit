@@ -81,6 +81,7 @@ export function AiArchitectureContent() {
   }
 
   const permissions = data.permission_model;
+  const readGuarded = !permissions.read_tools_available_to_authenticated_users;
 
   return (
     <div className="space-y-6">
@@ -106,9 +107,26 @@ export function AiArchitectureContent() {
           <CardTitle>权限边界</CardTitle>
         </CardHeader>
         <CardBody className="space-y-4">
-          <div className="rounded-md border border-warning-200 bg-warning-50 px-4 py-3">
-            <p className="text-sm font-medium text-warning-800">读数据权限偏大</p>
-            <p className="mt-1 text-sm text-warning-700">{permissions.read_scope_note}</p>
+          <div
+            className={[
+              'rounded-md border px-4 py-3',
+              readGuarded ? 'border-success-200 bg-success-50' : 'border-warning-200 bg-warning-50',
+            ].join(' ')}
+          >
+            <p className={[
+              'text-sm font-medium',
+              readGuarded ? 'text-success-800' : 'text-warning-800',
+            ].join(' ')}
+            >
+              {readGuarded ? 'AI 助手入口已按角色收口' : '读数据权限偏大'}
+            </p>
+            <p className={[
+              'mt-1 text-sm',
+              readGuarded ? 'text-success-700' : 'text-warning-700',
+            ].join(' ')}
+            >
+              {permissions.read_scope_note}
+            </p>
           </div>
           <div className="rounded-md border border-success-200 bg-success-50 px-4 py-3">
             <p className="text-sm font-medium text-success-800">改数据有确认和角色限制</p>

@@ -7,6 +7,7 @@ export type {
   CandidateSourceInfo,
   CandidateTag,
   CandidateListQuery,
+  MatchResultItem,
   ResumeJson,
   ParseStatus,
   RetryParseResponse,

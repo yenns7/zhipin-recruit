@@ -4,7 +4,7 @@ import {
   LayoutDashboard,
   KanbanSquare,
   BarChart3,
-  Bot,
+  ClipboardCheck,
   Sparkles,
   Settings,
   type LucideIcon,
@@ -32,18 +32,15 @@ export const NAV_ITEMS: NavItem[] = [
   ...featureNavItems,
   {
     to: '/pipeline',
-    label: '候选人管道',
+    label: '候选人流程',
     icon: KanbanSquare,
     roles: ['recruiter', 'manager', 'admin'],
   },
   {
     to: '/interviews',
-    label: '面试工作台',
-    labelByRole: {
-      interviewer: '我的面试',
-    },
-    icon: Bot,
-    roles: ['recruiter', 'interviewer', 'manager', 'admin'],
+    label: '我的面试',
+    icon: ClipboardCheck,
+    roles: ['interviewer'],
   },
   {
     to: '/bi',

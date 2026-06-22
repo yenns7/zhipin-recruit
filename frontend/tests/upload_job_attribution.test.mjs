@@ -24,20 +24,98 @@ const candidatesApi = readBackend('api/candidates.py');
 
 assert.match(
   uploadPage,
-  /入库方式/,
-  'Upload page should let HR choose how the resumes enter the library',
+  /上传后会保存到简历库/,
+  'Upload page should make library-only upload the single default behavior',
 );
 
 assert.match(
   uploadPage,
-  /上传到简历库/,
-  'Upload page should support uploading resumes without binding a job first',
+  /后续可在简历库筛选后再加入岗位流程/,
+  'Upload page should move job assignment guidance to the resume library',
 );
 
-assert.match(
+assert.doesNotMatch(
+  uploadPage,
+  /保存并加入岗位流程/,
+  'Upload page should not expose the removed job-linked upload option',
+);
+
+assert.doesNotMatch(
   uploadPage,
   /关联岗位上传/,
-  'Upload page should keep the existing job-linked upload path',
+  'Upload page should avoid the ambiguous "关联岗位上传" wording',
+);
+
+assert.match(
+  uploadPage,
+  /去简历库分配岗位/,
+  'Upload result should guide users to the resume library for job assignment',
+);
+
+assert.doesNotMatch(
+  uploadPage,
+  /加入哪个岗位流程/,
+  'Upload page should not ask users to choose a job during upload',
+);
+
+assert.doesNotMatch(
+  uploadPage,
+  /请选择要加入的岗位/,
+  'Upload page should not include a target job placeholder',
+);
+
+assert.doesNotMatch(
+  uploadPage,
+  /target_job_id/,
+  'Upload page should not send target_job_id from the simplified upload flow',
+);
+
+assert.doesNotMatch(
+  uploadPage,
+  /SegmentedControl/,
+  'Upload page should not use a mode switch for upload handling',
+);
+
+assert.match(
+  uploadPage,
+  /useState\(false\)/,
+  'Optional source information should be collapsed by default',
+);
+
+assert.match(
+  uploadPage,
+  /候选人来源/,
+  'Source channel should be labeled as candidate source',
+);
+
+assert.match(
+  uploadPage,
+  /内推人 \/ 猎头联系人（选填）/,
+  'Referrer field should explain who to enter in recruiting language',
+);
+
+assert.match(
+  uploadPage,
+  /本次上传备注（选填）/,
+  'Upload note should be labeled as optional batch notes',
+);
+
+assert.doesNotMatch(
+  uploadPage,
+  /来源链接/,
+  'Source link should not be part of the main upload form',
+);
+
+assert.doesNotMatch(
+  uploadPage,
+  /候选人主页或沟通链接/,
+  'Upload page should not ask users for a low-priority source URL in the main flow',
+);
+
+assert.match(
+  uploadPage,
+  /用于后续统计哪个渠道更有效/,
+  'Source helper copy should explain why the optional channel matters',
 );
 
 assert.match(
@@ -46,16 +124,22 @@ assert.match(
   'Upload page should explain the downstream path for library-only resumes',
 );
 
-assert.match(
+assert.doesNotMatch(
   uploadPage,
   /const uploadMode/,
-  'Upload page should track whether this batch is library-only or job-linked',
+  'Upload page should not keep removed upload mode state',
 );
 
-assert.match(
+assert.doesNotMatch(
   uploadPage,
   /uploadMode === 'job'/,
-  'Upload page should only require a target job in job-linked mode',
+  'Upload page should not branch into a job-linked upload mode',
+);
+
+assert.doesNotMatch(
+  uploadPage,
+  /关联岗位上传需要先选择目标岗位/,
+  'Validation copy should not reuse the ambiguous job-linked upload wording',
 );
 
 assert.doesNotMatch(
@@ -70,10 +154,10 @@ assert.doesNotMatch(
   'Upload action should not require a selected job for library-only uploads',
 );
 
-assert.match(
+assert.doesNotMatch(
   uploadPage,
   /selectedJob/,
-  'Upload page should derive attribution preview from the selected target job',
+  'Upload page should not derive job attribution during upload',
 );
 
 assert.match(
@@ -112,22 +196,22 @@ assert.match(
   'Candidate profile should make clear that department attribution is inherited from the job',
 );
 
-assert.match(
-  uploadPage,
-  /已进入待筛选/,
-  'Upload result should tell HR when job-linked uploads entered the pending pipeline',
-);
-
-assert.match(
+assert.doesNotMatch(
   uploadPage,
   /查看流程/,
-  'Upload result should link HR directly to the pipeline after job-linked import',
+  'Upload result should not link directly to pipeline from the simplified upload flow',
 );
 
-assert.match(
+assert.doesNotMatch(
+  uploadPage,
+  /已进入待筛选/,
+  'Upload result should not show job-pipeline status from the simplified upload flow',
+);
+
+assert.doesNotMatch(
   uploadPage,
   /稍后分配岗位/,
-  'Upload result should make library-only resumes easy to continue from the candidate library',
+  'Upload result should use clearer resume-library assignment wording',
 );
 
 assert.match(

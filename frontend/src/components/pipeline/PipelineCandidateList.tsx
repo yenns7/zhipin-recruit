@@ -1,47 +1,84 @@
 import { Link } from 'react-router-dom';
 import { ChevronRight, User } from 'lucide-react';
-import type { PipelineBoardCandidate } from '../../types';
-import type { StageConfig } from '../../lib/pipelineStages';
+import type { PipelineBoardCandidate, PipelineStage } from '../../types';
+import { STAGES, type StageConfig } from '../../lib/pipelineStages';
 import { formatDate } from '../../lib/formatDate';
 import { cn } from '../../lib/cn';
-import { Spinner } from '../ui';
+import { Button, Spinner } from '../ui';
 import { stageAgeClass, stageAgeDays } from '../../lib/pipelineInsights';
 
 interface PipelineCandidateListProps {
   stage: StageConfig;
   candidates: PipelineBoardCandidate[];
+  counts: Partial<Record<PipelineStage, number>>;
+  jobId: number | null;
   selectedCandidateId: number | null;
   highlightedCandidateId: number | null;
   busyId: number | null;
+  onJumpToStage: (stage: PipelineStage) => void;
   onSelect: (candidate: PipelineBoardCandidate) => void;
 }
 
 export function PipelineCandidateList({
   stage,
   candidates,
+  counts,
+  jobId,
   selectedCandidateId,
   highlightedCandidateId,
   busyId,
+  onJumpToStage,
   onSelect,
 }: PipelineCandidateListProps) {
+  const nextStages = STAGES.filter(
+    (item) => item.key !== stage.key && (counts[item.key] ?? 0) > 0,
+  ).slice(0, 3);
+
   return (
     <section className="rounded-md border border-hairline bg-canvas">
       <div className="flex items-center justify-between border-b border-hairline px-4 py-3">
         <div>
-          <h2 className="text-sm font-semibold text-ink">当前阶段候选人</h2>
-          <p className="mt-0.5 text-xs text-muted">
-            {stage.label} · {candidates.length} 人
-          </p>
+          <h2 className="text-sm font-semibold text-ink">
+            当前阶段候选人 · {candidates.length} 人
+          </h2>
+          <p className="mt-0.5 text-xs text-muted">按停留时间和负责人优先处理</p>
         </div>
-        <span className={cn('inline-flex items-center rounded-full px-2 py-1 text-xs font-medium', stage.badgeBg)}>
-          {stage.label}
-        </span>
       </div>
 
       <div className="max-h-[640px] overflow-y-auto">
         {candidates.length === 0 ? (
-          <div className="px-4 py-16 text-center text-sm text-muted-soft">
-            当前阶段暂无候选人
+          <div className="space-y-4 px-4 py-12 text-center">
+            <div>
+              <p className="text-sm font-medium text-ink">当前阶段暂无候选人</p>
+              <p className="mt-1 text-xs text-muted">
+                可以先切到有人的阶段继续处理，或去补充更多候选人。
+              </p>
+            </div>
+            <div className="flex flex-wrap justify-center gap-2">
+              {nextStages.map((item) => (
+                <Button
+                  key={item.key}
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => onJumpToStage(item.key)}
+                >
+                  去{item.label} {counts[item.key] ?? 0} 人
+                </Button>
+              ))}
+              {jobId !== null && (
+                <Link to={`/jobs/${jobId}/match`}>
+                  <Button type="button" size="sm" variant="secondary">
+                    去匹配更多候选人
+                  </Button>
+                </Link>
+              )}
+              <Link to="/upload">
+                <Button type="button" size="sm" variant="secondary">
+                  上传简历
+                </Button>
+              </Link>
+            </div>
           </div>
         ) : (
           <ul className="divide-y divide-hairline-soft">

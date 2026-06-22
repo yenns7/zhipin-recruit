@@ -7,4 +7,5 @@ export const demandsApi = {
   updateDemand: api.updateDemand,
   closeDemand: api.closeDemand,
   downgradeDemand: api.downgradeDemand,
+  restoreDemand: api.restoreDemand,
 };

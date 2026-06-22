@@ -71,14 +71,8 @@ assert.match(
 
 assert.match(
   nav,
-  /label:\s*'面试工作台'/,
-  'Navigation should label the interview workspace as a workbench instead of a duplicate pipeline module',
-);
-
-assert.match(
-  nav,
-  /interviewer:\s*'我的面试'/,
-  'Interviewers should see a personal interview inbox label',
+  /label:\s*'我的面试'[\s\S]*roles:\s*\['interviewer'\]/,
+  'Interviewers should see a personal interview inbox label without exposing a broad HR workbench',
 );
 
 assert.match(

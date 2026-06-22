@@ -38,6 +38,7 @@ assert.match(api, /listDemands/, 'Demand API wrapper should list demands');
 assert.match(api, /createDemand/, 'Demand API wrapper should create demands');
 assert.match(api, /closeDemand/, 'Demand API wrapper should close demands');
 assert.match(api, /downgradeDemand/, 'Demand API wrapper should downgrade demand priority');
+assert.match(api, /restoreDemand/, 'Demand API wrapper should restore closed demands');
 
 const types = readSource('types/index.ts');
 assert.match(types, /interface RecruitmentDemand/, 'Shared types should expose RecruitmentDemand');
@@ -53,6 +54,8 @@ assert.match(page, /业务提需求时间/, 'Demand form should capture when bus
 assert.match(page, /HR 接手时间/, 'Demand form should capture when HR accepted the request');
 assert.match(page, /关闭需求/, 'Demand cards should support closing stale or invalid requests');
 assert.match(page, /降级/, 'Demand cards should support priority downgrade');
+assert.match(page, /调整优先级/, 'Demand cards should support correcting demand priority after mistakes');
+assert.match(page, /恢复需求/, 'Demand cards should support restoring mistakenly closed demands');
 assert.match(page, /业务侧卡点/, 'Demand cards should call out when the business side is blocking progress');
 assert.match(page, /HR 侧卡点/, 'Demand cards should call out when HR-side action is missing');
 assert.match(page, /阶段分布/, 'Demand cards should visualize the linked job pipeline distribution');

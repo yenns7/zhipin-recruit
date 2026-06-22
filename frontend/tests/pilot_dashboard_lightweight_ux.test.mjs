@@ -45,35 +45,25 @@ assert.match(
   /推荐成功面试/,
   'Recruiter dashboard should use the generic interview-entry metric',
 );
-assert.match(
+assert.doesNotMatch(
   biPage,
-  /口径说明/,
-  'BI page should explain the public MVP metric definitions',
+  /怎么看数据|指标口径|协同归属/,
+  'BI header should stay focused on dashboard controls instead of carrying an extra reading-help entry',
 );
 assert.match(
   biPage,
-  /推荐成功面试 = 进入“面试中”阶段/,
-  'BI page should clarify that interview-entry metrics are based on the interview stage',
+  /DAYS_OPTIONS/,
+  'BI page should keep the period selector as the only header-side control',
 );
 assert.match(
   biPage,
-  /面试通过 = 面试反馈里标记通过的人/,
-  'BI page should clarify that pass metrics come from feedback facts',
+  /Offer/,
+  'BI page should still expose Offer metrics',
 );
 assert.match(
   biPage,
-  /主绩效按候选人负责人归属/,
-  'BI page should clarify that HR performance is attributed to candidate ownership',
-);
-assert.match(
-  biPage,
-  /Offer = 已推进到 Offer 阶段/,
-  'BI page should clarify that Offer metrics come from pipeline stages',
-);
-assert.match(
-  biPage,
-  /已入职 = 已推进到已入职阶段/,
-  'BI page should clarify that onboarded metrics come from pipeline stages',
+  /已入职/,
+  'BI page should still expose onboarded metrics',
 );
 assert.match(
   pipelinePanel,

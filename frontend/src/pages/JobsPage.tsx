@@ -814,7 +814,7 @@ export function JobsPage() {
                                   to={`/pipeline?job=${job.id}`}
                                   className="text-xs font-medium text-muted hover:text-ink hover:underline"
                                 >
-                                  查看候选人管道
+                                  查看候选人流程
                                 </Link>
                                 <button
                                   onClick={() => startEditJobAttribution(job)}

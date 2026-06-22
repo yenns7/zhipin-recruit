@@ -38,6 +38,26 @@ assert.doesNotMatch(
   '岗位管理 should not remain as a separate top-level sidebar item after recruitment consolidation',
 );
 
+const interviewNavBlock = nav.match(/\{\s*to:\s*'\/interviews'[\s\S]*?\n\s*\},/)?.[0] ?? '';
+
+assert.match(
+  interviewNavBlock,
+  /label:\s*'我的面试'/,
+  'Interview sidebar entry should be phrased as a narrow interviewer task entry',
+);
+
+assert.match(
+  interviewNavBlock,
+  /roles:\s*\['interviewer'\]/,
+  'Recruiters, managers, and admins should not see interviews as a top-level sidebar module',
+);
+
+assert.doesNotMatch(
+  interviewNavBlock,
+  /面试工作台|'recruiter'|'manager'|'admin'/,
+  'Interview entry should not keep workbench wording or broad HR/admin sidebar access',
+);
+
 assert.doesNotMatch(
   nav,
   /label:\s*'AI 提示词看板'/,
@@ -54,6 +74,12 @@ assert.match(
   app,
   /path="\/upload"/,
   'Upload route should remain available even after it leaves top-level navigation',
+);
+
+assert.match(
+  app,
+  /path="\/interviews"[\s\S]*allow=\{\['recruiter', 'interviewer', 'manager', 'admin'\]\}/,
+  'Interview task route should remain available for deep links from dashboard and pipeline',
 );
 
 assert.match(

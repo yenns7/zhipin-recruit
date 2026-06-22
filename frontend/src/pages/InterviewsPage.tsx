@@ -180,10 +180,10 @@ function SetupPhase({ onStart }: SetupProps) {
             <div className="space-y-2 rounded-lg bg-danger-50 px-4 py-3 text-sm text-danger-700">
               <p>{error}</p>
               <p>
-                AI 生成失败也不影响流程，可回到面试工作台手动安排面试。
+                AI 生成失败也不影响流程，可回到面试任务页手动安排面试。
               </p>
               <Link to="/interviews" className="font-medium underline hover:no-underline">
-                回面试工作台
+                回面试任务
               </Link>
             </div>
           )}
@@ -451,7 +451,7 @@ export function InterviewsPage() {
         <Card>
           <CardBody>
             <p className="text-sm text-danger-600">
-              报告生成失败，请重试，或回到面试工作台手动安排面试
+              报告生成失败，请重试，或回到面试任务页手动安排面试
               <button
                 onClick={handleReset}
                 className="ml-3 font-medium underline hover:no-underline"

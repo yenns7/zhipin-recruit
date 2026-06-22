@@ -12,7 +12,6 @@ import {
   Upload,
   Briefcase,
   KanbanSquare,
-  Bot,
   BarChart3,
   Settings,
   Sparkles,
@@ -101,17 +100,17 @@ const WORKFLOW_ACTIONS: WorkflowAction[] = [
   },
   {
     to: '/pipeline',
-    label: '跟进候选人管道',
+    label: '跟进候选人流程',
     desc: '推进初筛、面试、Offer、淘汰沉淀',
     icon: KanbanSquare,
     roles: ['recruiter', 'manager', 'admin'],
   },
   {
     to: '/interviews',
-    label: '处理面试反馈',
-    desc: '安排面试、填写反馈、查看面试记录',
-    icon: Bot,
-    roles: ['recruiter', 'manager', 'admin', 'interviewer'],
+    label: '我的面试',
+    desc: '查看安排并填写反馈',
+    icon: ClipboardCheck,
+    roles: ['interviewer'],
   },
   {
     to: '/bi',
@@ -137,9 +136,9 @@ const WORKFLOW_ACTIONS: WorkflowAction[] = [
 ];
 
 const ACTION_ORDER_BY_ROLE: Record<Role, string[]> = {
-  recruiter: ['/upload', '/jobs', '/pipeline', '/interviews'],
-  manager: ['/bi', '/pipeline', '/interviews', '/agent'],
-  admin: ['/bi', '/admin/settings', '/interviews', '/agent'],
+  recruiter: ['/upload', '/jobs', '/pipeline'],
+  manager: ['/bi', '/pipeline', '/agent'],
+  admin: ['/bi', '/admin/settings', '/agent'],
   interviewer: ['/interviews'],
 };
 
@@ -487,7 +486,7 @@ function RecruiterTodoPanel({ stats }: { stats: DashboardStats }) {
         y={14}
       >
         <TodoCard
-          to="/pipeline"
+          to="/pipeline?stage=business_review"
           label="业务待反馈"
           value={businessReview}
           desc="推动用人部门确认"
@@ -495,7 +494,7 @@ function RecruiterTodoPanel({ stats }: { stats: DashboardStats }) {
           tone={businessReview && businessReview > 0 ? 'warning' : 'success'}
         />
         <TodoCard
-          to="/pipeline"
+          to="/pipeline?stage=interview"
           label="面试中跟进"
           value={interview}
           desc="关注候选人当前进展"
@@ -503,7 +502,7 @@ function RecruiterTodoPanel({ stats }: { stats: DashboardStats }) {
           tone={interview && interview > 0 ? 'neutral' : 'success'}
         />
         <TodoCard
-          to="/interviews"
+          to="/interviews?focus=pending"
           label="待补反馈"
           value={feedbackPending}
           desc="催补面试结论"
@@ -511,7 +510,7 @@ function RecruiterTodoPanel({ stats }: { stats: DashboardStats }) {
           tone={feedbackPending && feedbackPending > 0 ? 'warning' : 'success'}
         />
         <TodoCard
-          to="/pipeline"
+          to="/pipeline?stage=offer"
           label="Offer跟进"
           value={offer}
           desc="跟进发放与入职"

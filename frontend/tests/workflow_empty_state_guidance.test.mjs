@@ -65,7 +65,6 @@ assert.match(
 
 for (const [name, source] of [
   ['demands page', demandsPage],
-  ['upload page', uploadPage],
   ['pipeline page', pipelinePage],
   ['interview assignment panel', interviewAssignment],
 ]) {
@@ -75,6 +74,12 @@ for (const [name, source] of [
     `${name} should guide users to create a job when the target job is missing`,
   );
 }
+
+assert.doesNotMatch(
+  uploadPage,
+  /新建岗位/,
+  'Upload page should not ask users to resolve job gaps during resume upload',
+);
 
 assert.match(
   addToPipeline,
@@ -167,23 +172,18 @@ assert.match(
 
 assert.match(
   biPage,
-  /责任怎么算/,
-  'BI page should include a plain-language responsibility explanation card',
+  /数据质量提醒/,
+  'BI page should keep data-quality warnings as the operational explanation path',
 );
 assert.match(
   biPage,
-  /候选人负责人：算 HR 绩效/,
-  'BI responsibility explanation should distinguish HR ownership from operations',
+  /面试反馈跟进/,
+  'BI page should keep interviewer follow-up visible without a separate explanation button',
 );
 assert.match(
   biPage,
-  /最后推进人：算操作留痕/,
-  'BI responsibility explanation should distinguish last operator from owner',
-);
-assert.match(
-  biPage,
-  /去候选人管道查看卡点|去面试工作台催反馈|检查是否跳过面试直接进入 Offer/,
-  'BI anomalies should suggest the next operational action',
+  /部门协同情况/,
+  'BI page should keep department collaboration visible without a separate explanation button',
 );
 
 assert.match(

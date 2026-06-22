@@ -1,10 +1,11 @@
 // 岗位匹配页 — 展示与当前岗位匹配的候选人排名及标签分析，并可一键将候选人加入招聘流程。
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, Users } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAsync } from '../lib/useAsync';
+import { useDebounce } from '../lib/useDebounce';
 import {
   Badge,
   Button,
@@ -15,9 +16,18 @@ import {
   Spinner,
   EmptyState,
   ErrorState,
+  Input,
+  Select,
+  SegmentedControl,
 } from '../components/ui';
-import type { MatchResultItem } from '../types';
+import type { CandidateListItem, MatchResultItem } from '../types';
 import { Reveal, AnimatedNumber } from '../components/motion';
+
+type MatchView = 'ai' | 'all';
+type ScoreFilter = 'all' | 'strong' | 'medium' | 'low';
+type PipelineFilter = 'all' | 'not_joined' | 'joined';
+
+const ALL_OPTION = 'all';
 
 // Score badge: colour shifts with the score value (0–1 range from backend).
 // Uses a plain span instead of Badge to avoid class-collision with Badge's
@@ -41,6 +51,52 @@ function ScoreBadge({ score }: { score: number }) {
       <AnimatedNumber value={pct} suffix="%" />
     </span>
   );
+}
+
+function normalizedText(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function resultMatchesSearch(item: MatchResultItem, query: string) {
+  const keyword = normalizedText(query);
+  if (!keyword) return true;
+  return [
+    item.name_masked,
+    ...item.matched_tags,
+    ...item.missing_tags,
+  ].some((value) => normalizedText(value).includes(keyword));
+}
+
+function resultMatchesScore(item: MatchResultItem, filter: ScoreFilter) {
+  if (filter === 'strong') return item.score >= 0.8;
+  if (filter === 'medium') return item.score >= 0.6;
+  if (filter === 'low') return item.score < 0.6;
+  return true;
+}
+
+function resultMatchesPipeline(item: MatchResultItem, filter: PipelineFilter, joinedCandidateIds: Set<number>) {
+  if (filter === 'joined') return joinedCandidateIds.has(item.candidate_id);
+  if (filter === 'not_joined') return !joinedCandidateIds.has(item.candidate_id);
+  return true;
+}
+
+function resultMatchesTag(tags: string[], selectedTag: string) {
+  return selectedTag === ALL_OPTION || tags.includes(selectedTag);
+}
+
+function collectUniqueTags(results: MatchResultItem[], field: 'matched_tags' | 'missing_tags') {
+  return Array.from(new Set(results.flatMap((item) => item[field] ?? []))).sort((a, b) => a.localeCompare(b, 'zh-CN'));
+}
+
+function candidateToManualResult(candidate: CandidateListItem, preview: MatchResultItem | undefined): MatchResultItem {
+  if (preview) return preview;
+  return {
+    candidate_id: candidate.id,
+    name_masked: candidate.name_masked,
+    score: 0,
+    matched_tags: candidate.top_tags?.slice(0, 5).map((tag) => tag.tag) ?? [],
+    missing_tags: [],
+  };
 }
 
 // A single candidate match row.
@@ -139,10 +195,10 @@ function MatchRow({
             </span>
             <Link
               to={`/pipeline?job=${jobId}&candidate=${item.candidate_id}`}
-              aria-label="查看候选人管道"
+              aria-label="查看候选人流程"
               className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-hairline bg-canvas px-3 text-sm font-semibold text-ink transition-colors hover:bg-surface-soft hover:border-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
             >
-              去候选人管道查看
+              去候选人流程查看
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
@@ -189,9 +245,16 @@ export function JobMatchPage() {
   const [joinStates, setJoinStates] = useState<
     Record<number, 'idle' | 'joining' | 'joined' | 'error'>
   >({});
+  const [matchView, setMatchView] = useState<MatchView>('ai');
+  const [candidateQuery, setCandidateQuery] = useState('');
+  const [scoreFilter, setScoreFilter] = useState<ScoreFilter>('all');
+  const [pipelineFilter, setPipelineFilter] = useState<PipelineFilter>('all');
+  const [matchedTagFilter, setMatchedTagFilter] = useState(ALL_OPTION);
+  const [missingTagFilter, setMissingTagFilter] = useState(ALL_OPTION);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [batchStatus, setBatchStatus] = useState<'idle' | 'adding' | 'done' | 'error'>('idle');
   const [batchMessage, setBatchMessage] = useState<string | null>(null);
+  const debouncedCandidateQuery = useDebounce(candidateQuery, 300);
 
   const existingPipelineIds = useMemo(
     () => new Set((pipelineAsync.data?.candidates ?? []).map((c) => c.candidate_id)),
@@ -201,6 +264,49 @@ export function JobMatchPage() {
     () => [...(data?.results ?? [])].sort((a, b) => b.score - a.score),
     [data],
   );
+  const libraryAsync = useAsync(
+    () => {
+      if (isInvalidId || matchView !== 'all') {
+        return Promise.resolve({ candidates: [], total: 0, page: 1, per_page: 50, pages: 1 });
+      }
+      return api.searchCandidates({
+        search: debouncedCandidateQuery || undefined,
+        page: 1,
+        per_page: 50,
+        sort_by: 'created_at',
+        sort_order: 'desc',
+      });
+    },
+    [isInvalidId, matchView, debouncedCandidateQuery],
+  );
+  const manualCandidateIds = useMemo(
+    () => (libraryAsync.data?.candidates ?? []).map((candidate) => candidate.id),
+    [libraryAsync.data],
+  );
+  const manualCandidateIdKey = manualCandidateIds.join(',');
+  const manualPreviewAsync = useAsync(
+    () => {
+      if (isInvalidId || matchView !== 'all' || manualCandidateIds.length === 0) {
+        return Promise.resolve({ job_id: jobId, results: [] });
+      }
+      return api.previewJobMatch(jobId, manualCandidateIds);
+    },
+    [isInvalidId, jobId, matchView, manualCandidateIdKey],
+  );
+  const manualPreviewByCandidateId = useMemo(() => {
+    const map = new Map<number, MatchResultItem>();
+    for (const item of manualPreviewAsync.data?.results ?? []) {
+      map.set(item.candidate_id, item);
+    }
+    return map;
+  }, [manualPreviewAsync.data]);
+  const manualResults = useMemo(
+    () =>
+      (libraryAsync.data?.candidates ?? [])
+        .map((candidate) => candidateToManualResult(candidate, manualPreviewByCandidateId.get(candidate.id)))
+        .sort((a, b) => b.score - a.score),
+    [libraryAsync.data, manualPreviewByCandidateId],
+  );
   const joinedCandidateIds = useMemo(() => {
     const ids = new Set(existingPipelineIds);
     Object.entries(joinStates).forEach(([candidateId, state]) => {
@@ -208,14 +314,52 @@ export function JobMatchPage() {
     });
     return ids;
   }, [existingPipelineIds, joinStates]);
+  const baseResults = matchView === 'ai' ? sortedResults : manualResults;
+  const matchedTagOptions = useMemo(() => collectUniqueTags(baseResults, 'matched_tags'), [baseResults]);
+  const missingTagOptions = useMemo(() => collectUniqueTags(baseResults, 'missing_tags'), [baseResults]);
+  const filteredResults = useMemo(
+    () =>
+      baseResults.filter((item) => {
+        const matchesSearch = matchView === 'all' || resultMatchesSearch(item, debouncedCandidateQuery);
+        return (
+          matchesSearch &&
+          resultMatchesScore(item, scoreFilter) &&
+          resultMatchesPipeline(item, pipelineFilter, joinedCandidateIds) &&
+          resultMatchesTag(item.matched_tags, matchedTagFilter) &&
+          resultMatchesTag(item.missing_tags, missingTagFilter)
+        );
+      }),
+    [
+      baseResults,
+      debouncedCandidateQuery,
+      joinedCandidateIds,
+      matchView,
+      matchedTagFilter,
+      missingTagFilter,
+      pipelineFilter,
+      scoreFilter,
+    ],
+  );
   const selectableResults = useMemo(
-    () => sortedResults.filter((item) => !joinedCandidateIds.has(item.candidate_id)),
-    [joinedCandidateIds, sortedResults],
+    () => filteredResults.filter((item) => !joinedCandidateIds.has(item.candidate_id)),
+    [filteredResults, joinedCandidateIds],
   );
   const allSelected =
     selectableResults.length > 0 &&
     selectableResults.every((item) => selectedIds.has(item.candidate_id));
   const someSelected = selectedIds.size > 0;
+  const filteredResultKey = filteredResults.map((item) => item.candidate_id).join(',');
+  const joinedCandidateKey = Array.from(joinedCandidateIds).sort((a, b) => a - b).join(',');
+
+  useEffect(() => {
+    const visibleIds = new Set(filteredResults.map((item) => item.candidate_id));
+    setSelectedIds((prev) => {
+      const next = new Set(
+        Array.from(prev).filter((candidateId) => visibleIds.has(candidateId) && !joinedCandidateIds.has(candidateId)),
+      );
+      return next.size === prev.size ? prev : next;
+    });
+  }, [filteredResultKey, filteredResults, joinedCandidateIds, joinedCandidateKey]);
 
   const toggleSelect = useCallback((candidateId: number) => {
     if (joinedCandidateIds.has(candidateId)) return;
@@ -240,6 +384,17 @@ export function JobMatchPage() {
       return new Set(selectableResults.map((item) => item.candidate_id));
     });
   }, [allSelected, selectableResults]);
+
+  function resetFilters() {
+    setCandidateQuery('');
+    setScoreFilter('all');
+    setPipelineFilter('all');
+    setMatchedTagFilter(ALL_OPTION);
+    setMissingTagFilter(ALL_OPTION);
+    setBatchStatus('idle');
+    setBatchMessage(null);
+    setSelectedIds(new Set());
+  }
 
   async function handleJoin(candidateId: number) {
     setJoinStates((prev) => ({ ...prev, [candidateId]: 'joining' }));
@@ -318,7 +473,7 @@ export function JobMatchPage() {
             <h1 className="mb-1 font-display text-2xl text-ink">
               候选人匹配
             </h1>
-            <p className="text-sm text-muted">岗位 ID：{jobId} · 按综合匹配度排序</p>
+            <p className="text-sm text-muted">岗位 ID：{jobId} · AI 先推荐，也可以人工搜索全库候选人</p>
           </div>
           {!loading && (
             <Button variant="secondary" onClick={reload}>
@@ -345,25 +500,32 @@ export function JobMatchPage() {
 
       {/* Results */}
       {!loading && !error && data && (() => {
-        const results = sortedResults;
-
-        if (results.length === 0) {
-          return (
-            <Card>
-              <EmptyState
-                icon={Users}
-                title="简历池暂无匹配候选人"
-                description="请先在「候选人」模块上传简历，再进行匹配"
-              />
-            </Card>
-          );
-        }
+        const results = filteredResults;
+        const totalResults = matchView === 'ai' ? sortedResults.length : (libraryAsync.data?.total ?? manualResults.length);
+        const isManualLoading = matchView === 'all' && (libraryAsync.loading || manualPreviewAsync.loading);
+        const manualError = matchView === 'all' ? libraryAsync.error ?? manualPreviewAsync.error : null;
 
         return (
           <Card>
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <CardTitle>匹配结果</CardTitle>
+                <div className="space-y-2">
+                  <CardTitle>匹配结果</CardTitle>
+                  <SegmentedControl<MatchView>
+                    size="sm"
+                    value={matchView}
+                    onChange={(value) => {
+                      setMatchView(value);
+                      setSelectedIds(new Set());
+                      setBatchStatus('idle');
+                      setBatchMessage(null);
+                    }}
+                    options={[
+                      { value: 'ai', label: 'AI 推荐' },
+                      { value: 'all', label: '全部候选人' },
+                    ]}
+                  />
+                </div>
                 <div className="flex flex-wrap items-center justify-end gap-3">
                   {batchMessage && (
                     <span
@@ -388,10 +550,101 @@ export function JobMatchPage() {
                   >
                     批量加入流程
                   </Button>
-                  <span className="text-xs text-muted-soft">共 {results.length} 位候选人</span>
+                  <span className="text-xs text-muted-soft">
+                    当前显示 {results.length} / {totalResults} 位候选人
+                  </span>
                 </div>
               </div>
             </CardHeader>
+            <CardBody className="border-t border-hairline-soft">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <Input
+                  label="搜索候选人"
+                  value={candidateQuery}
+                  onChange={(event) => {
+                    setCandidateQuery(event.target.value);
+                    setSelectedIds(new Set());
+                  }}
+                  placeholder="姓名、公司、岗位、学校、技能或邮箱"
+                />
+                <Select
+                  label="匹配度"
+                  value={scoreFilter}
+                  onChange={(event) => setScoreFilter(event.target.value as ScoreFilter)}
+                >
+                  <option value="all">全部匹配度</option>
+                  <option value="strong">80% 以上</option>
+                  <option value="medium">60% 以上</option>
+                  <option value="low">低于 60%</option>
+                </Select>
+                <Select
+                  label="入流程状态"
+                  value={pipelineFilter}
+                  onChange={(event) => setPipelineFilter(event.target.value as PipelineFilter)}
+                >
+                  <option value="all">全部状态</option>
+                  <option value="not_joined">未加入流程</option>
+                  <option value="joined">已加入流程</option>
+                </Select>
+                <Select
+                  label="匹配技能"
+                  value={matchedTagFilter}
+                  onChange={(event) => setMatchedTagFilter(event.target.value)}
+                >
+                  <option value={ALL_OPTION}>全部匹配技能</option>
+                  {matchedTagOptions.map((tag) => (
+                    <option key={tag} value={tag}>
+                      {tag}
+                    </option>
+                  ))}
+                </Select>
+                <Select
+                  label="缺失技能"
+                  value={missingTagFilter}
+                  onChange={(event) => setMissingTagFilter(event.target.value)}
+                >
+                  <option value={ALL_OPTION}>全部缺失技能</option>
+                  {missingTagOptions.map((tag) => (
+                    <option key={tag} value={tag}>
+                      {tag}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-hairline-soft pt-3">
+                <p className="text-xs text-muted">
+                  {matchView === 'ai'
+                    ? 'AI 推荐按综合匹配度排序；如果目标人没排上来，切到“全部候选人”按姓名或技能人工补找。'
+                    : '人工补找会从全量简历库检索；即使 AI 原本没推荐，也可以查看匹配预览并手动加入流程。'}
+                </p>
+                <Button variant="secondary" size="sm" onClick={resetFilters}>
+                  重置筛选
+                </Button>
+              </div>
+              {manualError && (
+                <p className="mt-2 text-xs font-medium text-danger-600">
+                  {manualError.message}
+                </p>
+              )}
+            </CardBody>
+            {isManualLoading ? (
+              <CardBody className="flex flex-col items-center justify-center gap-3 border-t border-hairline-soft py-16 text-center">
+                <Spinner size="md" />
+                <p className="text-sm text-muted">正在搜索候选人并计算岗位匹配…</p>
+              </CardBody>
+            ) : results.length === 0 ? (
+              <CardBody className="border-t border-hairline-soft">
+                <EmptyState
+                  icon={Users}
+                  title={matchView === 'ai' ? 'AI 暂无符合条件的推荐' : '没有找到候选人'}
+                  description={
+                    matchView === 'ai'
+                      ? '可以放宽匹配度、清空技能筛选，或切到“全部候选人”按姓名人工搜索'
+                      : '换一个姓名、邮箱或技能关键词再搜；确认要找的人是否已经上传到简历库'
+                  }
+                />
+              </CardBody>
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -434,6 +687,7 @@ export function JobMatchPage() {
                 </Reveal>
               </table>
             </div>
+            )}
           </Card>
         );
       })()}

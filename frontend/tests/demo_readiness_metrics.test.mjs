@@ -115,13 +115,13 @@ assert.match(
 );
 assert.match(
   biPage,
-  /当前阶段分布 = 全量最新阶段，不受周期筛选影响/,
-  'BI page should explain that current-stage funnel is a stock metric',
+  /FunnelDiagram/,
+  'BI page should still render the current-stage funnel as the stock metric',
 );
 assert.match(
   biPage,
-  /周期指标 = 按本期入库简历追踪后续结果/,
-  'BI page should explain source and staff metrics use a resume cohort',
+  /source_quality/,
+  'BI page should still render period-based source quality metrics',
 );
 assert.match(
   biPage,

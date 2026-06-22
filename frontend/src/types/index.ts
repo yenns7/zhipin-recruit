@@ -300,6 +300,10 @@ export interface DemandDowngradeInput {
   downgrade_reason?: string;
 }
 
+export interface DemandRestoreInput {
+  note?: string;
+}
+
 // ---- Talent map ----
 export type TalentMapBoardJson = Record<string, unknown>;
 

@@ -1,4 +1,4 @@
-// 候选人档案页（HR 视角）— 展示技能雷达图（≥3 标签）或横向评分条，以及简历结构化内容。
+// 候选人档案页（HR 视角）— 展示候选人判断卡片、核心技能证据和简历结构化内容。
 
 import { useState, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -26,8 +26,30 @@ const RADAR_STROKE = '#111111';
 const RADAR_FILL = 'rgba(17, 17, 17, 0.08)';
 const RADAR_GRID_STROKE = '#e5e7eb';   // hairline
 const RADAR_TICK_FILL = '#6b7280';     // muted
+const CORE_SKILL_LIMIT = 8;
+const JUDGEMENT_SKILL_LIMIT = 6;
 
-// 技能雷达图（≥3 个标签时展示）
+function sortSkillTags(tags: CandidateTag[]): CandidateTag[] {
+  return [...tags]
+    .filter((tag) => tag.tag)
+    .sort((a, b) => {
+      const scoreDiff = Number(b.score || 0) - Number(a.score || 0);
+      if (scoreDiff !== 0) return scoreDiff;
+      return a.tag.localeCompare(b.tag, 'zh-CN');
+    });
+}
+
+function getCoreSkillTags(tags: CandidateTag[]): CandidateTag[] {
+  return sortSkillTags(tags).slice(0, CORE_SKILL_LIMIT);
+}
+
+function skillTone(score: number) {
+  if (score >= 4) return 'accent';
+  if (score >= 3) return 'warning';
+  return 'neutral';
+}
+
+// 核心技能雷达图（最多 8 个标签，避免详情页变成标签墙）
 function TagRadarChart({ tags }: { tags: CandidateTag[] }) {
   const data = tags.map((t) => ({ subject: t.tag, value: t.score }));
   return (
@@ -52,30 +74,166 @@ function TagRadarChart({ tags }: { tags: CandidateTag[] }) {
   );
 }
 
-// 横向评分条（< 3 个标签时展示）
-function TagBars({ tags }: { tags: CandidateTag[] }) {
+function AllSkillTagsDisclosure({ tags, hiddenCount }: { tags: CandidateTag[]; hiddenCount: number }) {
+  if (hiddenCount <= 0) return null;
+  const sortedTags = sortSkillTags(tags);
+
   return (
-    <Reveal as="ul" className="space-y-3" stagger={0.06} y={10}>
-      {tags.map((t) => (
-        <li key={t.tag}>
-          <div className="mb-1 flex items-center justify-between text-xs">
-            <span className="font-medium text-ink">{t.tag}</span>
-            <span className="text-muted">{t.score} / 5</span>
+    <details className="mt-4 rounded-md border border-hairline bg-surface-soft px-3 py-2">
+      <summary className="cursor-pointer text-sm font-medium text-ink">
+        查看全部技能标签（共 {tags.length} 个，另有 {hiddenCount} 个未放入雷达）
+      </summary>
+      <div className="mt-3 flex max-h-48 flex-wrap gap-1.5 overflow-auto pr-1">
+        {sortedTags.map((tag, index) => (
+          <Badge key={`${tag.tag}-${tag.score}-${index}`} tone={skillTone(tag.score)}>
+            {tag.tag} · {tag.score}
+          </Badge>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function textFromValue(value: unknown): string {
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return '';
+}
+
+function structuredSummary(value: unknown, keys: string[]): string {
+  const record = Array.isArray(value)
+    ? value.find(isObject)
+    : isObject(value)
+      ? value
+      : null;
+  if (record) {
+    return keys
+      .map((key) => textFromValue(record[key]))
+      .filter(Boolean)
+      .join(' · ');
+  }
+  if (Array.isArray(value)) {
+    return value.map(textFromValue).find(Boolean) ?? '';
+  }
+  return textFromValue(value);
+}
+
+function uniqueLines(lines: string[], limit: number): string[] {
+  return Array.from(new Set(lines.filter(Boolean))).slice(0, limit);
+}
+
+function CandidateJudgementCard({
+  resumeJson,
+  source,
+  tags,
+  coreTags,
+  hiddenSkillCount,
+}: {
+  resumeJson: ResumeJson;
+  source: CandidateSourceInfo | null | undefined;
+  tags: CandidateTag[];
+  coreTags: CandidateTag[];
+  hiddenSkillCount: number;
+}) {
+  const info = getExtractedInfo(resumeJson);
+  const visibleSkills = coreTags.slice(0, JUDGEMENT_SKILL_LIMIT);
+  const highSkills = visibleSkills.filter((skill) => Number(skill.score || 0) >= 4);
+  const latestExperience = structuredSummary(info.experience ?? info.work_experience, ['position', 'company', 'duration']);
+  const education = structuredSummary(info.education, ['school', 'degree', 'major']);
+  const summary = textFromValue(info.summary);
+
+  const recommendation =
+    visibleSkills.length === 0
+      ? { label: '资料待补全', tone: 'neutral' as const, note: '缺少可判断的核心技能，建议先补齐简历信息。' }
+      : highSkills.length >= 3 && latestExperience
+        ? { label: '建议优先初筛', tone: 'success' as const, note: '核心技能和经历线索较集中，适合进入人工初筛。' }
+        : highSkills.length >= 1
+          ? { label: '建议人工复核', tone: 'warning' as const, note: '已有部分有效信号，但还需要结合目标岗位确认。' }
+          : { label: '先补关键经历', tone: 'neutral' as const, note: '技能强度不突出，建议先确认项目和岗位相关经历。' };
+
+  const highlights = uniqueLines([
+    highSkills.length > 0 ? `高分技能：${highSkills.slice(0, 3).map((skill) => skill.tag).join('、')}` : '',
+    latestExperience ? `最近经历：${latestExperience}` : '',
+    education ? `教育背景：${education}` : '',
+    source?.target_job_title ? `来源岗位：${source.target_job_title}` : '',
+    summary ? `摘要：${summary}` : '',
+  ], 3);
+
+  const risks = uniqueLines([
+    hiddenSkillCount > 12 ? 'AI 抽取标签较多，建议按目标岗位二次筛选。' : '',
+    highSkills.length === 0 && visibleSkills.length > 0 ? '缺少 4 分以上核心技能，需要人工确认真实强项。' : '',
+    !latestExperience ? '最近工作经历不清晰，建议补充或查看原简历。' : '',
+    !source?.target_job_title ? '暂未绑定目标岗位，当前判断只能作为通用画像参考。' : '',
+  ], 3);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>候选人判断</CardTitle>
+      </CardHeader>
+      <CardBody className="space-y-5">
+        <div className="rounded-md border border-hairline bg-surface-soft px-3 py-3">
+          <p className="text-xs font-medium text-muted">推荐判断</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <Badge tone={recommendation.tone}>{recommendation.label}</Badge>
+            <span className="text-xs text-muted-soft">基于核心技能和简历结构化信息</span>
           </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-surface-card">
-            <div
-              className="h-full rounded-full bg-ink transition-all"
-              style={{ width: `${(t.score / 5) * 100}%` }}
-              role="progressbar"
-              aria-valuenow={t.score}
-              aria-valuemin={0}
-              aria-valuemax={5}
-              aria-label={t.tag}
-            />
-          </div>
-        </li>
-      ))}
-    </Reveal>
+          <p className="mt-2 text-sm leading-6 text-body">{recommendation.note}</p>
+        </div>
+
+        <div>
+          <p className="mb-2 text-sm font-medium text-ink">核心亮点</p>
+          {highlights.length > 0 ? (
+            <ul className="space-y-1.5 text-sm leading-6 text-body">
+              {highlights.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-soft">暂无足够亮点，建议先补充简历信息。</p>
+          )}
+        </div>
+
+        <div>
+          <p className="mb-2 text-sm font-medium text-ink">核心技能</p>
+          {visibleSkills.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {visibleSkills.map((skill) => (
+                <Badge key={`${skill.tag}-${skill.score}`} tone={skillTone(skill.score)}>
+                  {skill.tag} · {skill.score}
+                </Badge>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-soft">暂无技能标签</p>
+          )}
+        </div>
+
+        <div>
+          <p className="mb-2 text-sm font-medium text-ink">待确认风险</p>
+          {risks.length > 0 ? (
+            <ul className="space-y-1.5 text-sm leading-6 text-body">
+              {risks.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-soft">暂无明显风险，建议结合目标岗位复核。</p>
+          )}
+        </div>
+
+        {coreTags.length >= 3 && (
+          <details className="rounded-md border border-hairline bg-canvas px-3 py-2">
+            <summary className="cursor-pointer text-sm font-medium text-ink">辅助雷达</summary>
+            <div className="mt-3">
+              <TagRadarChart tags={coreTags} />
+            </div>
+          </details>
+        )}
+
+        <AllSkillTagsDisclosure tags={tags} hiddenCount={hiddenSkillCount} />
+      </CardBody>
+    </Card>
   );
 }
 
@@ -944,7 +1102,8 @@ export function CandidateProfilePage() {
 
   const { name_masked, resume_json, tags, created_at, source, parse_status, parse_error } = data;
   const hasTags = tags && tags.length > 0;
-  const useRadar = hasTags && tags.length >= 3;
+  const coreTags = hasTags ? getCoreSkillTags(tags) : [];
+  const hiddenSkillCount = hasTags ? Math.max(tags.length - coreTags.length, 0) : 0;
   const parseFailed = parse_status === 'failed';
 
   return (
@@ -972,31 +1131,24 @@ export function CandidateProfilePage() {
           </p>
         </div>
         {hasTags && (
-          <Badge tone="neutral">{tags.length} 个技能标签</Badge>
+          <Badge tone="neutral">核心 {coreTags.length} / 共 {tags.length} 个技能</Badge>
         )}
       </div>
 
-      <Reveal as="div" className="grid grid-cols-1 gap-6 lg:grid-cols-3" stagger={0.1} y={20}>
-        {/* 左栏 — 技能评估 */}
-	        <div className="lg:col-span-1">
-	          <div className="space-y-4">
-	            <Card>
-	              <CardHeader>
-	                <CardTitle>{useRadar ? '技能雷达' : '技能评分'}</CardTitle>
-	              </CardHeader>
-	              <CardBody>
-	                {!hasTags ? (
-	                  <p className="text-sm text-muted-soft">暂无技能标签</p>
-	                ) : useRadar ? (
-	                  <TagRadarChart tags={tags} />
-	                ) : (
-	                  <TagBars tags={tags} />
-	                )}
-	              </CardBody>
-	            </Card>
-	            <SourceInfoCard source={source} />
-	          </div>
-	        </div>
+	      <Reveal as="div" className="grid grid-cols-1 gap-6 lg:grid-cols-3" stagger={0.1} y={20}>
+	        {/* 左栏 — 候选人判断 */}
+		        <div className="lg:col-span-1">
+		          <div className="space-y-4">
+		            <CandidateJudgementCard
+		              resumeJson={resume_json}
+		              source={source}
+		              tags={tags}
+		              coreTags={coreTags}
+		              hiddenSkillCount={hiddenSkillCount}
+		            />
+		            <SourceInfoCard source={source} />
+		          </div>
+		        </div>
 
         {/* 右栏 — 简历详情 */}
         <div className="lg:col-span-2">

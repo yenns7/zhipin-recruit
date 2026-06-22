@@ -3,7 +3,7 @@
 
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, X } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAsync } from '../../lib/useAsync';
 import { Button, Spinner, Select } from '../ui';
@@ -14,9 +14,10 @@ interface AddToPipelineProps {
   // 已在本岗位流程中的候选人 id，用于从可选列表里排除。
   existingIds: Set<number>;
   onAdded: () => void;
+  onClose?: () => void;
 }
 
-export function AddToPipeline({ jobId, existingIds, onAdded }: AddToPipelineProps) {
+export function AddToPipeline({ jobId, existingIds, onAdded, onClose }: AddToPipelineProps) {
   const candidatesAsync = useAsync(() => api.listCandidates(), []);
   const [candidateId, setCandidateId] = useState('');
   const [adding, setAdding] = useState(false);
@@ -53,10 +54,22 @@ export function AddToPipeline({ jobId, existingIds, onAdded }: AddToPipelineProp
   }
 
   return (
-    <div className="rounded-xl border border-hairline bg-surface-soft px-4 py-3.5">
-      <div className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-ink">
-        <UserPlus className="h-4 w-4 text-muted" />
-        加入候选人到流程
+    <div className="rounded-md border border-hairline bg-surface-soft px-4 py-3.5">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+          <UserPlus className="h-4 w-4 text-muted" />
+          加入候选人到流程
+        </div>
+        {onClose && (
+          <button
+            type="button"
+            aria-label="关闭加入候选人面板"
+            onClick={onClose}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-canvas hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {candidatesAsync.loading ? (

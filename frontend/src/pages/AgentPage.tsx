@@ -25,22 +25,39 @@ import { cn } from '../lib/cn';
 import { RichText } from '../components/agent/RichText';
 import { ThoughtTrace } from '../components/agent/ThoughtTrace';
 import { ToolCallCard } from '../components/agent/ToolCallCard';
+import { useAuth } from '../lib/auth';
+import type { Role } from '../types';
 
 // View-model types now live in ../lib/agentChat (shared with the Context that
 // holds conversation state across route switches).
 
 // Example prompts surfaced when the conversation is empty.
-const EXAMPLES = [
-  '系统里有多少候选人和岗位？',
-  '给第一个岗位匹配候选人',
-  '看看团队招聘漏斗报表',
-  '列出所有岗位',
-];
+const EXAMPLES_BY_ROLE: Record<Exclude<Role, 'interviewer'>, string[]> = {
+  recruiter: [
+    '我负责的候选人现在卡在哪些阶段？',
+    '列出我负责岗位的待反馈候选人',
+    '帮我找还没进入流程的高分候选人',
+    '今天有哪些面试反馈需要跟进？',
+  ],
+  manager: [
+    '看看团队招聘漏斗报表',
+    '哪些岗位卡在业务反馈？',
+    '本月各招聘专员推进情况如何？',
+    '有哪些逾期未反馈的面试？',
+  ],
+  admin: [
+    '系统里有哪些岗位和候选人？',
+    '查看最近有哪些审计和权限相关操作',
+    '当前有哪些流程卡点？',
+    '解释一下 AI 写操作确认机制',
+  ],
+};
 
 let idSeq = Date.now();
 const nextId = () => ++idSeq;
 
 export function AgentPage() {
+  const { role } = useAuth();
   // 对话状态来自 Context（挂在 AppShell Outlet 之上），跨路由切换不丢失。
   const {
     messages,
@@ -298,6 +315,10 @@ export function AgentPage() {
   }, [messages]);
 
   const isEmpty = messages.length === 0;
+  const examples =
+    role && role !== 'interviewer'
+      ? EXAMPLES_BY_ROLE[role]
+      : EXAMPLES_BY_ROLE.recruiter;
 
   return (
     <div className="flex h-[calc(100vh-7rem)] flex-col">
@@ -323,7 +344,7 @@ export function AgentPage() {
         className="flex-1 overflow-y-auto rounded-lg border border-hairline bg-canvas"
       >
         {isEmpty ? (
-          <EmptyState tools={tools} onPick={send} disabled={streaming} />
+          <EmptyState tools={tools} examples={examples} onPick={send} disabled={streaming} />
         ) : (
           <div className="mx-auto max-w-3xl space-y-6 px-5 py-6">
             {messages.map((m) =>
@@ -358,10 +379,12 @@ export function AgentPage() {
 
 function EmptyState({
   tools,
+  examples,
   onPick,
   disabled,
 }: {
   tools: AgentTool[];
+  examples: string[];
   onPick: (text: string) => void;
   disabled: boolean;
 }) {
@@ -377,7 +400,7 @@ function EmptyState({
 
       {/* 示例问题 */}
       <div className="mt-6 grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2">
-        {EXAMPLES.map((q) => (
+        {examples.map((q) => (
           <button
             key={q}
             type="button"

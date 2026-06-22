@@ -105,8 +105,13 @@ assert.match(
 );
 assert.match(
   appShell,
-  /interviewer:\s*'我的面试 · 反馈填写'/,
-  'Top identity copy for interviewers should describe only assigned interviews and feedback',
+  /interviewer:\s*'面试官'/,
+  'Top account menu should still identify interviewer role',
+);
+assert.doesNotMatch(
+  appShell,
+  /我的面试 · 反馈填写/,
+  'App shell should not repeat interviewer task guidance in a persistent sidebar identity card',
 );
 assert.match(
   dashboard,

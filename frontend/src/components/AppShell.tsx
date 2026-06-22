@@ -1,9 +1,9 @@
-// Authenticated layout: Apple-style sidebar nav + top bar with user identity and logout.
+// Authenticated layout: Apple-style sidebar nav + compact top-bar account menu.
 // 毛玻璃侧边栏、渐变 Logo、GSAP 克制动效。
 
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { LogOut, ArrowLeft, KeyRound, Bell } from 'lucide-react';
+import { LogOut, ArrowLeft, KeyRound, Bell, ChevronDown } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { navItemsForRole, navLabelForRole } from '../lib/nav';
 import { cn } from '../lib/cn';
@@ -20,13 +20,6 @@ const ROLE_LABELS: Record<Role, string> = {
   manager: '经理',
   admin: '管理员',
   interviewer: '面试官',
-};
-
-const ROLE_DUTY: Record<Role, string> = {
-  recruiter: '简历 · 岗位 · 匹配 · 预筛参考',
-  manager: '团队漏斗 · 专员效能',
-  admin: '系统管理 · 全局监控',
-  interviewer: '我的面试 · 反馈填写',
 };
 
 function initials(name: string): string {
@@ -63,9 +56,11 @@ export function AppShell() {
 
   const sidebarScope = useRef<HTMLElement>(null);
   const mainScope = useRef<HTMLDivElement>(null);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
   const lastPathRef = useRef<string | null>(null);
 
   const [showAccount, setShowAccount] = useState(false);
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
 
   const TOP_LEVEL_PATHS = new Set([
     '/',
@@ -93,6 +88,23 @@ export function AppShell() {
     restoreSidebarNavItems(sidebar);
   }, [location.pathname]);
 
+  useEffect(() => {
+    setShowAccountMenu(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!showAccountMenu) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      if (!accountMenuRef.current?.contains(event.target as Node)) {
+        setShowAccountMenu(false);
+      }
+    }
+
+    window.addEventListener('mousedown', handlePointerDown);
+    return () => window.removeEventListener('mousedown', handlePointerDown);
+  }, [showAccountMenu]);
+
   useGSAP(
     () => {
       const mm = gsap.matchMedia();
@@ -104,7 +116,7 @@ export function AppShell() {
         (ctx) => {
           const { reduce } = ctx.conditions as { reduce: boolean };
           if (reduce) {
-            gsap.from('[data-shell="logo"], [data-shell="identity"]', {
+            gsap.from('[data-shell="logo"]', {
               opacity: 0,
               duration: DUR.fast,
               clearProps: 'opacity',
@@ -129,11 +141,6 @@ export function AppShell() {
                 onComplete: () => restoreSidebarNavItems(sidebarScope.current),
               },
               '-=0.2',
-            )
-            .from(
-              '[data-shell="identity"]',
-              { autoAlpha: 0, y: 12, duration: DUR.base, ease: EASE.apple },
-              '-=0.25',
             );
         },
       );
@@ -158,6 +165,7 @@ export function AppShell() {
   );
 
   function handleLogout() {
+    setShowAccountMenu(false);
     logout();
     navigate('/login', { replace: true });
   }
@@ -226,35 +234,6 @@ export function AppShell() {
             </NavLink>
           ))}
         </nav>
-
-        {/* Identity card */}
-        {role && (
-          <div
-            data-shell="identity"
-            className="glass-subtle m-3"
-            style={{ padding: '12px' }}
-          >
-            <div className="flex items-center gap-2.5">
-              <div
-                className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold text-white"
-                style={{ background: 'linear-gradient(135deg, #007AFF, #5856D6)' }}
-              >
-                {initials(name ?? '')}
-              </div>
-              <div className="min-w-0 flex-1 leading-tight">
-                <div className="truncate text-sm font-medium text-ink">
-                  {name}
-                </div>
-                <div className="mt-0.5">
-                  <Badge tone="glass">{ROLE_LABELS[role]}</Badge>
-                </div>
-              </div>
-            </div>
-            <p className="mt-2 truncate text-xs text-muted-soft">
-              {ROLE_DUTY[role]}
-            </p>
-          </div>
-        )}
       </aside>
 
       {/* Main column */}
@@ -276,7 +255,7 @@ export function AppShell() {
             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <NavLink
               to="/notifications"
               title="通知中心"
@@ -290,32 +269,70 @@ export function AppShell() {
             >
               <Bell className="h-4 w-4" aria-hidden="true" />
             </NavLink>
-            <div className="flex items-center gap-2.5">
-              <div
-                className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold text-white"
-                style={{ background: 'linear-gradient(135deg, #007AFF, #5856D6)' }}
+
+            <div ref={accountMenuRef} data-shell="account-menu" className="relative">
+              <button
+                type="button"
+                onClick={() => setShowAccountMenu((open) => !open)}
+                className="flex h-10 items-center gap-2 rounded-lg px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-soft hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                aria-haspopup="menu"
+                aria-expanded={showAccountMenu}
+                aria-label="账户菜单"
               >
-                {initials(name ?? '')}
-              </div>
-              <div className="leading-tight">
-                <div className="text-sm font-medium text-ink">{name}</div>
-              </div>
-              {role && <Badge tone="glass">{ROLE_LABELS[role]}</Badge>}
+                <span
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
+                  style={{ background: 'linear-gradient(135deg, #007AFF, #5856D6)' }}
+                  aria-hidden="true"
+                >
+                  {initials(name ?? '')}
+                </span>
+                <span className="hidden max-w-36 min-w-0 items-center gap-2 sm:flex">
+                  <span className="truncate text-ink">{name}</span>
+                  {role && <Badge tone="glass">{ROLE_LABELS[role]}</Badge>}
+                </span>
+                <ChevronDown
+                  className={cn('h-4 w-4 shrink-0 text-muted-soft transition-transform', showAccountMenu && 'rotate-180')}
+                  aria-hidden="true"
+                />
+              </button>
+
+              {showAccountMenu && (
+                <div
+                  role="menu"
+                  className="absolute right-0 top-12 z-50 w-56 rounded-lg border border-glass-border bg-canvas p-2 shadow-apple-md"
+                >
+                  <div className="border-b border-glass-border px-2 pb-2 pt-1">
+                    <div className="truncate text-sm font-medium text-ink">{name}</div>
+                    {role && (
+                      <div className="mt-1">
+                        <Badge tone="glass">{ROLE_LABELS[role]}</Badge>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setShowAccountMenu(false);
+                      setShowAccount(true);
+                    }}
+                    className="mt-2 flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm font-medium text-muted transition-colors hover:bg-surface-soft hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                  >
+                    <KeyRound className="h-4 w-4" aria-hidden="true" />
+                    修改密码
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={handleLogout}
+                    className="mt-1 flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm font-medium text-muted transition-colors hover:bg-surface-soft hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                  >
+                    <LogOut className="h-4 w-4" aria-hidden="true" />
+                    退出登录
+                  </button>
+                </div>
+              )}
             </div>
-            <button
-              onClick={() => setShowAccount(true)}
-              className="ml-2 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-surface-soft hover:text-ink"
-            >
-              <KeyRound className="h-4 w-4" />
-              修改密码
-            </button>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-surface-soft hover:text-ink"
-            >
-              <LogOut className="h-4 w-4" />
-              退出登录
-            </button>
           </div>
         </header>
 

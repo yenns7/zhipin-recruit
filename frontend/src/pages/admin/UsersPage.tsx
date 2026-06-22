@@ -27,6 +27,7 @@ export function UsersManagementContent() {
   const { data, loading, error, reload } = useAsync(() => api.listUsers(), []);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
   const [createForm, setCreateForm] = useState({
     name: '',
     email: '',
@@ -59,6 +60,7 @@ export function UsersManagementContent() {
         role: createForm.role,
       });
       setCreateForm({ name: '', email: '', password: '', role: 'interviewer' });
+      setShowCreateForm(false);
       setMessage('账号已创建');
       await reload();
     } catch (err) {
@@ -97,51 +99,26 @@ export function UsersManagementContent() {
             试点建议一人一个账号：招聘专员、面试官、主管分别登录，BI 才能看清谁负责、谁推进、谁反馈。
           </div>
 
-          <Card>
-            <CardHeader><CardTitle>创建账号</CardTitle></CardHeader>
-            <CardBody>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <Input
-                  label="姓名"
-                  value={createForm.name}
-                  onChange={(e) => setCreateForm((current) => ({ ...current, name: e.target.value }))}
-                  placeholder="例如：业务面试官"
-                />
-                <Input
-                  label="邮箱"
-                  type="email"
-                  value={createForm.email}
-                  onChange={(e) => setCreateForm((current) => ({ ...current, email: e.target.value }))}
-                  placeholder="user@company.com"
-                />
-                <Input
-                  label="初始密码"
-                  type="password"
-                  value={createForm.password}
-                  onChange={(e) => setCreateForm((current) => ({ ...current, password: e.target.value }))}
-                  placeholder="至少 6 位"
-                />
-                <Select
-                  label="角色"
-                  value={createForm.role}
-                  onChange={(e) => setCreateForm((current) => ({ ...current, role: e.target.value as Role }))}
-                >
-                  {ROLES.map((r) => (
-                    <option key={r} value={r}>{ROLE_LABEL[r]}</option>
-                  ))}
-                </Select>
-              </div>
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                <Button type="button" loading={creating} disabled={creating} onClick={createUser}>
-                  创建账号
-                </Button>
-                {message && <p className="text-sm text-muted">{message}</p>}
-              </div>
-            </CardBody>
-          </Card>
+          {message && (
+            <div className="rounded-md border border-hairline bg-surface-soft px-4 py-2 text-sm text-body">
+              {message}
+            </div>
+          )}
 
           <Card>
-            <CardHeader><CardTitle>成员列表</CardTitle></CardHeader>
+            <CardHeader>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <CardTitle>成员列表</CardTitle>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={showCreateForm ? 'secondary' : 'primary'}
+                  onClick={() => setShowCreateForm((current) => !current)}
+                >
+                  {showCreateForm ? '收起创建账号' : '创建账号'}
+                </Button>
+              </div>
+            </CardHeader>
             {(data ?? []).length === 0 ? (
               <CardBody>
                 <EmptyState
@@ -227,6 +204,53 @@ export function UsersManagementContent() {
             </div>
             )}
           </Card>
+
+          {showCreateForm && (
+            <Card>
+              <CardHeader><CardTitle>创建账号</CardTitle></CardHeader>
+              <CardBody>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <Input
+                    label="姓名"
+                    value={createForm.name}
+                    onChange={(e) => setCreateForm((current) => ({ ...current, name: e.target.value }))}
+                    placeholder="例如：业务面试官"
+                  />
+                  <Input
+                    label="邮箱"
+                    type="email"
+                    value={createForm.email}
+                    onChange={(e) => setCreateForm((current) => ({ ...current, email: e.target.value }))}
+                    placeholder="user@company.com"
+                  />
+                  <Input
+                    label="初始密码"
+                    type="password"
+                    value={createForm.password}
+                    onChange={(e) => setCreateForm((current) => ({ ...current, password: e.target.value }))}
+                    placeholder="至少 6 位"
+                  />
+                  <Select
+                    label="角色"
+                    value={createForm.role}
+                    onChange={(e) => setCreateForm((current) => ({ ...current, role: e.target.value as Role }))}
+                  >
+                    {ROLES.map((r) => (
+                      <option key={r} value={r}>{ROLE_LABEL[r]}</option>
+                    ))}
+                  </Select>
+                </div>
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <Button type="button" loading={creating} disabled={creating} onClick={createUser}>
+                    创建账号
+                  </Button>
+                  <Button type="button" variant="secondary" disabled={creating} onClick={() => setShowCreateForm(false)}>
+                    取消
+                  </Button>
+                </div>
+              </CardBody>
+            </Card>
+          )}
         </div>
       )}
     </>

@@ -68,7 +68,7 @@ const TOOL_META: Record<string, ToolMeta> = {
   get_candidate: { label: '候选人详情', icon: UserCircle },
   list_jobs: { label: '岗位列表', icon: Briefcase },
   match_candidates_for_job: { label: '岗位匹配候选人', icon: Target },
-  get_pipeline: { label: '候选人管道', icon: KanbanSquare },
+  get_pipeline: { label: '候选人流程', icon: KanbanSquare },
   get_bi_overview: { label: '团队报表', icon: BarChart3 },
   count_summary: { label: '系统概览', icon: Gauge },
   // 写操作工具

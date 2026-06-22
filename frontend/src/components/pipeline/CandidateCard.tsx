@@ -136,7 +136,7 @@ export function CandidateCard({
               to={`/interviews?job=${jobId}&candidate=${candidate.candidate_id}`}
               className="rounded-md px-2 py-1 text-[11px] font-medium text-ink hover:bg-surface-soft"
             >
-              去面试工作台
+              填写面试反馈
             </Link>
             <button
               type="button"

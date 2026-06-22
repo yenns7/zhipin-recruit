@@ -17,9 +17,7 @@ import {
   ErrorState,
   Input,
   Select,
-  SegmentedControl,
 } from '../components/ui';
-import { useAsync } from '../lib/useAsync';
 import { RESUME_SOURCE_CHANNEL_OPTIONS } from '../lib/sourceChannels';
 import type { ResumeUploadResultItem } from '../types';
 
@@ -28,11 +26,6 @@ const ACCEPT_MIME =
   'application/pdf,application/msword,' +
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document,' +
   'application/zip,application/x-zip-compressed,.zip,.pdf,.doc,.docx';
-type UploadMode = 'library' | 'job';
-const uploadModeOptions: { value: UploadMode; label: string }[] = [
-  { value: 'library', label: '上传到简历库' },
-  { value: 'job', label: '关联岗位上传' },
-];
 
 function isAccepted(file: File): boolean {
   return ACCEPTED.some((ext) => file.name.toLowerCase().endsWith(ext));
@@ -74,23 +67,14 @@ export function UploadPage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [results, setResults] = useState<ResumeUploadResultItem[] | null>(null);
-  const [lastBatchId, setLastBatchId] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
-  const [sourceOpen, setSourceOpen] = useState(true);
+  const [sourceOpen, setSourceOpen] = useState(false);
   const [sourceChannel, setSourceChannel] = useState('');
   const [customSourceChannel, setCustomSourceChannel] = useState('');
-  const [sourceLink, setSourceLink] = useState('');
   const [referrer, setReferrer] = useState('');
-  const [targetJobId, setTargetJobId] = useState('');
   const [sourceNote, setSourceNote] = useState('');
-  const [uploadMode, setUploadMode] = useState<UploadMode>('library');
   const inputRef = useRef<HTMLInputElement>(null);
-  const jobsAsync = useAsync(() => api.listJobs(), []);
-  const selectedJob = useMemo(
-    () => (jobsAsync.data ?? []).find((job) => String(job.id) === targetJobId) ?? null,
-    [jobsAsync.data, targetJobId],
-  );
   // 计数器追踪 drag 状态，防止指针移过子元素时闪烁
   const dragCounter = useRef(0);
 
@@ -139,24 +123,11 @@ export function UploadPage() {
   function reset() {
     setSelectedFiles([]);
     setResults(null);
-    setLastBatchId(null);
     setUploadError(null);
-  }
-
-  function handleUploadModeChange(mode: UploadMode) {
-    setUploadMode(mode);
-    setUploadError(null);
-    if (mode === 'library') {
-      setTargetJobId('');
-    }
   }
 
   async function handleUpload() {
     if (selectedFiles.length === 0) return;
-    if (uploadMode === 'job' && !selectedJob) {
-      setUploadError('关联岗位上传需要先选择目标岗位，也可以切换为上传到简历库。');
-      return;
-    }
     setUploading(true);
     setUploadError(null);
     setResults(null);
@@ -165,13 +136,10 @@ export function UploadPage() {
     try {
       const res = await api.uploadResumes(selectedFiles, {
         source_channel: resolvedSourceChannel,
-        source_link: sourceLink.trim(),
         referrer: referrer.trim(),
-        target_job_id: uploadMode === 'job' ? Number(targetJobId) : null,
         source_note: sourceNote.trim(),
       });
       setResults(res.results);
-      setLastBatchId(res.batch_id ?? null);
       setSelectedFiles([]);
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : '上传失败，请重试');
@@ -181,7 +149,7 @@ export function UploadPage() {
   }
 
   const hasFiles = selectedFiles.length > 0;
-  const canUpload = hasFiles && !uploading && (uploadMode === 'library' || Boolean(selectedJob));
+  const canUpload = hasFiles && !uploading;
   const zipCount = useMemo(() => selectedFiles.filter((f) => isZip(f.name)).length, [selectedFiles]);
 
   // 结果汇总：成功 / 失败 / 跳过
@@ -208,14 +176,14 @@ export function UploadPage() {
         </p>
       </div>
 
-      {/* 入库方式：默认先进简历库，需要时再关联岗位自动进入流程 */}
+      {/* 上传设置：只负责把简历保存到简历库，岗位分配在简历库完成 */}
       <Card className="mb-6">
         <CardHeader>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <CardTitle>入库方式</CardTitle>
+              <CardTitle>上传后会保存到简历库</CardTitle>
               <p className="mt-1 text-xs text-muted-soft">
-                默认先沉淀到简历库，后续可在简历库筛选后再加入岗位流程
+                后续可在简历库筛选后再加入岗位流程
               </p>
             </div>
             <Button
@@ -224,68 +192,15 @@ export function UploadPage() {
               size="sm"
               onClick={() => setSourceOpen((v) => !v)}
             >
-              {sourceOpen ? '收起来源信息' : '展开来源信息'}
+              {sourceOpen ? '收起选填信息' : '来源信息（选填）'}
             </Button>
           </div>
         </CardHeader>
-        <CardBody>
-          <div className="space-y-4">
-            <SegmentedControl
-              options={uploadModeOptions}
-              value={uploadMode}
-              onChange={handleUploadModeChange}
-              size="sm"
-            />
-            {uploadMode === 'job' ? (
-              <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(260px,0.7fr)]">
-                <Select
-                  label="目标岗位"
-                  name="target_job_id"
-                  value={targetJobId}
-                  onChange={(e) => setTargetJobId(e.target.value)}
-                >
-                  <option value="">请选择目标岗位</option>
-                  {(jobsAsync.data ?? []).map((job) => (
-                    <option key={job.id} value={job.id}>
-                      {[job.job_code, job.title, job.city, job.department].filter(Boolean).join(' · ')}
-                    </option>
-                  ))}
-                </Select>
-                <div className="rounded-md border border-hairline bg-surface-soft px-3 py-2 text-xs">
-                  {selectedJob ? (
-                    <div className="space-y-1">
-                      <p className="font-medium text-ink">{selectedJob.title}</p>
-                      <p className="text-muted">
-                        城市：{selectedJob.city || '未设置'} · 部门：{selectedJob.department || '未设置'}
-                      </p>
-                      <p className="text-muted-soft">部门归属来自岗位配置，不从候选人简历里读取。</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      <p className="font-medium text-ink">请选择目标岗位</p>
-                      <p className="text-muted">选择后，解析成功的简历会自动进入该岗位的待筛选阶段。</p>
-                      <Link to="/jobs" className="inline-flex text-xs font-semibold text-ink hover:underline">
-                        没有目标岗位？新建岗位
-                      </Link>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-md border border-hairline bg-surface-soft px-3 py-2 text-xs">
-                <p className="font-medium text-ink">先进入简历库</p>
-                <p className="mt-1 text-muted">
-                  这批简历不会自动进入任何岗位流程，后续可在简历库筛选后再加入岗位流程。
-                </p>
-              </div>
-            )}
-          </div>
-        </CardBody>
         {sourceOpen && (
           <CardBody className="border-t border-hairline">
             <div className="grid gap-3 md:grid-cols-2">
               <Select
-                label="标准来源渠道"
+                label="候选人来源"
                 name="source_channel"
                 value={sourceChannel}
                 onChange={(e) => {
@@ -310,27 +225,24 @@ export function UploadPage() {
                 />
               )}
               <Input
-                label="来源链接"
-                name="source_link"
-                placeholder="候选人主页或沟通链接"
-                value={sourceLink}
-                onChange={(e) => setSourceLink(e.target.value)}
-              />
-              <Input
-                label="推荐人"
+                label="内推人 / 猎头联系人（选填）"
                 name="referrer"
-                placeholder="内推人或推荐来源"
+                placeholder="例如：张三、某猎头顾问"
                 value={referrer}
                 onChange={(e) => setReferrer(e.target.value)}
               />
             </div>
             <p className="mt-2 text-xs text-muted-soft">
-              来源渠道会进入 BI 渠道质量统计，建议优先选择标准渠道。
+              用于后续统计哪个渠道更有效，不确定可以先不填。
             </p>
+            <label className="mt-3 block text-xs font-medium text-muted" htmlFor="source_note">
+              本次上传备注（选填）
+            </label>
             <textarea
-              className="mt-3 w-full rounded-md border border-hairline bg-canvas px-3 py-2 text-sm text-ink placeholder:text-muted-soft focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+              id="source_note"
+              className="mt-1 w-full rounded-md border border-hairline bg-canvas px-3 py-2 text-sm text-ink placeholder:text-muted-soft focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
               rows={2}
-              placeholder="备注：例如搜索关键词、沟通背景、批次说明"
+              placeholder="例如搜索关键词、沟通背景、批次说明"
               value={sourceNote}
               onChange={(e) => setSourceNote(e.target.value)}
             />
@@ -396,8 +308,7 @@ export function UploadPage() {
       {/* 提示信息 */}
       <div className="mb-6 rounded-lg border border-hairline bg-surface-soft px-4 py-3 text-xs text-muted">
         <ul className="space-y-1">
-          <li>· 上传到简历库：先沉淀候选人，后续可按城市、技能、来源筛选后再加入岗位流程。</li>
-          <li>· 关联岗位上传：城市和部门会从岗位自动带出，解析成功后自动进入待筛选。</li>
+          <li>· 上传成功后先进入简历库，后续可按城市、技能、来源筛选后再加入岗位流程。</li>
           <li>· 支持格式：PDF、Word（.doc / .docx）以及 ZIP 压缩包。</li>
           <li>· ZIP 压缩包会自动解压，逐份解析其中的简历（自动跳过非简历文件）。</li>
           <li>· 简历解析由 AI 完成，文件较多或较大时可能需要一些时间，请耐心等待。</li>
@@ -465,11 +376,6 @@ export function UploadPage() {
               清空
             </Button>
           )}
-          {uploadMode === 'job' && !selectedJob && (
-            <span className="text-xs text-warning-700">
-              关联岗位上传需先选择目标岗位
-            </span>
-          )}
         </div>
       )}
 
@@ -508,7 +414,6 @@ export function UploadPage() {
                 {summary.skipped > 0 && <Badge tone="warning">跳过 {summary.skipped}</Badge>}
                 {summary.error > 0 && <Badge tone="danger">失败 {summary.error}</Badge>}
 	                <span className="text-xs text-muted-soft">共 {results.length} 条</span>
-	                {lastBatchId && <Badge tone="neutral">上传批次 #{lastBatchId}</Badge>}
 	              </div>
 	            )}
           </CardHeader>
@@ -518,7 +423,6 @@ export function UploadPage() {
             ) : (
               <ul role="list">
                 {results.map((r, i) => {
-                  const pipelineJobId = r.target_job_id ?? (targetJobId ? Number(targetJobId) : null);
                   return (
                     <li
                       key={`${r.file}-${i}`}
@@ -542,30 +446,19 @@ export function UploadPage() {
                         {r.status === 'ok' && r.candidate_id != null ? (
                           <div className="flex flex-wrap items-center justify-end gap-2">
                             <Badge tone="success">解析成功</Badge>
-                            {r.pipeline_stage === 'pending' && <Badge tone="brand">已进入待筛选</Badge>}
-                            {!pipelineJobId && <Badge tone="neutral">已入简历库</Badge>}
+                            <Badge tone="neutral">已入简历库</Badge>
                             <Link
                               to={`/candidates/${r.candidate_id}`}
                               className="text-xs font-medium text-ink hover:underline"
                             >
                               查看档案
                             </Link>
-                            {pipelineJobId && (
-                              <Link
-                                to={`/pipeline?job=${pipelineJobId}&candidate=${r.candidate_id}`}
-                                className="text-xs font-medium text-ink hover:underline"
-                              >
-                                查看流程
-                              </Link>
-                            )}
-                            {!pipelineJobId && (
-                              <Link
-                                to="/candidates"
-                                className="text-xs font-medium text-ink hover:underline"
-                              >
-                                稍后分配岗位
-                              </Link>
-                            )}
+                            <Link
+                              to="/candidates"
+                              className="text-xs font-medium text-ink hover:underline"
+                            >
+                              去简历库分配岗位
+                            </Link>
                           </div>
                         ) : r.status === 'skipped' ? (
                           <Badge tone="warning">已跳过</Badge>

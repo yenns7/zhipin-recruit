@@ -51,6 +51,7 @@ const RISK_LABELS: Record<string, string> = {
 };
 
 type DemandInsightTone = 'success' | 'warning' | 'danger' | 'neutral';
+type DemandActionMode = 'close' | 'restore' | 'priority';
 
 interface DemandFormState {
   job_id: string;
@@ -79,6 +80,11 @@ const EMPTY_FORM: DemandFormState = {
   headcount: '1',
   note: '',
 };
+
+interface DemandActionState {
+  mode: DemandActionMode;
+  demand: RecruitmentDemand;
+}
 
 function formatJobOption(job: JobListItem) {
   const code = job.job_code || `JOB-${job.id}`;
@@ -166,15 +172,18 @@ function DemandCard({
   demand,
   busy,
   onClose,
-  onDowngrade,
+  onRestore,
+  onAdjustPriority,
 }: {
   demand: RecruitmentDemand;
   busy: boolean;
   onClose: (demand: RecruitmentDemand) => void;
-  onDowngrade: (demand: RecruitmentDemand) => void;
+  onRestore: (demand: RecruitmentDemand) => void;
+  onAdjustPriority: (demand: RecruitmentDemand) => void;
 }) {
   const insight = demandInsight(demand);
   const stageItems = stageDistributionItems(demand);
+  const canRestore = ['cancelled', 'filled', 'paused'].includes(demand.status);
 
   return (
     <Card>
@@ -204,19 +213,31 @@ function DemandCard({
               size="sm"
               variant="secondary"
               disabled={busy}
-              onClick={() => onDowngrade(demand)}
+              onClick={() => onAdjustPriority(demand)}
             >
-              降级
+              调整优先级
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="danger"
-              disabled={busy}
-              onClick={() => onClose(demand)}
-            >
-              关闭需求
-            </Button>
+            {canRestore ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={busy}
+                onClick={() => onRestore(demand)}
+              >
+                恢复需求
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                variant="danger"
+                disabled={busy}
+                onClick={() => onClose(demand)}
+              >
+                关闭需求
+              </Button>
+            )}
           </div>
         </div>
 
@@ -281,6 +302,128 @@ function DemandCard({
   );
 }
 
+function DemandActionDialog({
+  action,
+  reason,
+  priority,
+  busy,
+  onReasonChange,
+  onPriorityChange,
+  onCancel,
+  onConfirm,
+}: {
+  action: DemandActionState | null;
+  reason: string;
+  priority: DemandPriority;
+  busy: boolean;
+  onReasonChange: (value: string) => void;
+  onPriorityChange: (value: DemandPriority) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  if (!action) return null;
+
+  const { mode, demand } = action;
+  const isPriority = mode === 'priority';
+  const title =
+    mode === 'close'
+      ? `关闭需求：${demand.job_title}`
+      : mode === 'restore'
+        ? `恢复需求：${demand.job_title}`
+        : `调整优先级：${demand.job_title}`;
+  const confirmLabel =
+    mode === 'close' ? '确认关闭' : mode === 'restore' ? '确认恢复' : '保存优先级';
+  const impact =
+    mode === 'close'
+      ? '需求会从活跃列表中移出，历史流程和 BI 留痕仍会保留。'
+      : mode === 'restore'
+        ? '需求会回到活跃列表，关联岗位也会恢复为在招。'
+        : '新的优先级会写入需求备注，后续复盘能看到调整原因。';
+  const reasonPlaceholder =
+    mode === 'close'
+      ? '例如：业务取消、长期无反馈、需求不真实'
+      : mode === 'restore'
+        ? '例如：业务确认继续招聘、刚才误关闭'
+        : '例如：业务重新确认、误降级后恢复优先级';
+  const canConfirm = reason.trim().length > 0 && (!isPriority || priority !== demand.priority);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      onClick={() => !busy && onCancel()}
+    >
+      <div
+        className="animate-slide-up w-full max-w-lg rounded-lg border border-hairline bg-canvas shadow-card-lg"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="space-y-4 px-5 py-5">
+          <div className="flex items-start gap-3">
+            {mode === 'close' && (
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-danger-50">
+                <AlertTriangle className="h-4 w-4 text-danger-600" aria-hidden="true" />
+              </span>
+            )}
+            <div className="min-w-0 flex-1">
+              <h2 className="text-base font-display text-ink">{title}</h2>
+              <p className="mt-1 text-sm text-muted">请先写清楚业务原因，方便后续审计和复盘。</p>
+            </div>
+          </div>
+
+          {isPriority && (
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-ink">新优先级</span>
+              <select
+                value={priority}
+                onChange={(event) => onPriorityChange(event.target.value as DemandPriority)}
+                className="h-10 w-full rounded-md border border-hairline bg-canvas px-3 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+              >
+                <option value="A">A 级</option>
+                <option value="B">B 级</option>
+                <option value="C">C 级</option>
+              </select>
+            </label>
+          )}
+
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-ink">原因（必填）</span>
+            <textarea
+              value={reason}
+              onChange={(event) => onReasonChange(event.target.value)}
+              placeholder={reasonPlaceholder}
+              rows={4}
+              className="w-full rounded-md border border-hairline bg-canvas px-3 py-2 text-sm text-ink placeholder:text-muted-soft focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+            />
+          </label>
+
+          <div className="rounded-md border border-hairline bg-surface-soft px-3 py-2 text-sm text-muted">
+            <p className="font-medium text-ink">这次操作会影响：</p>
+            <p className="mt-1">{impact}</p>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-hairline-soft px-5 py-3">
+          <Button type="button" variant="secondary" size="sm" disabled={busy} onClick={onCancel}>
+            取消
+          </Button>
+          <Button
+            type="button"
+            variant={mode === 'close' ? 'danger' : 'primary'}
+            size="sm"
+            loading={busy}
+            disabled={!canConfirm || busy}
+            onClick={onConfirm}
+          >
+            {confirmLabel}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function DemandsPage() {
   const demandsAsync = useAsync(() => demandsApi.listDemands(), []);
   const jobsAsync = useAsync(() => api.listJobs(), []);
@@ -288,6 +431,9 @@ export function DemandsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [action, setAction] = useState<DemandActionState | null>(null);
+  const [actionReason, setActionReason] = useState('');
+  const [actionPriority, setActionPriority] = useState<DemandPriority>('B');
 
   const jobs = useMemo(() => jobsAsync.data ?? [], [jobsAsync.data]);
   const demands = useMemo(() => demandsAsync.data ?? [], [demandsAsync.data]);
@@ -337,40 +483,60 @@ export function DemandsPage() {
     }
   }
 
-  async function handleClose(demand: RecruitmentDemand) {
-    const reason = window.prompt('关闭原因（例如：业务取消、长期无反馈、需求不真实）') ?? '';
-    if (!reason.trim()) return;
-    setBusyId(demand.id);
-    setMessage(null);
-    try {
-      await demandsApi.closeDemand(demand.id, {
-        status: 'cancelled',
-        close_reason: reason.trim(),
-      });
-      setMessage('需求已关闭');
-      demandsAsync.reload();
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : '关闭需求失败');
-    } finally {
-      setBusyId(null);
-    }
+  function openDemandAction(mode: DemandActionMode, demand: RecruitmentDemand) {
+    setAction({ mode, demand });
+    setActionReason('');
+    setActionPriority(demand.priority);
   }
 
-  async function handleDowngrade(demand: RecruitmentDemand) {
-    const reason = window.prompt('降级原因（例如：业务反馈慢、薪资画像不匹配）') ?? '';
-    if (!reason.trim()) return;
-    const nextPriority: DemandPriority = demand.priority === 'A' ? 'B' : 'C';
+  function closeDemandAction() {
+    if (busyId !== null) return;
+    setAction(null);
+    setActionReason('');
+  }
+
+  async function submitDemandAction() {
+    if (!action) return;
+    const reason = actionReason.trim();
+    if (!reason) {
+      setMessage('请填写原因');
+      return;
+    }
+    const { mode, demand } = action;
+    if (mode === 'priority' && actionPriority === demand.priority) {
+      setMessage('请选择不同的优先级');
+      return;
+    }
     setBusyId(demand.id);
     setMessage(null);
     try {
-      await demandsApi.downgradeDemand(demand.id, {
-        priority: nextPriority,
-        downgrade_reason: reason.trim(),
-      });
-      setMessage(`需求已降级为 ${PRIORITY_LABELS[nextPriority]}`);
+      if (mode === 'close') {
+        await demandsApi.closeDemand(demand.id, {
+          status: 'cancelled',
+          close_reason: reason,
+        });
+        setMessage('需求已关闭');
+      } else if (mode === 'restore') {
+        await demandsApi.restoreDemand(demand.id, { note: reason });
+        setMessage('需求已恢复，关联岗位也会恢复为在招');
+      } else {
+        const nextNote = [
+          demand.note,
+          `优先级调整：${PRIORITY_LABELS[demand.priority]} → ${PRIORITY_LABELS[actionPriority]}，${reason}`,
+        ]
+          .filter(Boolean)
+          .join('\n');
+        await demandsApi.updateDemand(demand.id, {
+          priority: actionPriority,
+          note: nextNote,
+        });
+        setMessage(`需求优先级已调整为 ${PRIORITY_LABELS[actionPriority]}`);
+      }
+      setAction(null);
+      setActionReason('');
       demandsAsync.reload();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : '降级失败');
+      setMessage(err instanceof Error ? err.message : '需求操作失败');
     } finally {
       setBusyId(null);
     }
@@ -551,13 +717,25 @@ export function DemandsPage() {
                 key={demand.id}
                 demand={demand}
                 busy={busyId === demand.id}
-                onClose={handleClose}
-                onDowngrade={handleDowngrade}
+                onClose={(item) => openDemandAction('close', item)}
+                onRestore={(item) => openDemandAction('restore', item)}
+                onAdjustPriority={(item) => openDemandAction('priority', item)}
               />
             ))}
           </div>
         )}
       </section>
+
+      <DemandActionDialog
+        action={action}
+        reason={actionReason}
+        priority={actionPriority}
+        busy={busyId !== null}
+        onReasonChange={setActionReason}
+        onPriorityChange={setActionPriority}
+        onCancel={closeDemandAction}
+        onConfirm={submitDemandAction}
+      />
     </div>
   );
 }

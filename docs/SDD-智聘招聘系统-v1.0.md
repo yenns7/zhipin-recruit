@@ -38,11 +38,11 @@
 | 能力 | 当前状态 | 说明 |
 |---|---|---|
 | 登录与角色权限 | 已实现 | JWT + RBAC，角色包括 admin / manager / recruiter / interviewer |
-| 候选人库 | 已实现 | 列表、详情、技能标签、候选人归属 |
+| 候选人库 | 已实现 | 列表、详情、候选人判断卡片、辅助雷达、折叠全量技能标签、候选人归属 |
 | 简历上传解析 | 已实现 | PDF / Word / ZIP 批量上传，AI 解析入库 |
 | 岗位管理 | 已实现 | 创建、编辑、关闭岗位，JD AI 结构化与澄清追问 |
 | 智能匹配 | 已实现 | 岗位找候选人，生成匹配分、命中标签、缺失标签 |
-| 候选人管道 | 已实现 | pending → ai_screen → business_review → interview → offer → onboarded/rejected |
+| 候选人流程 | 已实现 | pending → ai_screen → business_review → interview → offer → onboarded/rejected |
 | AI 面试 | 已实现 | 生成题目、提交回答、AI 评分、报告落库、预筛后回写流程 |
 | 面试官反馈 | 已实现 | 按轮次写反馈，支持固定原因分类，进入候选人 journey |
 | BI 看板 | 已实现 | 团队漏斗、专员效能、岗位漏斗 |
@@ -157,10 +157,10 @@ gunicorn -w 2 -b 0.0.0.0:5000 --timeout 120 --keep-alive 5 "run:app"
 
 | 角色 | 可见模块 | 主要权限 |
 |---|---|---|
-| `admin` | 全部模块 | 用户管理、BI、候选人、岗位、流程、面试、AI 助手 |
-| `manager` | 工作台、AI 助手、候选人、上传、岗位、流程、面试、BI | 团队视角管理、候选人转派、BI 查看 |
-| `recruiter` | 工作台、AI 助手、候选人、上传、岗位、流程、面试 | 负责自己的候选人和招聘操作 |
-| `interviewer` | 工作台、我的面试、候选人详情 | 只处理分配给自己的面试安排与反馈；不浏览全量简历库、不推进候选人管道、不使用 AI 助手 |
+| `admin` | 工作台、AI 助手、候选人、上传、岗位、流程、BI、系统设置 | 用户管理、BI、候选人、岗位、流程、AI 助手；面试任务通过工作台待办或候选人流程深链进入 |
+| `manager` | 工作台、AI 助手、候选人、上传、岗位、流程、BI | 团队视角管理、候选人转派、BI 查看；面试任务通过工作台待办或候选人流程深链进入 |
+| `recruiter` | 工作台、AI 助手、候选人、上传、岗位、流程 | 负责自己的候选人和招聘操作；面试任务通过工作台待办或候选人流程深链进入 |
+| `interviewer` | 工作台、我的面试、候选人详情 | 只处理分配给自己的面试安排与反馈；不浏览全量简历库、不推进候选人流程、不使用 AI 助手 |
 
 ### 5.1 前端路由守卫
 
@@ -226,7 +226,7 @@ rejected
 
 主流程顺序定义在 `backend/app/api/pipeline.py` 和 `frontend/src/lib/pipelineStages.ts`。新增阶段时必须两边同步。
 
-历史兼容：`interview_first` / `interview_second` / `interview_final` 仍可被后端读取并归并展示为 `interview`，但新写入的候选人管道主流程不应再生成这些旧阶段。面试第几轮通过 `interview_feedback.round`、面试安排和面试记录表达，不再作为管道主阶段。
+历史兼容：`interview_first` / `interview_second` / `interview_final` 仍可被后端读取并归并展示为 `interview`，但新写入的候选人主流程不应再生成这些旧阶段。面试第几轮通过 `interview_feedback.round`、面试安排和面试记录表达，不再作为流程主阶段。
 
 ### 6.2 PipelineStage 的重要设计
 
@@ -257,9 +257,9 @@ rejected
 
 | 方法 | 路径 | 权限 | 作用 |
 |---|---|---|---|
-| `POST` | `/resume/upload` | 登录 | 批量上传 PDF / Word / ZIP 简历，AI 解析入库 |
+| `POST` | `/resume/upload` | 登录 | 批量上传 PDF / Word / ZIP 简历，AI 解析入库；当前前端上传页不发送岗位参数 |
 | `GET` | `/resume/<candidate_id>` | 登录 | 候选人简历详情与技能标签，返回 `owner_hr_id` 供负责人展示与转派 |
-| `GET` | `/candidates` | 登录 | 候选人列表，recruiter 只看自己的 |
+| `GET` | `/candidates` | 登录 | 候选人列表，recruiter 只看自己的；`search` 会覆盖姓名、邮箱、电话、技能标签和简历解析 JSON 中的公司、岗位、学校等文本 |
 | `GET` | `/candidates/owner-options` | manager/admin | 获取启用中的招聘专员下拉选项 |
 | `GET` | `/candidates/<id>/pipelines` | 登录 | 候选人参与的岗位流程 |
 | `GET` | `/candidates/<id>/journey?job_id=` | 登录 | 候选人某岗位下的完整时间线、AI 面试、面试官反馈 |
@@ -276,10 +276,22 @@ rejected
 | `PUT` | `/jobs/<job_id>` | owner/manager/admin | 编辑岗位，JD 变化时重新结构化 |
 | `POST` | `/jobs/<job_id>/close` | owner/manager/admin | 关闭岗位 |
 | `POST` | `/jobs/<job_id>/restore` | owner/manager/admin | 将已关闭岗位恢复为在招 |
+| `GET` | `/jobs/<job_id>/match-preview?candidate_ids=` | owner/manager/admin | 简历库和岗位匹配页的只读匹配预览，不写入 `matches` |
 | `POST` | `/jobs/<job_id>/match` | 登录 | 运行岗位候选人匹配并持久化 |
 | `POST` | `/match` | 登录 | 兼容旧入口，按 `job_id` 运行匹配 |
 
-### 7.4 Pipeline
+### 7.4 Recruitment Demands
+
+| 方法 | 路径 | 权限 | 作用 |
+|---|---|---|---|
+| `GET` | `/demands` | recruiter/manager/admin | 查询当前账号可管理的用人需求 |
+| `POST` | `/demands` | recruiter/manager/admin | 创建用人需求并关联岗位 |
+| `PATCH` | `/demands/<demand_id>` | owner/manager/admin | 更新需求字段，包含优先级调整 |
+| `POST` | `/demands/<demand_id>/close` | owner/manager/admin | 关闭、完成或暂停需求；完成/取消会同步关闭岗位 |
+| `POST` | `/demands/<demand_id>/restore` | owner/manager/admin | 恢复误关闭/误暂停的需求，并同步恢复关联岗位为在招 |
+| `POST` | `/demands/<demand_id>/downgrade` | owner/manager/admin | 兼容旧降级入口，记录降级原因 |
+
+### 7.5 Pipeline
 
 | 方法 | 路径 | 权限 | 作用 |
 |---|---|---|---|
@@ -288,7 +300,7 @@ rejected
 | `GET` | `/pipeline/<job_id>/board` | 登录 | 某岗位看板候选人卡片数据 |
 | `GET` | `/pipeline/<job_id>/history/<candidate_id>` | 登录 | 候选人某岗位流程历史 |
 
-### 7.5 Interview
+### 7.6 Interview
 
 | 方法 | 路径 | 权限 | 作用 |
 |---|---|---|---|
@@ -301,20 +313,22 @@ rejected
 | `GET` | `/interview/interviewers` | 登录 | 返回启用中的面试官/经理/管理员选项 |
 | `POST` | `/interview/assignments` | recruiter/manager/admin | 创建面试安排；只允许启用中的面试官账号和在招岗位 |
 
-### 7.6 BI / Admin / Agent
+### 7.7 BI / Admin / Agent
 
 | 方法 | 路径 | 权限 | 作用 |
 |---|---|---|---|
-| `GET` | `/bi/overview` | manager/admin | 团队漏斗、专员效能、面试官责任、用人部门责任 |
+| `GET` | `/bi/overview` | manager/admin | 团队漏斗、专员效能、面试反馈跟进、部门协同情况 |
 | `GET` | `/bi/staff/<hr_id>` | 登录，recruiter 仅自己 | 单专员漏斗 + `performance` 个人绩效行 |
 | `GET` | `/bi/job/<job_id>` | 登录 | 单岗位漏斗 |
 | `GET` | `/admin/users` | admin | 用户列表 |
 | `POST` | `/admin/users` | admin | 创建试点账号 |
 | `PATCH` | `/admin/users/<user_id>` | admin | 修改角色、启停 |
 | `POST` | `/admin/users/<user_id>/reset-password` | admin | 重置用户密码 |
-| `GET` | `/agent/tools` | 登录 | AI 助手工具清单 |
-| `POST` | `/agent/chat` | 登录 | SSE 流式 AI 对话 |
-| `POST` | `/agent/execute` | 登录 + 工具 RBAC | 执行 AI 助手提议的写操作 |
+| `GET` | `/agent/tools` | recruiter/manager/admin | AI 助手工具清单 |
+| `GET` | `/agent/conversations` | recruiter/manager/admin | 当前用户 AI 对话列表 |
+| `GET` | `/agent/conversations/<conversation_id>` | recruiter/manager/admin，且仅本人会话 | AI 对话详情 |
+| `POST` | `/agent/chat` | recruiter/manager/admin | SSE 流式 AI 对话 |
+| `POST` | `/agent/execute` | recruiter/manager/admin + 工具 RBAC | 执行 AI 助手提议的写操作 |
 
 ## 8. 核心业务流程
 
@@ -348,9 +362,15 @@ sequenceDiagram
 - 服务：`backend/app/services/resume_service.py`
 - AI：`base_agent/resume_parser.py`
 
+前端上传页只暴露一条主路径：
+
+- 上传成功后先写候选人和标签，统一沉淀到简历库；后续由用户在简历库选择目标岗位查看适配候选人，再加入岗位流程。
+
+候选人来源、内推人/猎头联系人和本次上传备注是选填信息，默认收起。后端仍兼容 `source_link` 字段，但当前前端不展示该输入项。
+
 ```mermaid
 flowchart TD
-  A["HR 选择多个 PDF/Word 或 ZIP"] --> B["POST /api/resume/upload multipart files[]"]
+  A["HR 选择多个 PDF/Word 或 ZIP"] --> B["POST /api/resume/upload files[]"]
   B --> C{"文件类型"}
   C -->|"pdf/doc/docx"| D["保存到 uploads/"]
   C -->|"zip"| E["安全解压: 数量/大小/路径限制"]
@@ -376,6 +396,7 @@ flowchart TD
 风险边界：
 
 - 该流程会调用 LLM，会写入候选人库和标签表。
+- 当前前端不会发送 `target_job_id`；后端 legacy 兼容逻辑仍会校验岗位权限，避免旧调用绕过权限。
 - 当前是同步解析，大批量简历可能导致请求等待较久。
 - 个别文件失败不影响同批其他文件。
 
@@ -400,7 +421,8 @@ flowchart TD
 - `jd_structured.skill_tags_raw` 直接影响后续匹配。
 - 修改 JD 会重新结构化。
 - 关闭岗位只改 `status=closed`，不物理删除；岗位画像页可切换查看已关闭岗位，并通过 `/jobs/<id>/restore` 恢复在招。
-- 用人需求、简历上传、候选人管道、面试安排等入口在没有可选岗位时引导用户先新建岗位，避免下拉框为空时卡住。
+- 用人需求恢复会把 `recruitment_demands.status` 改回 `active`，清空关闭原因，并同步把关联岗位 `jobs.status` 改回 `active`。
+- 用人需求、简历上传、候选人流程、面试安排等入口在没有可选岗位时引导用户先新建岗位，避免下拉框为空时卡住。
 
 ### 8.4 岗位候选人匹配
 
@@ -416,7 +438,10 @@ flowchart TD
 2. 从 `candidate_tags` 读取候选人技能。
 3. 计算匹配分、命中标签、缺失标签。
 4. 结果按分数降序。
-5. `/jobs/<id>/match` 会清理该岗位旧 match 记录并写入新的 top N。
+5. 岗位匹配页提供“AI 推荐 / 全部候选人”视角。AI 推荐使用 `/jobs/<id>/match` 的持久化排序；全部候选人使用 `/candidates?search=` 搜索全库，再调用 `/jobs/<id>/match-preview?candidate_ids=` 展示当前搜索结果与岗位的命中标签、缺失标签和匹配分。
+6. 页面筛选支持匹配度、入流程状态、匹配技能和缺失技能；批量加入只作用于当前筛选后已勾选且尚未进入该岗位流程的候选人。
+7. 简历库筛选区使用“目标岗位”触发岗位适配预览，调用 `/jobs/<id>/match-preview`，只返回当前页候选人的命中标签、缺失标签和匹配分，不写入 `matches`；“入流程状态”只区分候选人是否已进入岗位流程。
+8. `/jobs/<id>/match` 会清理该岗位旧 match 记录并写入新的 top N。
 
 风险边界：
 
@@ -424,7 +449,7 @@ flowchart TD
 - 修改 `job_matcher.py` 会影响岗位匹配页面和 AI 助手工具。
 - 只读匹配和持久化匹配要区分：AI 助手读工具使用只读模式。
 
-### 8.5 候选人管道推进
+### 8.5 候选人流程推进
 
 入口：
 
@@ -481,7 +506,7 @@ flowchart TD
 - 前端：`frontend/src/components/interview/FeedbackForm.tsx`
 - 后端：`backend/app/api/interview.py`
 
-面试官反馈写入 `interview_feedback`，候选人详情 journey 会聚合展示流程时间线、AI 面试记录和面试官反馈。面试官在“我的面试”中只提交反馈；候选人是否进入 Offer 或淘汰，由 HR/经理/管理员在候选人管道中处理。
+面试官反馈写入 `interview_feedback`，候选人详情 journey 会聚合展示流程时间线、AI 面试记录和面试官反馈。面试官在“我的面试”中只提交反馈；候选人是否进入 Offer 或淘汰，由 HR/经理/管理员在候选人流程中处理。
 
 面试安排由 HR/经理/管理员创建。后端会兜底校验：目标岗位必须存在且 `status=active`，面试官账号必须存在、已启用，且角色为面试官/经理/管理员。这样即使前端下拉数据过期，也不会把新面试分配给已关闭岗位或停用账号。
 
@@ -502,12 +527,12 @@ BI 主要从两类数据计算：
 | `candidates.owner_hr_id` + `pipeline_stages` | 招聘专员有效推荐、推荐成功面试、Offer、入职等个人绩效 |
 | `interview_assignments` | 面试安排、面试官、轮次、待补反馈 |
 | `interview_feedback` | 面试通过/拒绝、评分、面试官反馈 |
-| `jobs.department` | 用人部门责任归属 |
+| `jobs.department` | 用人部门协同归属 |
 
 注意：BI 使用最新阶段去重，不能直接统计所有历史流水。
-面试轮次只作为面试事实明细参与 BI 责任归因，不重新拆回候选人管道主流程。
+面试轮次只作为面试事实明细参与 BI 责任归因，不重新拆回候选人主流程。
 招聘专员工作台的“我的本月业绩”和“今日待办”复用 `/bi/staff/<hr_id>` 的 `performance` 字段；主管 BI 的专员列表也使用同一套公开绩效字段。
-前端 BI 页面同步展示“责任怎么算”：候选人负责人算 HR 绩效，最后推进人算操作留痕，面试反馈人算面试官责任，用人部门按岗位部门聚合。候选人负责人转派后，后续绩效归新负责人；历史推进人和面试反馈人不重写。阶段修正只影响最新阶段和当前存量，不删除历史流水。
+前端 BI 页面首屏优先展示业务数字，标题区右侧只保留周期筛选，不再提供“怎么看数据”入口。指标口径与协同归属说明沉淀在 BI 设计文档：HR 负责候选人推进，面试官负责反馈闭环，用人部门负责岗位协同，推进人只看操作留痕。候选人负责人转派后，后续绩效归新负责人；历史推进人和面试反馈人不重写。阶段修正只影响最新阶段和当前存量，不删除历史流水。
 
 ### 8.9 AI 助手
 
@@ -527,6 +552,7 @@ AI 助手分两类工具：
 设计原则：
 
 - 对话用 SSE 流式返回。
+- 后端入口同前端角色一致，仅 recruiter/manager/admin 可访问；interviewer 直接请求 `/api/agent/*` 返回 403。
 - AI 可提议写操作，但写操作应由用户确认后调用 `/agent/execute`。
 - 写工具内部做 RBAC 校验。
 
@@ -609,12 +635,12 @@ LLM_API_KEY=keychain:zhipin-deepseek-api-key
 | 导航菜单 | `frontend/src/lib/nav.ts`, `AppShell.tsx` | 可能无 | 若新路由需同步权限 |
 | 候选人列表 | `CandidatesPage.tsx` | `api/candidates.py` | `candidates`, `candidate_tags` |
 | 候选人详情 | `CandidateProfilePage.tsx` | `api/resume.py`, `api/candidates.py` | `resume_json`, tags, journey |
-| 简历批量上传 | `UploadPage.tsx` | `api/resume.py`, `services/resume_service.py` | 会调用 `resume_parser.py` 并写候选人 |
+| 简历批量上传 | `UploadPage.tsx` | `api/resume.py`, `services/resume_service.py` | 会调用 `resume_parser.py` 并写候选人；岗位流程加入放在简历库完成 |
 | 简历解析字段 | `CandidateProfilePage.tsx` | `services/resume_service.py` | 高风险，影响 `resume_json` 兼容 |
 | 岗位列表/编辑 | `JobsPage.tsx` | `api/jobs.py` | `jobs.jd_structured` |
 | JD AI 澄清 | `JobsPage.tsx` | `api/jobs.py` | LLM，只读或写结构化 |
 | 岗位匹配 | `JobMatchPage.tsx` | `services/match_service.py` | `candidate_tags`, `matches`, `job_matcher.py` |
-| 候选人管道 | `PipelinePage.tsx`, `components/pipeline/*` | `api/pipeline.py` | `pipeline_stages`, `events` |
+| 候选人流程 | `PipelinePage.tsx`, `components/pipeline/*` | `api/pipeline.py` | `pipeline_stages`, `events` |
 | 新增招聘阶段 | `frontend/src/lib/pipelineStages.ts` | `models.py`, `api/pipeline.py` | 高风险，需测试 |
 | AI 面试 | `InterviewsPage.tsx`, `InterviewReportPage.tsx` | `api/interview.py`, `services/interview_service.py` | LLM + `interviews` + 流程回写 |
 | 面试官反馈 | `FeedbackForm.tsx` | `api/interview.py` | `interview_feedback.reason_tags` |
@@ -752,7 +778,7 @@ LLM_API_KEY=keychain:zhipin-deepseek-api-key
 | `backend/tests/test_pipeline_rounds.py` | 阶段推进、备注、非法阶段 |
 | `backend/tests/test_interview_loop.py` | AI 面试回写流程、面试官反馈 |
 | `backend/tests/test_security_hardening_next.py` | 试点权限边界、面试官禁止上传/重解析/推进流程 |
-| `frontend/tests/interviewer_role_scope.test.mjs` | 面试官导航、路由、面试工作台与反馈按钮边界 |
+| `frontend/tests/interviewer_role_scope.test.mjs` | 面试官导航、路由、面试任务与反馈按钮边界 |
 | `base_agent/tests/test_job_matcher.py` | 岗位匹配算法 |
 | `base_agent/tests/test_llm_client_secrets.py` | keychain 密钥解析 |
 

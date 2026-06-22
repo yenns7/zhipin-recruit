@@ -31,7 +31,7 @@ const sourceChannels = readFileSync(optionsPath, 'utf8');
 
 const uploadPage = readSource('pages/UploadPage.tsx');
 assert.match(uploadPage, /RESUME_SOURCE_CHANNEL_OPTIONS/, 'Upload page should use standard source channel options');
-assert.match(uploadPage, /标准来源渠道/, 'Upload page should present source channel as selectable options');
+assert.match(uploadPage, /候选人来源/, 'Upload page should present source channel in recruiting language');
 assert.match(uploadPage, /自定义来源/, 'Upload page should keep a custom source escape hatch for other channels');
 assert.doesNotMatch(
   uploadPage,

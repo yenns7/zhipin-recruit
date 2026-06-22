@@ -27,6 +27,8 @@ interface InterviewAssignmentPanelProps {
   jobs: JobListItem[];
   interviewers: InterviewerOption[];
   assignments: InterviewAssignment[];
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   onCreated: () => void;
 }
 
@@ -35,10 +37,12 @@ export function InterviewAssignmentPanel({
   jobs,
   interviewers,
   assignments,
+  open: controlledOpen,
+  onOpenChange,
   onCreated,
 }: InterviewAssignmentPanelProps) {
   const { role } = useAuth();
-  const [open, setOpen] = useState(false);
+  const [localOpen, setLocalOpen] = useState(false);
   const [candidateId, setCandidateId] = useState('');
   const [jobId, setJobId] = useState('');
   const [round, setRound] = useState<InterviewRound>('round_1');
@@ -49,7 +53,16 @@ export function InterviewAssignmentPanel({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
+  const open = controlledOpen ?? localOpen;
   const recentAssignments = useMemo(() => assignments.slice(0, 6), [assignments]);
+
+  function setOpen(nextOpen: boolean) {
+    if (onOpenChange) {
+      onOpenChange(nextOpen);
+      return;
+    }
+    setLocalOpen(nextOpen);
+  }
 
   async function handleCreate() {
     const cid = Number(candidateId);
@@ -96,7 +109,7 @@ export function InterviewAssignmentPanel({
               指派面试官、记录时间与会议链接，反馈仍在下方待填写区域完成
             </p>
           </div>
-          <Button type="button" variant="secondary" size="sm" onClick={() => setOpen((v) => !v)}>
+          <Button type="button" variant="secondary" size="sm" onClick={() => setOpen(!open)}>
             {open ? '收起' : '安排面试'}
           </Button>
         </div>
