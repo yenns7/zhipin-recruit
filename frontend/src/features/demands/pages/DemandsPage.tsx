@@ -401,7 +401,14 @@ export function DemandsPage() {
             <EmptyState
               icon={ClipboardList}
               title="暂无可关联岗位"
-              description="请先创建岗位画像，再登记招聘需求"
+              description="没有目标岗位时，请先新建岗位画像，再登记招聘需求。"
+              action={
+                <Link to="/jobs">
+                  <Button variant="secondary" size="sm">
+                    新建岗位
+                  </Button>
+                </Link>
+              }
             />
           ) : (
             <>

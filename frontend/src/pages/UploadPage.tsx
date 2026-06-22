@@ -264,6 +264,9 @@ export function UploadPage() {
                     <div className="space-y-1">
                       <p className="font-medium text-ink">请选择目标岗位</p>
                       <p className="text-muted">选择后，解析成功的简历会自动进入该岗位的待筛选阶段。</p>
+                      <Link to="/jobs" className="inline-flex text-xs font-semibold text-ink hover:underline">
+                        没有目标岗位？新建岗位
+                      </Link>
                     </div>
                   )}
                 </div>

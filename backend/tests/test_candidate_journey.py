@@ -61,6 +61,6 @@ def test_reassign_owner_manager_only(client, make_user, app):
     assert r.status_code == 403
     # manager ok
     r = client.patch(f"/api/candidates/{cid}/owner", headers=_auth(mgr_token),
-                     json={"owner_hr_id": new_id})
+                     json={"owner_hr_id": new_id, "reason": "调整试点负责人"})
     assert r.status_code == 200
     assert r.get_json()["owner_hr_id"] == new_id

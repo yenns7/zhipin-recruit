@@ -71,6 +71,7 @@ def _job_list_payload(job):
         "city": job.city or "",
         "department": job.department or "",
         "job_code": job.job_code or "",
+        "status": job.status or "active",
         "created_at": job.created_at.isoformat(),
     }
 
@@ -170,7 +171,12 @@ def create_job():
 @bp.get("/jobs")
 @require_auth
 def list_jobs():
-    q = Job.query.filter_by(status="active")
+    status = (request.args.get("status") or "active").strip().lower()
+    if status not in {"active", "closed", "all"}:
+        return jsonify({"error": "Invalid status. Valid: active, closed, all"}), 400
+    q = Job.query
+    if status != "all":
+        q = q.filter_by(status=status)
     if g.role == "interviewer":
         assigned_ids = assigned_job_ids_for_interviewer(g.user_id)
         q = q.filter(Job.id.in_(assigned_ids or [-1]))
@@ -236,6 +242,19 @@ def close_job(job_id):
     job.status = "closed"
     db.session.commit()
     record_event("job.closed", entity_id=job.id, entity_type="job")
+    return jsonify({"id": job.id, "status": job.status})
+
+
+@bp.post("/jobs/<int:job_id>/restore")
+@require_auth
+def restore_job(job_id):
+    """恢复已关闭岗位（status=active），用于修正误关闭或继续招聘。"""
+    job = db.get_or_404(Job, job_id)
+    if not _can_manage_job(job):
+        return jsonify({"error": "无权恢复该岗位"}), 403
+    job.status = "active"
+    db.session.commit()
+    record_event("job.restored", entity_id=job.id, entity_type="job")
     return jsonify({"id": job.id, "status": job.status})
 
 

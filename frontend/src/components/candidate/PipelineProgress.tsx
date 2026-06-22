@@ -9,6 +9,11 @@ import { DecisionSummaryPanel } from './DecisionSummaryPanel';
 import { InterviewGuidePanel } from '../interview/InterviewGuidePanel';
 import { roundLabel } from '../../lib/interviewRecords';
 
+function correctionText(note?: string | null) {
+  const text = String(note || '');
+  return text.startsWith('阶段修正：') ? text.replace(/^阶段修正：/, '') : null;
+}
+
 function JourneyDetail({ candidateId, jobId }: { candidateId: number; jobId: number }) {
   const { data, loading, error } = useAsync<CandidateJourney | null>(
     () => api.getCandidateJourney(candidateId, jobId),
@@ -36,9 +41,16 @@ function JourneyDetail({ candidateId, jobId }: { candidateId: number; jobId: num
               <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-ink" />
               <div>
                 <span className="font-medium text-ink">{stageLabel(t.stage)}</span>
+                {correctionText(t.note) && (
+                  <Badge tone="warning">阶段修正</Badge>
+                )}
                 {t.updated_by_name && <span className="text-muted"> · {t.updated_by_name}</span>}
                 {t.ts && <span className="text-muted-soft"> · {formatDate(t.ts)}</span>}
-                {t.note && <p className="text-xs text-muted">{t.note}</p>}
+                {t.note && (
+                  <p className="text-xs text-muted">
+                    {correctionText(t.note) ?? t.note}
+                  </p>
+                )}
               </div>
             </li>
           ))}

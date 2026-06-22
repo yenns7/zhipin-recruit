@@ -107,6 +107,28 @@ function SetupPhase({ onStart }: SetupProps) {
       </CardHeader>
       <CardBody>
         <div className="max-w-md space-y-4">
+          {(candidatesAsync.data?.length === 0 || jobsAsync.data?.length === 0) && (
+            <div className="space-y-2 rounded-lg border border-hairline bg-surface-soft px-4 py-3 text-xs text-muted">
+              {candidatesAsync.data?.length === 0 && (
+                <p>
+                  暂无候选人，请先
+                  <Link to="/upload" className="font-semibold text-ink hover:underline">
+                    上传简历
+                  </Link>
+                  。
+                </p>
+              )}
+              {jobsAsync.data?.length === 0 && (
+                <p>
+                  没有目标岗位？先去
+                  <Link to="/jobs" className="font-semibold text-ink hover:underline">
+                    新建岗位
+                  </Link>
+                  。
+                </p>
+              )}
+            </div>
+          )}
           {/* Candidate */}
           <Select
             label="候选人"

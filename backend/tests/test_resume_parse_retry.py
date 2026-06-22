@@ -100,6 +100,7 @@ def test_retry_parse_updates_failed_candidate(client, make_user, app, monkeypatc
     assert [tag["tag"] for tag in body["tags"]] == ["Python", "招聘系统"]
 
     detail = client.get(f"/api/resume/{candidate_id}", headers=_auth(token)).get_json()
+    assert detail["owner_hr_id"] == uid
     assert detail["parse_status"] == "ok"
     assert detail["parse_error"] is None
     assert detail["resume_json"]["extracted_info"]["email"] == "c@example.com"
@@ -163,6 +164,7 @@ def test_update_candidate_profile_syncs_resume_fields_and_tags(client, make_user
 
     assert response.status_code == 200
     body = response.get_json()
+    assert body["owner_hr_id"] == uid
     assert body["name_masked"] == "候选人P"
     assert body["resume_json"]["extracted_info"]["projects"][0]["name"] == "招聘助手"
     assert body["resume_json"]["extracted_info"]["additional_info"] == "HR 手动补充：沟通主动，项目表达清楚"
@@ -172,6 +174,7 @@ def test_update_candidate_profile_syncs_resume_fields_and_tags(client, make_user
     ]
 
     detail = client.get(f"/api/resume/{candidate_id}", headers=_auth(token)).get_json()
+    assert detail["owner_hr_id"] == uid
     assert detail["resume_json"]["extracted_info"]["email"] == "p@example.com"
     assert detail["tags"][0]["tag"] == "Python"
 

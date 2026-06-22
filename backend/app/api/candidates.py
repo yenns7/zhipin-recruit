@@ -348,6 +348,26 @@ def list_candidates():
     })
 
 
+@bp.get("/candidates/owner-options")
+@require_auth
+@require_role("manager", "admin")
+def candidate_owner_options():
+    recruiters = (
+        User.query
+        .filter(User.role == "recruiter", User.is_active.is_(True))
+        .order_by(User.name.asc(), User.id.asc())
+        .all()
+    )
+    return jsonify([
+        {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+        }
+        for user in recruiters
+    ])
+
+
 @bp.get("/candidates/<int:candidate_id>/pipelines")
 @require_auth
 def candidate_pipelines(candidate_id):
@@ -469,8 +489,11 @@ def candidate_journey(candidate_id):
 def reassign_owner(candidate_id):
     data = request.get_json(silent=True) or {}
     new_owner = data.get("owner_hr_id")
+    reason = str(data.get("reason") or "").strip()[:240]
     if not new_owner:
         return jsonify({"error": "owner_hr_id required"}), 400
+    if not reason:
+        return jsonify({"error": "转派原因必填"}), 400
     cand = db.session.get(Candidate, candidate_id)
     if cand is None:
         return jsonify({"error": "候选人不存在"}), 404
@@ -483,5 +506,5 @@ def reassign_owner(candidate_id):
     cand.owner_hr_id = new_owner
     db.session.commit()
     record_event("candidate.reassigned", entity_id=candidate_id, entity_type="candidate",
-                 payload={"from": old_owner, "to": new_owner})
-    return jsonify({"candidate_id": candidate_id, "owner_hr_id": new_owner})
+                 payload={"from": old_owner, "to": new_owner, "reason": reason})
+    return jsonify({"candidate_id": candidate_id, "owner_hr_id": new_owner, "reason": reason})

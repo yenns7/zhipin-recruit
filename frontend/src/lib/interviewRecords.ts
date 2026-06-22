@@ -109,6 +109,7 @@ export function uniqueJobs(items: InterviewListItem[], jobs: JobListItem[]): Job
         city: '',
         department: '',
         job_code: '',
+        status: 'active',
         created_at: '',
       });
     }

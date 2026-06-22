@@ -9,6 +9,7 @@ import {
   CardBody,
   CardHeader,
   CardTitle,
+  EmptyState,
   ErrorState,
   Input,
   PageHeader,
@@ -92,6 +93,10 @@ export function UsersManagementContent() {
       {!loading && error && <ErrorState message={error.message} onRetry={reload} />}
       {!loading && !error && (
         <div className="space-y-6">
+          <div className="rounded-md border border-hairline bg-surface-soft px-4 py-3 text-sm text-muted">
+            试点建议一人一个账号：招聘专员、面试官、主管分别登录，BI 才能看清谁负责、谁推进、谁反馈。
+          </div>
+
           <Card>
             <CardHeader><CardTitle>创建账号</CardTitle></CardHeader>
             <CardBody>
@@ -137,6 +142,14 @@ export function UsersManagementContent() {
 
           <Card>
             <CardHeader><CardTitle>成员列表</CardTitle></CardHeader>
+            {(data ?? []).length === 0 ? (
+              <CardBody>
+                <EmptyState
+                  title="暂无成员账号"
+                  description="先创建管理员、招聘专员和面试官账号，再开始试点。"
+                />
+              </CardBody>
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -212,6 +225,7 @@ export function UsersManagementContent() {
                 </tbody>
               </table>
             </div>
+            )}
           </Card>
         </div>
       )}

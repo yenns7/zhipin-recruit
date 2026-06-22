@@ -185,7 +185,7 @@ def test_manager_cannot_reassign_candidate_to_non_recruiter(client, make_user, a
     response = client.patch(
         f"/api/candidates/{candidate_id}/owner",
         headers=_auth(manager_token),
-        json={"owner_hr_id": interviewer_id},
+        json={"owner_hr_id": interviewer_id, "reason": "测试非招聘专员不能接收候选人"},
     )
 
     assert response.status_code == 400

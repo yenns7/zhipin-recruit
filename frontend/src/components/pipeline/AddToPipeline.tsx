@@ -2,6 +2,7 @@
 // 解决候选人无法进入招聘流程的缺口。
 
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { UserPlus } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAsync } from '../../lib/useAsync';
@@ -26,6 +27,7 @@ export function AddToPipeline({ jobId, existingIds, onAdded }: AddToPipelineProp
     () => (candidatesAsync.data ?? []).filter((c) => !existingIds.has(c.id)),
     [candidatesAsync.data, existingIds],
   );
+  const hasCandidatesInLibrary = (candidatesAsync.data ?? []).length > 0;
 
   async function handleAdd() {
     const cid = Number(candidateId);
@@ -65,9 +67,20 @@ export function AddToPipeline({ jobId, existingIds, onAdded }: AddToPipelineProp
       ) : candidatesAsync.error ? (
         <p className="text-sm text-danger-600">{candidatesAsync.error.message}</p>
       ) : available.length === 0 ? (
-        <p className="text-sm text-muted-soft">
-          简历库中的候选人都已在本岗位流程中。
-        </p>
+        <div className="space-y-2">
+          <p className="text-sm text-muted-soft">
+            {hasCandidatesInLibrary
+              ? '简历库中的候选人都已在本岗位流程中。'
+              : '暂无可加入候选人，请先上传简历。'}
+          </p>
+          {!hasCandidatesInLibrary && (
+            <Link to="/upload">
+              <Button variant="secondary" size="sm">
+                上传简历
+              </Button>
+            </Link>
+          )}
+        </div>
       ) : (
         <div className="flex items-end gap-2">
           <div className="flex-1">
@@ -86,6 +99,9 @@ export function AddToPipeline({ jobId, existingIds, onAdded }: AddToPipelineProp
                 </option>
               ))}
             </Select>
+            <Link to="/upload" className="mt-1 inline-flex text-xs font-semibold text-ink hover:underline">
+              没有目标候选人？上传简历
+            </Link>
           </div>
           <Button
             onClick={handleAdd}

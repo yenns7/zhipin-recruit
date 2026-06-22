@@ -117,6 +117,41 @@ function MetricDefinitionStrip() {
   );
 }
 
+function ResponsibilityDefinitionCard() {
+  const items = [
+    '候选人负责人：算 HR 绩效',
+    '最后推进人：算操作留痕',
+    '面试反馈人：算面试官责任',
+    '用人部门：按岗位部门聚合',
+    '数字异常：先看数据质量提醒',
+  ];
+  const actions = [
+    '去候选人管道查看卡点',
+    '去面试工作台催反馈',
+    '检查是否跳过面试直接进入 Offer',
+  ];
+
+  return (
+    <div className="rounded-md border border-hairline bg-surface-soft px-4 py-3">
+      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">责任怎么算</div>
+      <div className="grid gap-2 text-sm text-body md:grid-cols-2 xl:grid-cols-5">
+        {items.map((item) => (
+          <div key={item} className="rounded-md bg-canvas px-3 py-2">
+            {item}
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted">
+        {actions.map((item) => (
+          <span key={item} className="rounded-md bg-canvas px-2 py-1">
+            {item}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function DataQualityWarningsPanel({ warnings }: { warnings: BiDataQualityWarning[] }) {
   if (warnings.length === 0) return null;
 
@@ -138,6 +173,7 @@ function DataQualityWarningsPanel({ warnings }: { warnings: BiDataQualityWarning
           </div>
         ))}
       </div>
+      <p className="mt-2 text-xs text-warning-700">下一步：检查是否跳过面试直接进入 Offer。</p>
     </div>
   );
 }
@@ -612,6 +648,7 @@ function TeamOverview({
       />
 
       <MetricDefinitionStrip />
+      <ResponsibilityDefinitionCard />
 
       {loading && (
         <div className="flex items-center justify-center py-32">

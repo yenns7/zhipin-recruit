@@ -17,6 +17,7 @@ import type {
   CandidateListItem,
   CandidateListResponse,
   CandidateJourney,
+  CandidateOwnerOption,
   CandidatePipelines,
   CandidateProfileUpdateRequest,
   CreateJobRequest,
@@ -211,6 +212,9 @@ export const api = {
   listCandidates(): Promise<CandidateListItem[]> {
     return request('/candidates');
   },
+  listCandidateOwners(): Promise<CandidateOwnerOption[]> {
+    return request('/candidates/owner-options');
+  },
   searchCandidates(params: CandidateListQuery): Promise<CandidateListResponse> {
     const search = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
@@ -253,8 +257,13 @@ export const api = {
   closeJob(jobId: number): Promise<{ id: number; status: string }> {
     return request(`/jobs/${jobId}/close`, { method: 'POST' });
   },
-  listJobs(): Promise<JobListItem[]> {
-    return request('/jobs');
+  // Restore a closed job to active hiring.
+  restoreJob(jobId: number): Promise<{ id: number; status: string }> {
+    return request(`/jobs/${jobId}/restore`, { method: 'POST' });
+  },
+  listJobs(status?: 'active' | 'closed' | 'all'): Promise<JobListItem[]> {
+    const suffix = status ? `?status=${encodeURIComponent(status)}` : '';
+    return request(`/jobs${suffix}`);
   },
   // ---- Recruitment demands ----
   listDemands(): Promise<RecruitmentDemand[]> {
@@ -465,10 +474,11 @@ export const api = {
   reassignCandidate(
     candidateId: number,
     ownerHrId: number,
-  ): Promise<{ candidate_id: number; owner_hr_id: number }> {
+    reason: string,
+  ): Promise<{ candidate_id: number; owner_hr_id: number; reason: string }> {
     return request(`/candidates/${candidateId}/owner`, {
       method: 'PATCH',
-      body: { owner_hr_id: ownerHrId },
+      body: { owner_hr_id: ownerHrId, reason },
     });
   },
 };

@@ -1084,7 +1084,11 @@ export function CandidateProfilePage() {
             <CardTitle>招聘进展</CardTitle>
             {canReassign && (
               <div className="mt-2">
-                <ReassignOwner candidateId={candidateId} />
+                <ReassignOwner
+                  candidateId={candidateId}
+                  currentOwnerId={data.owner_hr_id}
+                  onReassigned={reload}
+                />
               </div>
             )}
           </CardHeader>

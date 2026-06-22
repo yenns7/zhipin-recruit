@@ -415,6 +415,7 @@ def get_resume(candidate_id):
     return jsonify({
         "id": c.id,
         "name_masked": c.name_masked,
+        "owner_hr_id": c.owner_hr_id,
         "resume_json": c.resume_json,
         "tags": [{"tag": t.tag, "score": t.score} for t in c.tags],
         "parse_status": c.parse_status,
@@ -459,6 +460,7 @@ def update_resume_profile(candidate_id):
     return jsonify({
         "id": candidate.id,
         "name_masked": candidate.name_masked,
+        "owner_hr_id": candidate.owner_hr_id,
         "resume_json": candidate.resume_json,
         "tags": [{"tag": t.tag, "score": t.score} for t in candidate.tags],
         "parse_status": candidate.parse_status,

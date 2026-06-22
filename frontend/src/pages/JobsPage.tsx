@@ -425,8 +425,11 @@ function CreateJobForm({ onCreated, onCancel }: CreateJobFormProps) {
 
 // ---- Page ----
 
+type JobStatusFilter = 'active' | 'closed';
+
 export function JobsPage() {
-  const { data, loading, error, reload } = useAsync(() => api.listJobs(), []);
+  const [jobStatus, setJobStatus] = useState<JobStatusFilter>('active');
+  const { data, loading, error, reload } = useAsync(() => api.listJobs(jobStatus), [jobStatus]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [cityFilter, setCityFilter] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
@@ -441,6 +444,7 @@ export function JobsPage() {
     (result: CreateJobResponse) => {
       setLastCreated(result);
       setShowCreateForm(false);
+      setJobStatus('active');
       reload();
     },
     [reload]
@@ -502,6 +506,7 @@ export function JobsPage() {
 
   // Close (take offline) a job after confirmation, then refresh the list.
   const [closingId, setClosingId] = useState<number | null>(null);
+  const [restoringId, setRestoringId] = useState<number | null>(null);
   const handleClose = useCallback(
     async (jobId: number, title: string) => {
       if (!window.confirm(`确认关闭岗位「${title}」？关闭后将从在招列表移除。`)) return;
@@ -513,6 +518,21 @@ export function JobsPage() {
         window.alert(err instanceof Error ? err.message : '关闭失败');
       } finally {
         setClosingId(null);
+      }
+    },
+    [reload]
+  );
+  const handleRestore = useCallback(
+    async (jobId: number, title: string) => {
+      if (!window.confirm(`确认恢复岗位「${title}」为在招？`)) return;
+      setRestoringId(jobId);
+      try {
+        await api.restoreJob(jobId);
+        reload();
+      } catch (err) {
+        window.alert(err instanceof Error ? err.message : '恢复失败');
+      } finally {
+        setRestoringId(null);
       }
     },
     [reload]
@@ -623,6 +643,32 @@ export function JobsPage() {
                 </select>
               </div>
             )}
+            {!loading && !error && (
+              <div className="flex rounded-md border border-hairline bg-canvas p-1">
+                {([
+                  ['active', '在招岗位'],
+                  ['closed', '已关闭岗位'],
+                ] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => {
+                      setJobStatus(value);
+                      setCityFilter('');
+                      setDepartmentFilter('');
+                    }}
+                    className={[
+                      'h-8 rounded px-3 text-xs font-semibold transition-colors',
+                      jobStatus === value
+                        ? 'bg-ink text-canvas'
+                        : 'text-muted hover:bg-surface-soft hover:text-ink',
+                    ].join(' ')}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </CardHeader>
 
@@ -637,8 +683,12 @@ export function JobsPage() {
         ) : jobs.length === 0 ? (
           <EmptyState
             icon={Briefcase}
-            title="暂无岗位"
-            description="点击右上角「新增岗位」创建第一个招聘岗位"
+            title={jobStatus === 'active' ? '暂无在招岗位' : '暂无已关闭岗位'}
+            description={
+              jobStatus === 'active'
+                ? '点击右上角「新增岗位」创建第一个招聘岗位'
+                : '已关闭岗位会保留在这里，误关闭时可恢复在招'
+            }
           />
         ) : filteredJobs.length === 0 ? (
           <CardBody>
@@ -744,31 +794,43 @@ export function JobsPage() {
                           </>
                         ) : (
                           <>
-                            <Link
-                              to={`/jobs/${job.id}/match`}
-                              className="text-xs font-medium text-ink hover:text-body hover:underline"
-                            >
-                              匹配候选人
-                            </Link>
-                            <Link
-                              to={`/pipeline?job=${job.id}`}
-                              className="text-xs font-medium text-muted hover:text-ink hover:underline"
-                            >
-                              查看候选人管道
-                            </Link>
-                            <button
-                              onClick={() => startEditJobAttribution(job)}
-                              className="text-xs font-medium text-muted hover:text-ink hover:underline"
-                            >
-                              编辑归属
-                            </button>
-                            <button
-                              onClick={() => handleClose(job.id, job.title)}
-                              disabled={closingId === job.id}
-                              className="text-xs font-medium text-muted hover:text-danger-600 disabled:opacity-50"
-                            >
-                              {closingId === job.id ? '关闭中…' : '关闭'}
-                            </button>
+                            {job.status === 'closed' ? (
+                              <button
+                                onClick={() => handleRestore(job.id, job.title)}
+                                disabled={restoringId === job.id}
+                                className="text-xs font-medium text-ink hover:text-body hover:underline disabled:opacity-50"
+                              >
+                                {restoringId === job.id ? '恢复中…' : '恢复在招'}
+                              </button>
+                            ) : (
+                              <>
+                                <Link
+                                  to={`/jobs/${job.id}/match`}
+                                  className="text-xs font-medium text-ink hover:text-body hover:underline"
+                                >
+                                  匹配候选人
+                                </Link>
+                                <Link
+                                  to={`/pipeline?job=${job.id}`}
+                                  className="text-xs font-medium text-muted hover:text-ink hover:underline"
+                                >
+                                  查看候选人管道
+                                </Link>
+                                <button
+                                  onClick={() => startEditJobAttribution(job)}
+                                  className="text-xs font-medium text-muted hover:text-ink hover:underline"
+                                >
+                                  编辑归属
+                                </button>
+                                <button
+                                  onClick={() => handleClose(job.id, job.title)}
+                                  disabled={closingId === job.id}
+                                  className="text-xs font-medium text-muted hover:text-danger-600 disabled:opacity-50"
+                                >
+                                  {closingId === job.id ? '关闭中…' : '关闭'}
+                                </button>
+                              </>
+                            )}
                           </>
                         )}
                       </div>

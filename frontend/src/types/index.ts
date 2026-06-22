@@ -97,6 +97,7 @@ export interface CandidateSourceInfo {
 export interface CandidateDetail {
   id: number;
   name_masked: string;
+  owner_hr_id: number;
   resume_json: ResumeJson;
   tags: CandidateTag[];
   parse_status?: ParseStatus;
@@ -164,6 +165,12 @@ export interface CandidateListResponse {
   pages: number;
 }
 
+export interface CandidateOwnerOption {
+  id: number;
+  name: string;
+  email: string;
+}
+
 // ---- Jobs ----
 export interface CreateJobRequest {
   title: string;
@@ -210,6 +217,7 @@ export interface JobListItem {
   city: string;
   department: string;
   job_code: string;
+  status: 'active' | 'closed' | string;
   created_at: string;
 }
 

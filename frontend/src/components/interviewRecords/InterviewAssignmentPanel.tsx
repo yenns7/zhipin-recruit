@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { CalendarClock } from 'lucide-react';
 import { api } from '../../lib/api';
+import { useAuth } from '../../lib/auth';
 import { formatDate } from '../../lib/formatDate';
 import { INTERVIEW_ROUNDS, roundLabel } from '../../lib/interviewRecords';
 import type {
@@ -9,8 +11,16 @@ import type {
   InterviewRound,
   InterviewerOption,
   JobListItem,
+  Role,
 } from '../../types';
 import { Badge, Button, Card, CardBody, CardHeader, CardTitle, EmptyState, Input, Select } from '../ui';
+
+const ROLE_LABEL: Record<Role, string> = {
+  recruiter: '招聘专员',
+  interviewer: '面试官',
+  manager: '经理',
+  admin: '管理员',
+};
 
 interface InterviewAssignmentPanelProps {
   candidates: CandidateListItem[];
@@ -27,6 +37,7 @@ export function InterviewAssignmentPanel({
   assignments,
   onCreated,
 }: InterviewAssignmentPanelProps) {
+  const { role } = useAuth();
   const [open, setOpen] = useState(false);
   const [candidateId, setCandidateId] = useState('');
   const [jobId, setJobId] = useState('');
@@ -93,23 +104,67 @@ export function InterviewAssignmentPanel({
       <CardBody>
         {open && (
           <div className="mb-5 space-y-3 rounded-lg border border-hairline bg-surface-soft p-4">
+            {(candidates.length === 0 || jobs.length === 0 || interviewers.length === 0) && (
+              <div className="grid gap-2 md:grid-cols-3">
+                {candidates.length === 0 && (
+                  <div className="rounded-md border border-hairline bg-canvas px-3 py-2 text-xs text-muted">
+                    <p className="font-semibold text-ink">暂无候选人，请先上传简历。</p>
+                    <Link to="/upload" className="mt-1 inline-flex font-semibold text-ink hover:underline">
+                      上传简历
+                    </Link>
+                  </div>
+                )}
+                {jobs.length === 0 && (
+                  <div className="rounded-md border border-hairline bg-canvas px-3 py-2 text-xs text-muted">
+                    <p className="font-semibold text-ink">暂无可选岗位。</p>
+                    <Link to="/jobs" className="mt-1 inline-flex font-semibold text-ink hover:underline">
+                      没有目标岗位？新建岗位
+                    </Link>
+                  </div>
+                )}
+                {interviewers.length === 0 && (
+                  <div className="rounded-md border border-hairline bg-canvas px-3 py-2 text-xs text-muted">
+                    <p className="font-semibold text-ink">
+                      暂无可选面试官，请管理员先创建或启用面试官账号。
+                    </p>
+                    {role === 'admin' ? (
+                      <Link to="/admin/users" className="mt-1 inline-flex font-semibold text-ink hover:underline">
+                        去用户管理
+                      </Link>
+                    ) : (
+                      <p className="mt-1 font-semibold text-ink">联系管理员创建或启用面试官账号</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <Select label="候选人" value={candidateId} onChange={(e) => setCandidateId(e.target.value)}>
-                <option value="">选择候选人</option>
-                {candidates.map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>
-                    {candidate.name_masked}
-                  </option>
-                ))}
-              </Select>
-              <Select label="岗位" value={jobId} onChange={(e) => setJobId(e.target.value)}>
-                <option value="">选择岗位</option>
-                {jobs.map((job) => (
-                  <option key={job.id} value={job.id}>
-                    {job.title}
-                  </option>
-                ))}
-              </Select>
+              <div>
+                <Select label="候选人" value={candidateId} onChange={(e) => setCandidateId(e.target.value)}>
+                  <option value="">选择候选人</option>
+                  {candidates.map((candidate) => (
+                    <option key={candidate.id} value={candidate.id}>
+                      {candidate.name_masked}
+                    </option>
+                  ))}
+                </Select>
+                <Link to="/upload" className="mt-1 inline-flex text-xs font-semibold text-ink hover:underline">
+                  没有目标候选人？上传简历
+                </Link>
+              </div>
+              <div>
+                <Select label="岗位" value={jobId} onChange={(e) => setJobId(e.target.value)}>
+                  <option value="">选择岗位</option>
+                  {jobs.map((job) => (
+                    <option key={job.id} value={job.id}>
+                      {job.title}
+                    </option>
+                  ))}
+                </Select>
+                <Link to="/jobs" className="mt-1 inline-flex text-xs font-semibold text-ink hover:underline">
+                  没有目标岗位？新建岗位
+                </Link>
+              </div>
               <Select label="轮次" value={round} onChange={(e) => setRound(e.target.value as InterviewRound)}>
                 {INTERVIEW_ROUNDS.map((item) => (
                   <option key={item.key} value={item.key}>
@@ -121,7 +176,7 @@ export function InterviewAssignmentPanel({
                 <option value="">选择面试官</option>
                 {interviewers.map((interviewer) => (
                   <option key={interviewer.id} value={interviewer.id}>
-                    {interviewer.name}
+                    {interviewer.name}（{ROLE_LABEL[interviewer.role] ?? interviewer.role}）
                   </option>
                 ))}
               </Select>

@@ -45,6 +45,8 @@ export function PipelineCandidatePanel({
   const [showOffer, setShowOffer] = useState(false);
   const [targetStage, setTargetStage] = useState<PipelineStage | ''>('');
   const [moveNote, setMoveNote] = useState('');
+  const [correctionReason, setCorrectionReason] = useState('');
+  const [correctionError, setCorrectionError] = useState<string | null>(null);
   const candidateId = candidate?.candidate_id ?? null;
   const candidateStage = candidate?.stage ?? null;
 
@@ -53,7 +55,9 @@ export function PipelineCandidatePanel({
     setShowDisposition(false);
     setShowOffer(false);
     setMoveNote('');
-    setTargetStage(candidateStage ? NEXT_STAGE[candidateStage] ?? '' : '');
+    setTargetStage('');
+    setCorrectionReason('');
+    setCorrectionError(null);
   }, [candidateId, candidateStage]);
 
   const insight = buildPipelineInsight(candidate);
@@ -87,6 +91,21 @@ export function PipelineCandidatePanel({
     const note = moveNote.trim() || undefined;
     await onMove(currentCandidate.candidate_id, toStage, note);
     setMoveNote('');
+  }
+
+  async function correctStage() {
+    if (!targetStage) return;
+    const reason = correctionReason.trim();
+    if (!reason) {
+      setCorrectionError('请填写修正原因');
+      return;
+    }
+    const message = '修正会影响当前阶段和 BI 当前存量，历史记录会保留。确认继续？';
+    if (!window.confirm(message)) return;
+    setCorrectionError(null);
+    await onMove(currentCandidate.candidate_id, targetStage, `阶段修正：${reason}`);
+    setTargetStage('');
+    setCorrectionReason('');
   }
 
   return (
@@ -191,15 +210,23 @@ export function PipelineCandidatePanel({
           </div>
         </section>
 
-        <section className="rounded-md border border-hairline bg-surface-soft px-3 py-3">
-          <label htmlFor="pipeline-target-stage" className="text-xs font-semibold text-muted">
-            跳转到其他阶段
-          </label>
-          <div className="mt-2 flex gap-2">
+        <section className="rounded-md border border-warning-200 bg-warning-50 px-3 py-3">
+          <div className="mb-2">
+            <label htmlFor="pipeline-target-stage" className="text-xs font-semibold text-warning-700">
+              修正阶段
+            </label>
+            <p className="mt-1 text-xs text-warning-700">
+              用于误推进、误淘汰等补救。修正会影响当前阶段和 BI 当前存量，历史记录会保留。
+            </p>
+          </div>
+          <div className="flex gap-2">
             <select
               id="pipeline-target-stage"
               value={targetStage}
-              onChange={(event) => setTargetStage(event.target.value as PipelineStage)}
+              onChange={(event) => {
+                setTargetStage(event.target.value as PipelineStage);
+                setCorrectionError(null);
+              }}
               className="h-9 flex-1 rounded-md border border-hairline bg-canvas px-2 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
             >
               <option value="">选择阶段</option>
@@ -209,17 +236,30 @@ export function PipelineCandidatePanel({
                 </option>
               ))}
             </select>
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={!targetStage || busy}
-              onClick={() => {
-                if (targetStage) void move(targetStage);
-              }}
-            >
-              更新
-            </Button>
           </div>
+          <label htmlFor="pipeline-correction-reason" className="mb-1 mt-2 block text-xs font-semibold text-warning-700">
+            修正原因（必填）
+          </label>
+          <input
+            id="pipeline-correction-reason"
+            value={correctionReason}
+            onChange={(event) => {
+              setCorrectionReason(event.target.value);
+              setCorrectionError(null);
+            }}
+            placeholder="例如：刚才误点，改回待筛选"
+            className="h-9 w-full rounded-md border border-hairline bg-canvas px-2 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+          />
+          <Button
+            className="mt-2"
+            size="sm"
+            variant="secondary"
+            disabled={!targetStage || busy}
+            onClick={() => void correctStage()}
+          >
+            保存修正
+          </Button>
+          {correctionError && <p className="mt-2 text-xs text-danger-600">{correctionError}</p>}
         </section>
 
         {showDisposition && (

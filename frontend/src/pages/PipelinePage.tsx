@@ -243,7 +243,7 @@ export function PipelinePage() {
             action={
               <Link to="/jobs">
                 <Button variant="secondary" size="sm">
-                  前往岗位画像
+                  新建岗位
                 </Button>
               </Link>
             }

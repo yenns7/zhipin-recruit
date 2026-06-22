@@ -118,6 +118,51 @@ def test_upload_source_channel_alias_is_normalized_for_bi(client, make_user, app
     assert item["source"]["channel"] == "BOSS直聘"
 
 
+def test_candidate_owner_options_and_reassignment_reason(client, make_user, app):
+    manager_id, manager_token = make_user("owner-manager@x.com", role="manager", name="招聘经理")
+    recruiter_id, _ = make_user("owner-recruiter@x.com", role="recruiter", name="招聘专员A")
+    inactive_id, _ = make_user("owner-inactive@x.com", role="recruiter", name="停用专员")
+    interviewer_id, interviewer_token = make_user("owner-interviewer@x.com", role="interviewer", name="面试官")
+
+    with app.app_context():
+        from app import db
+        from app.models import Candidate, User
+
+        inactive = db.session.get(User, inactive_id)
+        inactive.is_active = False
+        candidate = Candidate(owner_hr_id=manager_id, name_masked="待转派候选人", resume_json={})
+        db.session.add(candidate)
+        db.session.commit()
+        candidate_id = candidate.id
+
+    options_response = client.get("/api/candidates/owner-options", headers=_auth(manager_token))
+    assert options_response.status_code == 200
+    options = options_response.get_json()
+    assert {"id": recruiter_id, "name": "招聘专员A", "email": "owner-recruiter@x.com"} in options
+    assert all(option["id"] != inactive_id for option in options)
+
+    forbidden_response = client.get("/api/candidates/owner-options", headers=_auth(interviewer_token))
+    assert forbidden_response.status_code == 403
+
+    reassign_response = client.patch(
+        f"/api/candidates/{candidate_id}/owner",
+        headers=_auth(manager_token),
+        json={"owner_hr_id": recruiter_id, "reason": "试点分工调整"},
+    )
+    assert reassign_response.status_code == 200
+    body = reassign_response.get_json()
+    assert body["owner_hr_id"] == recruiter_id
+    assert body["reason"] == "试点分工调整"
+
+    with app.app_context():
+        from app.models import Candidate, Event
+
+        candidate = db.session.get(Candidate, candidate_id)
+        assert candidate.owner_hr_id == recruiter_id
+        event = Event.query.filter_by(action="candidate.reassigned", entity_id=candidate_id).first()
+        assert event.payload["reason"] == "试点分工调整"
+
+
 def test_successful_upload_with_target_job_enters_pending_pipeline(client, make_user, app, monkeypatch, tmp_path):
     uid, token = make_user("upload-pipeline@x.com", role="recruiter")
     jid, _ = _seed_job_candidate(app, owner_id=uid)

@@ -258,11 +258,12 @@ rejected
 | 方法 | 路径 | 权限 | 作用 |
 |---|---|---|---|
 | `POST` | `/resume/upload` | 登录 | 批量上传 PDF / Word / ZIP 简历，AI 解析入库 |
-| `GET` | `/resume/<candidate_id>` | 登录 | 候选人简历详情与技能标签 |
+| `GET` | `/resume/<candidate_id>` | 登录 | 候选人简历详情与技能标签，返回 `owner_hr_id` 供负责人展示与转派 |
 | `GET` | `/candidates` | 登录 | 候选人列表，recruiter 只看自己的 |
+| `GET` | `/candidates/owner-options` | manager/admin | 获取启用中的招聘专员下拉选项 |
 | `GET` | `/candidates/<id>/pipelines` | 登录 | 候选人参与的岗位流程 |
 | `GET` | `/candidates/<id>/journey?job_id=` | 登录 | 候选人某岗位下的完整时间线、AI 面试、面试官反馈 |
-| `PATCH` | `/candidates/<id>/owner` | manager/admin | 转派候选人负责人 |
+| `PATCH` | `/candidates/<id>/owner` | manager/admin | 转派候选人负责人，`reason` 必填并写入事件流水 |
 
 ### 7.3 Jobs / Match
 
@@ -270,10 +271,11 @@ rejected
 |---|---|---|---|
 | `POST` | `/jobs/clarify` | 登录 | AI 根据 JD 生成澄清追问，不落库 |
 | `POST` | `/jobs` | 登录 | 创建岗位，AI 结构化 JD |
-| `GET` | `/jobs` | 登录 | active 岗位列表 |
+| `GET` | `/jobs?status=active\|closed\|all` | 登录 | 岗位列表，默认 active；用于查看在招/已关闭岗位 |
 | `GET` | `/jobs/<job_id>` | 登录 | 岗位详情 |
 | `PUT` | `/jobs/<job_id>` | owner/manager/admin | 编辑岗位，JD 变化时重新结构化 |
 | `POST` | `/jobs/<job_id>/close` | owner/manager/admin | 关闭岗位 |
+| `POST` | `/jobs/<job_id>/restore` | owner/manager/admin | 将已关闭岗位恢复为在招 |
 | `POST` | `/jobs/<job_id>/match` | 登录 | 运行岗位候选人匹配并持久化 |
 | `POST` | `/match` | 登录 | 兼容旧入口，按 `job_id` 运行匹配 |
 
@@ -395,7 +397,8 @@ flowchart TD
 
 - `jd_structured.skill_tags_raw` 直接影响后续匹配。
 - 修改 JD 会重新结构化。
-- 关闭岗位只改 `status=closed`，不物理删除。
+- 关闭岗位只改 `status=closed`，不物理删除；岗位画像页可切换查看已关闭岗位，并通过 `/jobs/<id>/restore` 恢复在招。
+- 用人需求、简历上传、候选人管道、面试安排等入口在没有可选岗位时引导用户先新建岗位，避免下拉框为空时卡住。
 
 ### 8.4 岗位候选人匹配
 
@@ -443,6 +446,7 @@ flowchart TD
 - 历史一面/二面/终面阶段只做兼容读取，新写入统一使用 `interview`。
 - 阶段移动由 HR/经理/管理员完成；面试官账号即使被分配了面试，也不能调用 `/pipeline/move` 直接推进 Offer 或淘汰。
 - 前端反馈表通过 `canMovePipeline` 控制按钮显示，后端 `/pipeline/move` 也会兜底拦截面试官账号。
+- 误推进或误淘汰用前端“修正阶段”处理，本质仍调用 `/pipeline/move` 追加一条新流水，备注以 `阶段修正：` 开头；候选人详情时间线显示“阶段修正”，当前阶段和 BI 当前存量按最新流水计算，历史记录不删除。
 
 ### 8.6 AI 面试与流程回写
 
@@ -499,6 +503,7 @@ BI 主要从两类数据计算：
 注意：BI 使用最新阶段去重，不能直接统计所有历史流水。
 面试轮次只作为面试事实明细参与 BI 责任归因，不重新拆回候选人管道主流程。
 招聘专员工作台的“我的本月业绩”和“今日待办”复用 `/bi/staff/<hr_id>` 的 `performance` 字段；主管 BI 的专员列表也使用同一套公开绩效字段。
+前端 BI 页面同步展示“责任怎么算”：候选人负责人算 HR 绩效，最后推进人算操作留痕，面试反馈人算面试官责任，用人部门按岗位部门聚合。候选人负责人转派后，后续绩效归新负责人；历史推进人和面试反馈人不重写。阶段修正只影响最新阶段和当前存量，不删除历史流水。
 
 ### 8.9 AI 助手
 
