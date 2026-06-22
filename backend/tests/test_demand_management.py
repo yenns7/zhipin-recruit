@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from app import db
 from app.models import Candidate, Job, PipelineStage
@@ -74,7 +74,7 @@ def test_demands_can_be_created_listed_and_closed_with_metrics(client, make_user
     assert closed.get_json()["close_reason"] == "业务确认暂不招聘"
 
     with app.app_context():
-        job = Job.query.get(job_id)
+        job = db.session.get(Job, job_id)
         assert job.status == "closed"
 
 
@@ -104,9 +104,9 @@ def test_demands_can_be_downgraded_and_expose_risk_flags(client, make_user, app)
         json={
             "job_id": job_id,
             "requester_department": "研发部",
-            "requested_at": (datetime.utcnow() - timedelta(days=45)).date().isoformat(),
-            "accepted_at": (datetime.utcnow() - timedelta(days=44)).date().isoformat(),
-            "target_date": (datetime.utcnow() - timedelta(days=5)).date().isoformat(),
+            "requested_at": (datetime.now(UTC).replace(tzinfo=None) - timedelta(days=45)).date().isoformat(),
+            "accepted_at": (datetime.now(UTC).replace(tzinfo=None) - timedelta(days=44)).date().isoformat(),
+            "target_date": (datetime.now(UTC).replace(tzinfo=None) - timedelta(days=5)).date().isoformat(),
             "priority": "A",
             "headcount": 2,
             "status": "active",
@@ -146,8 +146,8 @@ def test_demands_flag_hr_side_when_accepted_but_no_candidates(client, make_user,
         json={
             "job_id": job_id,
             "requester_department": "产品部",
-            "requested_at": (datetime.utcnow() - timedelta(days=10)).date().isoformat(),
-            "accepted_at": (datetime.utcnow() - timedelta(days=8)).date().isoformat(),
+            "requested_at": (datetime.now(UTC).replace(tzinfo=None) - timedelta(days=10)).date().isoformat(),
+            "accepted_at": (datetime.now(UTC).replace(tzinfo=None) - timedelta(days=8)).date().isoformat(),
             "priority": "A",
             "headcount": 1,
             "status": "active",

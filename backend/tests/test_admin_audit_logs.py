@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from app import db
 from app.models import Event
@@ -28,7 +28,7 @@ def test_admin_lists_audit_events_with_actor_and_pagination(app, client, make_us
                 entity_type="job",
                 entity_id=10,
                 payload={"title": "增长产品经理"},
-                ts=datetime.utcnow(),
+                ts=datetime.now(UTC).replace(tzinfo=None),
             ),
             Event(
                 actor_id=manager_id,
@@ -36,7 +36,7 @@ def test_admin_lists_audit_events_with_actor_and_pagination(app, client, make_us
                 entity_type="candidate",
                 entity_id=22,
                 payload={"stage": "interview_first"},
-                ts=datetime.utcnow() - timedelta(minutes=5),
+                ts=datetime.now(UTC).replace(tzinfo=None) - timedelta(minutes=5),
             ),
         ])
         db.session.commit()

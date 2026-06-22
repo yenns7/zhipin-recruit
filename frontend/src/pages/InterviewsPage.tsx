@@ -1,6 +1,7 @@
 // AI 预筛面试页 — 三阶段流程：配置 → 作答（HR 代录）→ 报告。
 
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAsync } from '../lib/useAsync';
 import {
@@ -102,7 +103,7 @@ function SetupPhase({ onStart }: SetupProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>配置面试</CardTitle>
+        <CardTitle>生成预筛题目</CardTitle>
       </CardHeader>
       <CardBody>
         <div className="max-w-md space-y-4">
@@ -153,7 +154,17 @@ function SetupPhase({ onStart }: SetupProps) {
             onChange={(e) => setCount(e.target.value)}
           />
 
-          {error && <p className="text-sm text-danger-600">{error}</p>}
+          {error && (
+            <div className="space-y-2 rounded-lg bg-danger-50 px-4 py-3 text-sm text-danger-700">
+              <p>{error}</p>
+              <p>
+                AI 生成失败也不影响流程，可回到面试工作台手动安排面试。
+              </p>
+              <Link to="/interviews" className="font-medium underline hover:no-underline">
+                回面试工作台
+              </Link>
+            </div>
+          )}
 
           <Button
             onClick={handleStart}
@@ -161,7 +172,7 @@ function SetupPhase({ onStart }: SetupProps) {
             disabled={loading}
             className="w-full"
           >
-            {loading ? 'AI 正在生成面试题…' : '生成面试题'}
+            {loading ? 'AI 正在生成参考题目…' : '生成参考题目'}
           </Button>
         </div>
       </CardBody>
@@ -196,14 +207,14 @@ function AnswerPhase({
           <div className="flex items-center justify-between">
             <CardTitle>录入候选人作答</CardTitle>
             <span className="text-xs text-muted">
-              共 {questions.length} 题 — 录入候选人作答内容，用于 AI 评估
+              共 {questions.length} 题 — 录入候选人作答内容，用于 AI 参考评估
             </span>
           </div>
         </CardHeader>
         <CardBody>
           <div className="mb-4 rounded-lg bg-surface-soft border border-hairline-soft px-4 py-3">
             <p className="text-xs text-muted">
-              请将候选人对以下题目的实际作答内容逐题录入，提交后将由 AI 进行综合评估并生成报告。
+              请将候选人对以下题目的实际作答内容逐题录入，提交后将生成参考报告；最终结论仍以人工反馈为准。
             </p>
           </div>
           <Reveal className="space-y-6" stagger={0.06}>
@@ -239,7 +250,7 @@ function AnswerPhase({
               disabled={submitting}
               className="w-full"
             >
-              {submitting ? 'AI 正在评估作答…' : '提交 AI 评估'}
+              {submitting ? 'AI 正在生成参考报告…' : '提交 AI 参考评估'}
             </Button>
           </div>
         </CardBody>
@@ -315,14 +326,21 @@ export function InterviewsPage() {
     <div className="space-y-6">
       {/* Header */}
       <PageHeader
-        title="AI 面试"
-        description="生成定制面试题，录入候选人作答，获取 AI 评估报告"
+        title="AI 预筛参考"
+        description="生成参考题目、录入作答并获取辅助报告；面试结论仍由人工反馈确认"
         actions={
-          phase !== 'setup' ? (
-            <Button variant="secondary" size="sm" onClick={handleReset}>
-              重新开始
-            </Button>
-          ) : undefined
+          <div className="flex flex-wrap gap-2">
+            <Link to="/interviews">
+              <Button variant="secondary" size="sm">
+                手动安排面试
+              </Button>
+            </Link>
+            {phase !== 'setup' && (
+              <Button variant="secondary" size="sm" onClick={handleReset}>
+                重新开始
+              </Button>
+            )}
+          </div>
         }
       />
 
@@ -411,7 +429,7 @@ export function InterviewsPage() {
         <Card>
           <CardBody>
             <p className="text-sm text-danger-600">
-              报告生成失败，请重试
+              报告生成失败，请重试，或回到面试工作台手动安排面试
               <button
                 onClick={handleReset}
                 className="ml-3 font-medium underline hover:no-underline"

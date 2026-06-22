@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 import math
+import bcrypt
 
 from flask import Blueprint, request, jsonify, g
 from ..middleware.auth import require_auth, require_role
@@ -12,6 +13,14 @@ bp = Blueprint("admin", __name__)
 VALID_ROLES = {"recruiter", "interviewer", "manager", "admin"}
 
 
+def _hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def _clean_text(value, limit):
+    return str(value or "").strip()[:limit]
+
+
 @bp.get("/admin/users")
 @require_auth
 @require_role("admin")
@@ -22,6 +31,43 @@ def list_users():
         "is_active": u.is_active,
         "created_at": u.created_at.isoformat() if u.created_at else None,
     } for u in users])
+
+
+@bp.post("/admin/users")
+@require_auth
+@require_role("admin")
+def create_user():
+    data = request.get_json(silent=True) or {}
+    email = _clean_text(data.get("email"), 100).lower()
+    name = _clean_text(data.get("name"), 100)
+    password = str(data.get("password") or "")
+    role = _clean_text(data.get("role") or "recruiter", 20)
+
+    if not email or "@" not in email:
+        return jsonify({"error": "需要提供有效邮箱"}), 400
+    if User.query.filter_by(email=email).first():
+        return jsonify({"error": "邮箱已存在"}), 409
+    if len(password) < 6:
+        return jsonify({"error": "密码至少 6 位"}), 400
+    if role not in VALID_ROLES:
+        return jsonify({"error": f"无效角色。可选：{sorted(VALID_ROLES)}"}), 400
+
+    user = User(
+        name=name or email.split("@")[0],
+        email=email,
+        role=role,
+        password_hash=_hash_password(password),
+        is_active=True,
+    )
+    db.session.add(user)
+    db.session.commit()
+    record_event("user.created", entity_id=user.id, entity_type="user",
+                 payload={"role": user.role})
+    return jsonify({
+        "id": user.id, "name": user.name, "email": user.email, "role": user.role,
+        "is_active": user.is_active,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+    }), 201
 
 
 @bp.get("/admin/ai-architecture")
@@ -110,7 +156,7 @@ def audit_logs():
 @require_role("admin")
 def update_user(user_id):
     data = request.get_json() or {}
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if user is None:
         return jsonify({"error": "用户不存在"}), 404
     if user_id == g.user_id:
@@ -131,3 +177,20 @@ def update_user(user_id):
     db.session.commit()
     return jsonify({"id": user.id, "name": user.name, "email": user.email,
                     "role": user.role, "is_active": user.is_active})
+
+
+@bp.post("/admin/users/<int:user_id>/reset-password")
+@require_auth
+@require_role("admin")
+def reset_user_password(user_id):
+    data = request.get_json(silent=True) or {}
+    password = str(data.get("password") or "")
+    if len(password) < 6:
+        return jsonify({"error": "密码至少 6 位"}), 400
+    user = db.session.get(User, user_id)
+    if user is None:
+        return jsonify({"error": "用户不存在"}), 404
+    user.password_hash = _hash_password(password)
+    db.session.commit()
+    record_event("user.password_reset", entity_id=user_id, entity_type="user")
+    return jsonify({"status": "ok", "id": user.id})

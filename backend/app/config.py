@@ -73,7 +73,7 @@ class TestingConfig(Config):
     TESTING = True
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     CELERY_TASK_ALWAYS_EAGER = True
-    JWT_SECRET = "test-secret"
+    JWT_SECRET = "test-secret-for-hs256-warning-cleanup-2026"
     # 测试保留公开注册以覆盖既有 register 用例；生产默认关闭
     ALLOW_PUBLIC_REGISTRATION = True
     RATE_LIMIT_ENABLED = False

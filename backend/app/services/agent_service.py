@@ -40,6 +40,7 @@ from ..models import (  # noqa: E402
 from .match_service import MatchService  # noqa: E402
 from ..api.bi import _funnel, _safe_rate  # 复用 BI 漏斗逻辑（模块级函数）  # noqa: E402
 from ..api.access import can_access_candidate, visible_candidate_query  # noqa: E402
+from ..time_utils import utc_now  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,27 @@ def _scoped_candidate_query(user_id=None, role=None):
     if user_id and role:
         return visible_candidate_query(user_id, role)
     return Candidate.query
+
+
+def _agent_current_stage_counts(job_id=None, user_id=None, role=None):
+    from ..api.pipeline import _latest_stage_subquery, normalize_pipeline_stage
+
+    latest = _latest_stage_subquery(int(job_id) if job_id else None)
+    rows = (
+        db.session.query(PipelineStage.stage, db.func.count(PipelineStage.id))
+        .join(latest, PipelineStage.id == latest.c.max_id)
+        .join(Candidate, Candidate.id == PipelineStage.candidate_id)
+    )
+    if job_id:
+        rows = rows.filter(PipelineStage.job_id == int(job_id))
+    rows = rows.filter(Candidate.id.in_(
+        _scoped_candidate_query(user_id, role).with_entities(Candidate.id)
+    ))
+    counts = {}
+    for stage, count in rows.group_by(PipelineStage.stage).all():
+        normalized = normalize_pipeline_stage(stage)
+        counts[normalized] = counts.get(normalized, 0) + count
+    return counts
 
 
 # =============================================================================
@@ -78,7 +100,7 @@ def _tool_get_candidate(candidate_id: int, **_) -> Dict[str, Any]:
     role = _.get("_role")
     if user_id and role and not can_access_candidate(user_id, role, int(candidate_id)):
         return {"error": "Forbidden"}
-    c = Candidate.query.get(int(candidate_id))
+    c = db.session.get(Candidate, int(candidate_id))
     if not c:
         return {"error": f"候选人 {candidate_id} 不存在"}
     tags = [{"tag": t.tag, "score": t.score} for t in c.tags]
@@ -104,7 +126,7 @@ def _tool_list_jobs(limit: int = 20, **_) -> Dict[str, Any]:
 
 def _tool_match_candidates_for_job(job_id: int, **_) -> Dict[str, Any]:
     """给某岗位匹配候选人排名（计算匹配分，不持久化）。"""
-    job = Job.query.get(int(job_id))
+    job = db.session.get(Job, int(job_id))
     if not job:
         return {"error": f"岗位 {job_id} 不存在"}
     # 使用纯计算模式（不写入 DB），rank_for_job(..., persist=False)
@@ -119,17 +141,11 @@ def _tool_match_candidates_for_job(job_id: int, **_) -> Dict[str, Any]:
 
 def _tool_get_pipeline(job_id: int, **_) -> Dict[str, Any]:
     """某岗位招聘流程看板：按 stage 分组计数。"""
-    rows = (
-        db.session.query(PipelineStage.stage, db.func.count(PipelineStage.candidate_id))
-        .join(Candidate, Candidate.id == PipelineStage.candidate_id)
-        .filter(PipelineStage.job_id == int(job_id))
-        .filter(Candidate.id.in_(
-            _scoped_candidate_query(_.get("_user_id"), _.get("_role")).with_entities(Candidate.id)
-        ))
-        .group_by(PipelineStage.stage)
-        .all()
+    by_stage = _agent_current_stage_counts(
+        job_id=job_id,
+        user_id=_.get("_user_id"),
+        role=_.get("_role"),
     )
-    by_stage = {stage: count for stage, count in rows}
     return {"job_id": int(job_id), "pipeline": by_stage}
 
 
@@ -139,12 +155,12 @@ def _tool_get_bi_overview(days: int = 30, **_) -> Dict[str, Any]:
         days = int(days) if days else 30
     except (TypeError, ValueError):
         days = 30
-    from datetime import datetime, timedelta
+    from datetime import timedelta
     from sqlalchemy import func
     from ..models import User, Event
 
     funnel = _funnel(days=days)
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = utc_now() - timedelta(days=days)
     # 专员效能（与 bi.overview() 中相同逻辑）
     staff_rows = (
         db.session.query(
@@ -176,18 +192,14 @@ def _tool_get_bi_overview(days: int = 30, **_) -> Dict[str, Any]:
 def _tool_count_summary(**_) -> Dict[str, Any]:
     """系统概览数字：候选人/岗位/面试总数 + 各流程阶段人数。"""
     scoped_candidates = _scoped_candidate_query(_.get("_user_id"), _.get("_role"))
-    stage_rows = (
-        db.session.query(PipelineStage.stage, db.func.count(PipelineStage.candidate_id))
-        .join(Candidate, Candidate.id == PipelineStage.candidate_id)
-        .filter(Candidate.id.in_(scoped_candidates.with_entities(Candidate.id)))
-        .group_by(PipelineStage.stage)
-        .all()
-    )
     return {
         "candidate_count": scoped_candidates.count(),
         "job_count": Job.query.count(),
         "interview_count": Interview.query.count(),
-        "stage_counts": {stage: count for stage, count in stage_rows},
+        "stage_counts": _agent_current_stage_counts(
+            user_id=_.get("_user_id"),
+            role=_.get("_role"),
+        ),
     }
 
 
@@ -385,13 +397,15 @@ def _write_move_pipeline(candidate_id: int = None, job_id: int = None,
     """推进候选人到指定招聘流程阶段。"""
     from ..models import VALID_STAGES
     from ..middleware.events import record_event
+    from ..api.pipeline import PIPELINE_STAGE_ORDER, normalize_pipeline_stage
     if not candidate_id or not job_id or not stage:
         return {"error": "缺少 candidate_id / job_id / stage"}
     if stage not in VALID_STAGES:
-        return {"error": f"无效阶段，可选: {sorted(VALID_STAGES)}"}
-    if not Candidate.query.get(int(candidate_id)):
+        return {"error": f"无效阶段，可选: {PIPELINE_STAGE_ORDER}"}
+    stage = normalize_pipeline_stage(stage)
+    if not db.session.get(Candidate, int(candidate_id)):
         return {"error": f"候选人 {candidate_id} 不存在"}
-    if not Job.query.get(int(job_id)):
+    if not db.session.get(Job, int(job_id)):
         return {"error": f"岗位 {job_id} 不存在"}
     if not can_access_candidate(actor_id, actor_role, int(candidate_id), int(job_id)):
         return {"error": "Forbidden"}
@@ -415,10 +429,10 @@ def _write_start_interview(candidate_id: int = None, job_id: int = None,
     from ..middleware.events import record_event
     if not candidate_id or not job_id:
         return {"error": "缺少 candidate_id / job_id"}
-    job = Job.query.get(int(job_id))
+    job = db.session.get(Job, int(job_id))
     if not job:
         return {"error": f"岗位 {job_id} 不存在"}
-    if not Candidate.query.get(int(candidate_id)):
+    if not db.session.get(Candidate, int(candidate_id)):
         return {"error": f"候选人 {candidate_id} 不存在"}
     if not can_access_candidate(actor_id, actor_role, int(candidate_id), int(job_id)):
         return {"error": "Forbidden"}
@@ -438,7 +452,7 @@ def _write_run_match(job_id: int = None, actor_id: int = None,
     from ..middleware.events import record_event
     if not job_id:
         return {"error": "缺少 job_id"}
-    job = Job.query.get(int(job_id))
+    job = db.session.get(Job, int(job_id))
     if not job:
         return {"error": f"岗位 {job_id} 不存在"}
     ranked = MatchService().rank_for_job(

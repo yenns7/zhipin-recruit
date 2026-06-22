@@ -12,8 +12,14 @@ from ..models import Candidate, CandidateTag
 
 
 class ResumeBatchService:
-    def __init__(self):
-        self.parser = ResumeParser()
+    def __init__(self, parser=None):
+        self._parser = parser
+
+    @property
+    def parser(self):
+        if self._parser is None:
+            self._parser = ResumeParser()
+        return self._parser
 
     def parse_and_save(self, file_path: str, owner_hr_id: int, upload_batch_id: int = None) -> Candidate:
         """解析单份简历，存入数据库，返回 Candidate 对象"""
@@ -69,7 +75,7 @@ class ResumeBatchService:
             return candidate
         except Exception as exc:
             db.session.rollback()
-            failed_candidate = Candidate.query.get(candidate_id)
+            failed_candidate = db.session.get(Candidate, candidate_id)
             if failed_candidate:
                 failed_candidate.parse_status = "failed"
                 failed_candidate.parse_error = str(exc)[:500]

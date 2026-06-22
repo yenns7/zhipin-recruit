@@ -18,7 +18,8 @@ from ..models import (
     User,
     VALID_STAGES,
 )
-from .pipeline import _latest_stage_subquery, STAGE_ORDER
+from ..source_channels import normalize_resume_source_channel, resume_source_channel_filter_values
+from .pipeline import LEGACY_INTERVIEW_STAGES, STAGE_ORDER, _latest_stage_subquery, normalize_pipeline_stage
 from .access import assigned_candidate_ids_for_interviewer, interviewer_has_assignment
 
 bp = Blueprint("candidates", __name__)
@@ -172,13 +173,13 @@ def _candidate_library_item(candidate):
 def _candidate_source_payload(candidate):
     if not candidate.upload_batch_id:
         return None
-    batch = UploadBatch.query.get(candidate.upload_batch_id)
+    batch = db.session.get(UploadBatch, candidate.upload_batch_id)
     if batch is None:
         return None
-    target_job = Job.query.get(batch.target_job_id) if batch.target_job_id else None
+    target_job = db.session.get(Job, batch.target_job_id) if batch.target_job_id else None
     return {
         "batch_id": batch.id,
-        "channel": batch.source_channel or "",
+        "channel": normalize_resume_source_channel(batch.source_channel),
         "source_link": batch.source_link or "",
         "referrer": batch.referrer or "",
         "target_job_id": batch.target_job_id,
@@ -295,10 +296,13 @@ def list_candidates():
 
     if stage and stage in VALID_STAGES:
         latest = _latest_stage_subquery()
+        matching_stages = [stage]
+        if stage == "interview":
+            matching_stages += list(LEGACY_INTERVIEW_STAGES)
         stage_subquery = (
             select(PipelineStage.candidate_id)
             .join(latest, PipelineStage.id == latest.c.max_id)
-            .where(PipelineStage.stage == stage)
+            .where(PipelineStage.stage.in_(matching_stages))
         )
         query = query.filter(Candidate.id.in_(stage_subquery))
 
@@ -307,9 +311,10 @@ def list_candidates():
         query = query.filter(Candidate.id.in_(job_subquery))
 
     if source_channel:
+        channel_values = resume_source_channel_filter_values(source_channel)
         query = (
             query.join(UploadBatch, Candidate.upload_batch_id == UploadBatch.id)
-            .filter(UploadBatch.source_channel == source_channel)
+            .filter(UploadBatch.source_channel.in_(channel_values or [source_channel]))
         )
 
     if parse_status in {"pending", "processing", "ok", "failed"}:
@@ -346,7 +351,7 @@ def list_candidates():
 @bp.get("/candidates/<int:candidate_id>/pipelines")
 @require_auth
 def candidate_pipelines(candidate_id):
-    cand = Candidate.query.get(candidate_id)
+    cand = db.session.get(Candidate, candidate_id)
     if cand is None:
         return jsonify({"error": "候选人不存在"}), 404
     if g.role == "recruiter" and cand.owner_hr_id != g.user_id:
@@ -364,7 +369,7 @@ def candidate_pipelines(candidate_id):
     items = [{
         "job_id": ps.job_id,
         "job_title": job.title,
-        "stage": ps.stage,
+        "stage": normalize_pipeline_stage(ps.stage),
         "updated_at": ps.ts.isoformat() if ps.ts else None,
     } for ps, job in rows]
     items.sort(key=lambda x: (
@@ -377,7 +382,7 @@ def candidate_pipelines(candidate_id):
 @bp.get("/candidates/<int:candidate_id>/journey")
 @require_auth
 def candidate_journey(candidate_id):
-    cand = Candidate.query.get(candidate_id)
+    cand = db.session.get(Candidate, candidate_id)
     if cand is None:
         return jsonify({"error": "候选人不存在"}), 404
     if g.role == "recruiter" and cand.owner_hr_id != g.user_id:
@@ -387,7 +392,7 @@ def candidate_journey(candidate_id):
         return jsonify({"error": "job_id required"}), 400
     if g.role == "interviewer" and not interviewer_has_assignment(g.user_id, candidate_id, job_id):
         return jsonify({"error": "Forbidden"}), 403
-    job = Job.query.get(job_id)
+    job = db.session.get(Job, job_id)
 
     # 阶段时间线（含操作人、备注）
     stage_rows = (
@@ -423,6 +428,7 @@ def candidate_journey(candidate_id):
     feedback = [{
         "id": f.id, "round": f.round, "score": f.score, "passed": f.passed,
         "strengths": f.strengths, "concerns": f.concerns, "note": f.note,
+        "reason_tags": f.reason_tags if isinstance(f.reason_tags, list) else [],
         "evaluation": f.evaluation_json or {},
         "interviewer_name": u.name if u else None,
         "created_at": f.created_at.isoformat() if f.created_at else None,
@@ -465,10 +471,10 @@ def reassign_owner(candidate_id):
     new_owner = data.get("owner_hr_id")
     if not new_owner:
         return jsonify({"error": "owner_hr_id required"}), 400
-    cand = Candidate.query.get(candidate_id)
+    cand = db.session.get(Candidate, candidate_id)
     if cand is None:
         return jsonify({"error": "候选人不存在"}), 404
-    target = User.query.get(new_owner)
+    target = db.session.get(User, new_owner)
     if target is None:
         return jsonify({"error": "目标用户不存在"}), 404
     if target.role != "recruiter" or not target.is_active:

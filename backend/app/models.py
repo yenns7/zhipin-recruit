@@ -1,5 +1,5 @@
-from datetime import datetime
 from . import db
+from .time_utils import utc_now
 
 
 class User(db.Model):
@@ -9,7 +9,7 @@ class User(db.Model):
     email = db.Column(db.String(100), unique=True, nullable=False)
     role = db.Column(db.String(20), nullable=False, default="recruiter")  # admin/manager/recruiter/interviewer
     password_hash = db.Column(db.String(255), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
 
 
@@ -23,7 +23,7 @@ class Candidate(db.Model):
     phone_masked = db.Column(db.String(30))
     resume_json = db.Column(db.JSON, nullable=False)
     raw_file_path = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
     parse_status = db.Column(db.String(20), default="ok", nullable=False)
     parse_error = db.Column(db.Text)
     tags = db.relationship("CandidateTag", backref="candidate", cascade="all,delete-orphan")
@@ -39,7 +39,7 @@ class UploadBatch(db.Model):
     referrer = db.Column(db.String(120), default="")
     target_job_id = db.Column(db.Integer, db.ForeignKey("jobs.id"))
     note = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
 
 
 class CandidateTag(db.Model):
@@ -61,7 +61,7 @@ class Job(db.Model):
     jd_structured = db.Column(db.JSON)
     owner_hr_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     status = db.Column(db.String(20), default="active")
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
 
 
 class RecruitmentDemand(db.Model):
@@ -82,8 +82,8 @@ class RecruitmentDemand(db.Model):
     close_reason = db.Column(db.Text)
     downgrade_reason = db.Column(db.Text)
     note = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     job = db.relationship("Job", backref="demands")
 
 
@@ -95,8 +95,8 @@ class TalentMap(db.Model):
     department = db.Column(db.String(120), default="")
     owner_hr_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     board_json = db.Column(db.JSON)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     job = db.relationship("Job", backref="talent_maps")
     companies = db.relationship(
         "TalentMapCompany",
@@ -122,8 +122,8 @@ class TalentMapCompany(db.Model):
     industry = db.Column(db.String(120), default="")
     priority = db.Column(db.String(40), default="medium")
     note = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     people = db.relationship(
         "TalentMapPerson",
         backref="company",
@@ -147,8 +147,8 @@ class TalentMapPerson(db.Model):
     source = db.Column(db.String(160), default="")
     next_follow_at = db.Column(db.Date)
     note = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
 
 
 class Match(db.Model):
@@ -158,7 +158,7 @@ class Match(db.Model):
     candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id"))
     score = db.Column(db.Float, nullable=False)
     reason = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
 
 
 class Interview(db.Model):
@@ -170,11 +170,12 @@ class Interview(db.Model):
     ai_report = db.Column(db.JSON)
     score = db.Column(db.Float)
     pass_recommended = db.Column(db.Boolean)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
 
 
 VALID_STAGES = {
     "pending", "ai_screen", "business_review",
+    "interview",
     "interview_first", "interview_second", "interview_final",
     "offer", "onboarded", "rejected",
 }
@@ -188,7 +189,7 @@ class PipelineStage(db.Model):
     stage = db.Column(db.String(50), nullable=False)
     updated_by = db.Column(db.Integer, db.ForeignKey("users.id"))
     note = db.Column(db.Text)  # 本次阶段变更原因/备注，可空
-    ts = db.Column(db.DateTime, default=datetime.utcnow)
+    ts = db.Column(db.DateTime, default=utc_now)
 
 
 class CandidateDisposition(db.Model):
@@ -202,7 +203,7 @@ class CandidateDisposition(db.Model):
     tags = db.Column(db.JSON)
     note = db.Column(db.Text)
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
 
 
 class OfferRecord(db.Model):
@@ -215,8 +216,8 @@ class OfferRecord(db.Model):
     approval_status = db.Column(db.String(40), default="draft")
     note = db.Column(db.Text)
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
 
 
 class InterviewAssignment(db.Model):
@@ -231,7 +232,7 @@ class InterviewAssignment(db.Model):
     note = db.Column(db.Text)
     status = db.Column(db.String(40), default="scheduled")
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
 
 
 class Event(db.Model):
@@ -242,7 +243,7 @@ class Event(db.Model):
     entity_id = db.Column(db.Integer)
     entity_type = db.Column(db.String(50))
     payload = db.Column(db.JSON)
-    ts = db.Column(db.DateTime, default=datetime.utcnow)
+    ts = db.Column(db.DateTime, default=utc_now)
 
 
 class AuditLog(db.Model):
@@ -252,7 +253,7 @@ class AuditLog(db.Model):
     target_table = db.Column(db.String(50))
     target_id = db.Column(db.Integer)
     action = db.Column(db.String(50))
-    ts = db.Column(db.DateTime, default=datetime.utcnow)
+    ts = db.Column(db.DateTime, default=utc_now)
 
 
 class Notification(db.Model):
@@ -264,7 +265,7 @@ class Notification(db.Model):
     body = db.Column(db.Text)
     link = db.Column(db.String(500))
     is_read = db.Column(db.Boolean, default=False, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
 
 
 class Conversation(db.Model):
@@ -272,8 +273,8 @@ class Conversation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     title = db.Column(db.String(200), default="新对话")
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     messages = db.relationship(
         "ConversationMessage",
         backref="conversation",
@@ -294,7 +295,7 @@ class ConversationMessage(db.Model):
     content = db.Column(db.Text, nullable=False)
     tool_calls = db.Column(db.JSON)
     thoughts = db.Column(db.JSON)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
 
 
 class InterviewFeedback(db.Model):
@@ -308,6 +309,7 @@ class InterviewFeedback(db.Model):
     passed = db.Column(db.Boolean)
     strengths = db.Column(db.Text)
     concerns = db.Column(db.Text)
+    reason_tags = db.Column(db.JSON)
     evaluation_json = db.Column(db.JSON)
     note = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)

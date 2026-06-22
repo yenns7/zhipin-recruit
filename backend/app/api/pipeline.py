@@ -13,8 +13,19 @@ from .access import (
 bp = Blueprint("pipeline", __name__)
 
 # 阶段顺序（用于"推进/回退"语义与前端排序）。rejected 是终态，不在主序列里。
-STAGE_ORDER = ["pending", "ai_screen", "business_review", "interview_first",
-               "interview_second", "interview_final", "offer", "onboarded"]
+# MVP 主流程只保留"面试中"，历史的一面/二面/终面统一归到 interview。
+STAGE_ORDER = ["pending", "ai_screen", "business_review", "interview", "offer", "onboarded"]
+LEGACY_INTERVIEW_STAGES = {"interview_first", "interview_second", "interview_final"}
+PIPELINE_STAGE_ORDER = STAGE_ORDER + ["rejected"]
+
+
+def normalize_pipeline_stage(stage):
+    return "interview" if stage in LEGACY_INTERVIEW_STAGES else stage
+
+
+def _stage_sort_index(stage):
+    normalized = normalize_pipeline_stage(stage)
+    return STAGE_ORDER.index(normalized) if normalized in STAGE_ORDER else len(STAGE_ORDER)
 
 
 def _parse_date(value):
@@ -69,12 +80,15 @@ def move_stage():
     if not candidate_id or not job_id or not to_stage:
         return jsonify({"error": "candidate_id, job_id, stage required"}), 400
     if to_stage not in VALID_STAGES:
-        return jsonify({"error": f"Invalid stage. Valid: {sorted(VALID_STAGES)}"}), 400
+        return jsonify({"error": f"Invalid stage. Valid: {sorted(PIPELINE_STAGE_ORDER)}"}), 400
+    to_stage = normalize_pipeline_stage(to_stage)
+    if g.role == "interviewer":
+        return jsonify({"error": "Forbidden"}), 403
 
-    candidate = Candidate.query.get(candidate_id)
+    candidate = db.session.get(Candidate, candidate_id)
     if candidate is None:
         return jsonify({"error": "候选人不存在"}), 404
-    job = Job.query.get(job_id)
+    job = db.session.get(Job, job_id)
     if job is None:
         return jsonify({"error": "岗位不存在"}), 404
     if not can_access_candidate(g.user_id, g.role, candidate_id, job_id):
@@ -87,7 +101,7 @@ def move_stage():
         .order_by(PipelineStage.id.desc())
         .first()
     )
-    from_stage = prev.stage if prev else None
+    from_stage = normalize_pipeline_stage(prev.stage) if prev else None
 
     ps = PipelineStage(
         candidate_id=candidate_id,
@@ -150,7 +164,11 @@ def get_pipeline(job_id):
             visible_candidate_query(g.user_id, g.role).with_entities(Candidate.id)
         ))
     rows = rows.all()
-    return jsonify({stage: count for stage, count in rows})
+    counts = {}
+    for stage, count in rows:
+        normalized = normalize_pipeline_stage(stage)
+        counts[normalized] = counts.get(normalized, 0) + count
+    return jsonify(counts)
 
 
 @bp.get("/pipeline/<int:job_id>/board")
@@ -160,7 +178,7 @@ def get_board(job_id):
     招聘流程看板数据：返回该岗位下每位候选人的【当前阶段】，
     以便前端在对应阶段列里渲染候选人卡片，并就地变更状态。
     """
-    job = Job.query.get(job_id)
+    job = db.session.get(Job, job_id)
     if job is None:
         return jsonify({"error": "岗位不存在"}), 404
 
@@ -180,21 +198,21 @@ def get_board(job_id):
     candidates = [{
         "candidate_id": ps.candidate_id,
         "name_masked": cand.name_masked or f"候选人 {ps.candidate_id}",
-        "stage": ps.stage,
+        "stage": normalize_pipeline_stage(ps.stage),
         "note": ps.note,
         "updated_at": ps.ts.isoformat() if ps.ts else None,
         "updated_by_name": user.name if user else None,
     } for ps, cand, user in rows]
     # 稳定排序：按阶段顺序，再按更新时间倒序
     candidates.sort(key=lambda c: (
-        STAGE_ORDER.index(c["stage"]) if c["stage"] in STAGE_ORDER else len(STAGE_ORDER),
+        _stage_sort_index(c["stage"]),
         c["updated_at"] or "",
     ))
 
     return jsonify({
         "job_id": job_id,
         "job_title": job.title,
-        "stage_order": STAGE_ORDER + ["rejected"],
+        "stage_order": PIPELINE_STAGE_ORDER,
         "candidates": candidates,
     })
 
@@ -214,7 +232,7 @@ def get_history(job_id, candidate_id):
         .all()
     )
     timeline = [{
-        "stage": ps.stage,
+        "stage": normalize_pipeline_stage(ps.stage),
         "ts": ps.ts.isoformat() if ps.ts else None,
         "updated_by_name": user.name if user else None,
         "note": ps.note,
@@ -246,9 +264,9 @@ def get_offer(job_id, candidate_id):
 def save_offer(job_id, candidate_id):
     if g.role == "interviewer":
         return jsonify({"error": "Forbidden"}), 403
-    if Candidate.query.get(candidate_id) is None:
+    if db.session.get(Candidate, candidate_id) is None:
         return jsonify({"error": "候选人不存在"}), 404
-    if Job.query.get(job_id) is None:
+    if db.session.get(Job, job_id) is None:
         return jsonify({"error": "岗位不存在"}), 404
     if not can_access_candidate(g.user_id, g.role, candidate_id, job_id):
         return jsonify({"error": "Forbidden"}), 403

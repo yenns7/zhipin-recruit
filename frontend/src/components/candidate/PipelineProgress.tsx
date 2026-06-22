@@ -4,9 +4,10 @@ import { useAsync } from '../../lib/useAsync';
 import { formatDate } from '../../lib/formatDate';
 import { Spinner, Badge } from '../ui';
 import { stageLabel } from '../../lib/pipelineStages';
-import type { CandidateJourney, PipelineStage } from '../../types';
+import type { CandidateJourney, InterviewRound } from '../../types';
 import { DecisionSummaryPanel } from './DecisionSummaryPanel';
 import { InterviewGuidePanel } from '../interview/InterviewGuidePanel';
+import { roundLabel } from '../../lib/interviewRecords';
 
 function JourneyDetail({ candidateId, jobId }: { candidateId: number; jobId: number }) {
   const { data, loading, error } = useAsync<CandidateJourney | null>(
@@ -16,12 +17,10 @@ function JourneyDetail({ candidateId, jobId }: { candidateId: number; jobId: num
   if (loading) return <div className="py-3"><Spinner size="sm" /></div>;
   if (error) return <p className="py-2 text-sm text-danger-600">{error.message}</p>;
   if (!data) return null;
-  const interviewStep = data.timeline
-    .slice()
-    .reverse()
-    .find((step) => step.stage.startsWith('interview_'));
-  const guideRound = (interviewStep?.stage ?? 'interview_first') as PipelineStage;
-  const showGuide = Boolean(interviewStep || data.feedback.length > 0);
+  const hasInterviewStage = data.timeline.some((step) => step.stage === 'interview');
+  const latestFeedbackRound = data.feedback.find((item) => item.round)?.round as InterviewRound | undefined;
+  const guideRound = latestFeedbackRound ?? 'round_1';
+  const showGuide = Boolean(hasInterviewStage || data.feedback.length > 0);
 
   return (
     <div className="space-y-4 border-t border-hairline pt-3">
@@ -48,10 +47,10 @@ function JourneyDetail({ candidateId, jobId }: { candidateId: number; jobId: num
       </div>
       {data.ai_interviews.length > 0 && (
         <div>
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">AI 面试</p>
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">AI 预筛记录</p>
           {data.ai_interviews.map((iv) => (
             <p key={iv.id} className="text-sm text-body">
-              均分 {iv.score ?? '—'} · {iv.pass ? '建议通过' : '不建议'}
+              均分 {iv.score ?? '—'} · {iv.pass ? '参考通过' : '参考不通过'}
               {iv.created_at && <span className="text-muted-soft"> · {formatDate(iv.created_at)}</span>}
             </p>
           ))}
@@ -65,7 +64,7 @@ function JourneyDetail({ candidateId, jobId }: { candidateId: number; jobId: num
               <div key={f.id} className="rounded-md border border-hairline bg-surface-soft px-3 py-2 text-sm">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-ink">
-                    {f.round ? stageLabel(f.round as PipelineStage) || f.round : '面试'}
+                    {f.round ? roundLabel(f.round) : '面试'}
                   </span>
                   <Badge tone={f.passed ? 'success' : 'danger'}>{f.passed ? '通过' : '不通过'}</Badge>
                   <span className="text-muted">{f.score ?? '—'}/5</span>

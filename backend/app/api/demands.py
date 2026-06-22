@@ -15,6 +15,7 @@ bp = Blueprint("demands", __name__)
 PRIORITIES = {"A", "B", "C"}
 DEMAND_STATUSES = {"pending", "active", "paused", "filled", "cancelled"}
 INTERVIEW_PROGRESS_STAGES = {
+    "interview",
     "interview_first",
     "interview_second",
     "interview_final",
@@ -101,7 +102,10 @@ def _demand_metrics(job_id):
         .group_by(PipelineStage.stage)
         .all()
     )
-    current_counts = {stage: count for stage, count in rows}
+    current_counts = {}
+    for stage, count in rows:
+        normalized = "interview" if stage in INTERVIEW_PROGRESS_STAGES and stage not in OFFER_STAGES else stage
+        current_counts[normalized] = current_counts.get(normalized, 0) + count
     interview_count = _distinct_stage_count(job_id, INTERVIEW_PROGRESS_STAGES)
     offer_count = _distinct_stage_count(job_id, OFFER_STAGES)
     onboarded_count = _distinct_stage_count(job_id, {"onboarded"})
@@ -211,7 +215,7 @@ def create_demand():
     job_id = data.get("job_id")
     if not job_id:
         return jsonify({"error": "job_id required"}), 400
-    job = Job.query.get(job_id)
+    job = db.session.get(Job, job_id)
     if job is None:
         return jsonify({"error": "岗位不存在"}), 404
     if not can_manage_job(g.user_id, g.role, job):
@@ -235,7 +239,7 @@ def create_demand():
 @require_auth
 @require_role("recruiter", "manager", "admin")
 def get_demand(demand_id):
-    demand = RecruitmentDemand.query.get_or_404(demand_id)
+    demand = db.get_or_404(RecruitmentDemand, demand_id)
     if not _can_manage_demand(demand):
         return jsonify({"error": "Forbidden"}), 403
     return jsonify(_demand_payload(demand))
@@ -245,7 +249,7 @@ def get_demand(demand_id):
 @require_auth
 @require_role("recruiter", "manager", "admin")
 def update_demand(demand_id):
-    demand = RecruitmentDemand.query.get_or_404(demand_id)
+    demand = db.get_or_404(RecruitmentDemand, demand_id)
     if not _can_manage_demand(demand):
         return jsonify({"error": "无权编辑该需求"}), 403
     _apply_demand_fields(demand, request.get_json() or {})
@@ -258,7 +262,7 @@ def update_demand(demand_id):
 @require_auth
 @require_role("recruiter", "manager", "admin")
 def close_demand(demand_id):
-    demand = RecruitmentDemand.query.get_or_404(demand_id)
+    demand = db.get_or_404(RecruitmentDemand, demand_id)
     if not _can_manage_demand(demand):
         return jsonify({"error": "无权关闭该需求"}), 403
     data = request.get_json() or {}
@@ -278,7 +282,7 @@ def close_demand(demand_id):
 @require_auth
 @require_role("recruiter", "manager", "admin")
 def downgrade_demand(demand_id):
-    demand = RecruitmentDemand.query.get_or_404(demand_id)
+    demand = db.get_or_404(RecruitmentDemand, demand_id)
     if not _can_manage_demand(demand):
         return jsonify({"error": "无权降级该需求"}), 403
     data = request.get_json() or {}

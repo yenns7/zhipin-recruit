@@ -7,12 +7,22 @@ export type PipelineStage =
   | 'pending'
   | 'ai_screen'
   | 'business_review'
-  | 'interview_first'
-  | 'interview_second'
-  | 'interview_final'
+  | 'interview'
   | 'offer'
   | 'onboarded'
   | 'rejected';
+
+export type InterviewRound =
+  | 'round_1'
+  | 'round_2'
+  | 'round_3'
+  | 'additional'
+  | 'hr'
+  | 'business'
+  | 'technical'
+  | 'interview_first'
+  | 'interview_second'
+  | 'interview_final';
 
 // ---- Auth ----
 export interface RegisterRequest {
@@ -518,19 +528,18 @@ export interface PipelineHistory {
 }
 
 // ---- BI ----
-// 漏斗按当前阶段计数。面试阶段已拆分为三轮（一面/二面/终面），
-// BI 漏斗展示时合并为一个"面试"概念值（见 BiPage 的 interviewTotal）。
+// 漏斗按当前阶段计数。MVP 主流程只保留一个"面试中"阶段。
 export interface BiFunnel {
   pending?: number;
   ai_screen?: number;
   business_review?: number;
-  interview_first?: number;
-  interview_second?: number;
-  interview_final?: number;
+  interview?: number;
   offer?: number;
   onboarded?: number;
   rejected?: number;
   pipeline_total?: number;
+  archived_total?: number;
+  funnel_total?: number;
   conversion_rate: number;
 }
 
@@ -538,9 +547,79 @@ export interface BiStaffMember {
   hr_id: number;
   name: string;
   resumes: number;
+  parsed_ok: number;
+  parse_failed: number;
+  parse_pending: number;
   screens: number;
+  effective_recommendations: number;
+  business_review_entries: number;
+  interview_entries: number;
+  interview_feedbacks: number;
+  interview_passed: number;
+  interview_pass_rate: number;
+  interview_to_offer_rate: number;
+  offer_entries: number;
   onboarded: number;
   conversion_rate: number;
+  recommendation_to_onboard_rate: number;
+  feedback_pending: number;
+  feedback_overdue: number;
+}
+
+export interface BiSourceQuality {
+  channel: string;
+  resumes: number;
+  parsed_ok: number;
+  parse_failed: number;
+  effective_recommendations: number;
+  interview_entries: number;
+  interview_passed: number;
+  interview_pass_rate: number;
+  interview_to_offer_rate: number;
+  offer_entries: number;
+  onboarded: number;
+  onboard_rate: number;
+}
+
+export interface BiInterviewRoundAccountability {
+  round: InterviewRound | string;
+  round_label: string;
+  assigned_count: number;
+  feedback_submitted: number;
+  passed_count: number;
+  rejected_count: number;
+  pending_feedback: number;
+  overdue_feedback: number;
+  pass_rate: number;
+  reject_rate: number;
+}
+
+export interface BiInterviewerAccountability {
+  interviewer_id: number | null;
+  interviewer_name: string;
+  assigned_count: number;
+  feedback_submitted: number;
+  passed_count: number;
+  rejected_count: number;
+  pending_feedback: number;
+  overdue_feedback: number;
+  pass_rate: number;
+  reject_rate: number;
+}
+
+export interface BiDepartmentAccountability {
+  department: string;
+  jobs_count: number;
+  interviewers_count: number;
+  assigned_count: number;
+  feedback_submitted: number;
+  passed_count: number;
+  rejected_count: number;
+  pending_feedback: number;
+  overdue_feedback: number;
+  pass_rate: number;
+  reject_rate: number;
+  rounds: BiInterviewRoundAccountability[];
 }
 
 export interface BiDemandMetrics {
@@ -562,6 +641,15 @@ export interface BiResumeMetrics {
   pipeline_entry_rate: number;
 }
 
+export interface BiDataQualityWarning {
+  kind: string;
+  metric: string;
+  label: string;
+  numerator: number;
+  denominator: number;
+  detail: string;
+}
+
 export interface BiManagerAlert {
   kind: 'stale_pipeline' | 'pending_interview_feedback' | 'business_feedback_overdue' | string;
   priority: 'high' | 'medium' | 'low' | string;
@@ -580,20 +668,27 @@ export interface BiManagerAlert {
 export interface BiOverview {
   funnel: BiFunnel;
   staff: BiStaffMember[];
+  source_quality: BiSourceQuality[];
+  interviewer_accountability: BiInterviewerAccountability[];
+  department_accountability: BiDepartmentAccountability[];
   alerts: BiManagerAlert[];
   demands: BiDemandMetrics;
   resumes: BiResumeMetrics;
+  data_quality_warnings: BiDataQualityWarning[];
 }
 
 export interface BiStaffDetail {
   hr_id: number;
   funnel: BiFunnel;
+  performance?: BiStaffMember;
+  data_quality_warnings?: BiDataQualityWarning[];
 }
 
 // Single-job funnel detail.
 export interface BiJobDetail {
   job_id: number;
   job_title: string;
+  scope?: 'all' | 'owned_candidates';
   funnel: BiFunnel;
 }
 
@@ -613,6 +708,13 @@ export interface AdminUser {
   role: Role;
   is_active: boolean;
   created_at: string | null;
+}
+
+export interface AdminUserCreateInput {
+  name: string;
+  email: string;
+  password: string;
+  role: Role;
 }
 
 // ---- Admin AI architecture dashboard ----
@@ -712,7 +814,7 @@ export interface InterviewAssignment {
   name_masked: string | null;
   job_id: number;
   job_title: string | null;
-  round: PipelineStage;
+  round: InterviewRound;
   interviewer_id: number;
   interviewer_name: string | null;
   scheduled_at: string | null;
@@ -728,7 +830,7 @@ export interface InterviewAssignment {
 export interface InterviewAssignmentInput {
   candidate_id: number;
   job_id: number;
-  round: PipelineStage;
+  round: InterviewRound;
   interviewer_id: number;
   scheduled_at?: string;
   location?: string;
@@ -749,6 +851,7 @@ export interface InterviewListItem {
   interviewer_id: number | null;
   interviewer_name: string | null;
   evaluation: EvaluationScores | null;
+  reason_tags: string[];
   strengths: string | null;
   concerns: string | null;
   note: string | null;
@@ -760,10 +863,11 @@ export type EvaluationScores = Record<string, number>;
 export interface InterviewFeedbackInput {
   candidate_id: number;
   job_id: number;
-  round: PipelineStage;
+  round: InterviewRound;
   score: number;
   passed: boolean;
   evaluation?: EvaluationScores;
+  reason_tags?: string[];
   strengths?: string;
   concerns?: string;
   note?: string;
@@ -772,7 +876,7 @@ export interface InterviewFeedbackInput {
 export interface InterviewGuide {
   candidate_id: number;
   job_id: number;
-  round: PipelineStage;
+  round: InterviewRound;
   focus: string[];
   questions: string[];
   risks: string[];
@@ -815,6 +919,7 @@ export interface JourneyFeedback {
   strengths: string | null;
   concerns: string | null;
   evaluation: EvaluationScores;
+  reason_tags: string[];
   note: string | null;
   interviewer_name: string | null;
   created_at: string | null;

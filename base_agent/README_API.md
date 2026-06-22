@@ -150,7 +150,7 @@ ModelScope / Docker 部署可以参考 `ms_deploy.example.json`。真实的 `ms_
 ## 注意事项
 
 1. 确保 `tag_rate.py` 在同一目录下（用于加载评分规则与API Key管理）
-2. PDF解析使用 `PyPDF2`
+2. PDF解析使用 `pypdf`
 3. 所有与LLM相关的API调用依赖 `API_key-openai.md` 中的有效OpenAI密钥
 4. 上传的PDF文件大小限制为 10MB
 5. 上传的简历文件会保存在 `uploads/`

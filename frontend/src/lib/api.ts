@@ -4,6 +4,7 @@
 
 import type {
   AdminAiArchitecture,
+  AdminUserCreateInput,
   AdminUser,
   AuditLogQuery,
   AuditLogResponse,
@@ -411,11 +412,20 @@ export const api = {
   listUsers(): Promise<AdminUser[]> {
     return request('/admin/users');
   },
+  createUser(payload: AdminUserCreateInput): Promise<AdminUser> {
+    return request('/admin/users', { method: 'POST', body: payload });
+  },
   updateUser(
     userId: number,
     payload: { role?: Role; is_active?: boolean },
   ): Promise<AdminUser> {
     return request(`/admin/users/${userId}`, { method: 'PATCH', body: payload });
+  },
+  resetUserPassword(userId: number, password: string): Promise<{ status: string; id: number }> {
+    return request(`/admin/users/${userId}/reset-password`, {
+      method: 'POST',
+      body: { password },
+    });
   },
   getAdminAiArchitecture(): Promise<AdminAiArchitecture> {
     return request('/admin/ai-architecture');

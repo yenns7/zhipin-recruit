@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { LogOut, ArrowLeft, KeyRound, Bell } from 'lucide-react';
 import { useAuth } from '../lib/auth';
-import { navItemsForRole } from '../lib/nav';
+import { navItemsForRole, navLabelForRole } from '../lib/nav';
 import { cn } from '../lib/cn';
 import { Badge } from './ui';
 import { AccountSettings } from './AccountSettings';
@@ -23,10 +23,10 @@ const ROLE_LABELS: Record<Role, string> = {
 };
 
 const ROLE_DUTY: Record<Role, string> = {
-  recruiter: '简历 · 岗位 · 匹配 · AI 面试',
+  recruiter: '简历 · 岗位 · 匹配 · 预筛参考',
   manager: '团队漏斗 · 专员效能',
   admin: '系统管理 · 全局监控',
-  interviewer: '候选人 · 流程 · 面试评估',
+  interviewer: '我的面试 · 反馈填写',
 };
 
 function initials(name: string): string {
@@ -205,6 +205,7 @@ export function AppShell() {
             >
               {({ isActive }) => {
                 const active = isNavItemActive(item, location.pathname, isActive);
+                const label = navLabelForRole(item, role);
                 return (
                   <>
                     <span
@@ -218,7 +219,7 @@ export function AppShell() {
                       className="h-[18px] w-[18px] transition-transform duration-200 group-hover:scale-110"
                       strokeWidth={2}
                     />
-                    {item.label}
+                    {label}
                   </>
                 );
               }}

@@ -15,11 +15,44 @@ const jobMatchPage = readSource('pages/JobMatchPage.tsx');
 const pipelinePage = readSource('pages/PipelinePage.tsx');
 const candidateCard = readSource('components/pipeline/CandidateCard.tsx');
 const interviewPage = readSource('pages/InterviewListPage.tsx');
+const interviewsPage = readSource('pages/InterviewsPage.tsx');
+const nav = readSource('lib/nav.ts');
+const demandsNav = readSource('features/demands/nav.ts');
+
+assert.match(
+  demandsNav,
+  /label:\s*'招聘管理'/,
+  'Recruitment management should remain as the pre-pipeline business module in the left navigation',
+);
+
+assert.match(
+  nav,
+  /label:\s*'候选人管道'/,
+  'Candidate pipeline should be the main candidate-stage progression entry',
+);
+
+assert.match(
+  nav,
+  /label:\s*'面试工作台'/,
+  'Interview navigation should be framed as an execution workbench, not a duplicate hiring pipeline',
+);
+
+assert.match(
+  nav,
+  /interviewer:\s*'我的面试'/,
+  'Interviewers should see their personal interview inbox instead of a broad center module',
+);
+
+assert.doesNotMatch(
+  nav,
+  /label:\s*'(招聘流程|面试任务|面试中心)'/,
+  'The top-level navigation should use the more mature candidate-pipeline and interview-workbench labels',
+);
 
 assert.match(
   jobsPage,
-  /查看招聘流程/,
-  'Job rows should expose the next step from a job into its recruitment pipeline',
+  /查看候选人管道/,
+  'Job rows should expose the next step from a job into its candidate pipeline',
 );
 
 assert.match(
@@ -30,14 +63,14 @@ assert.match(
 
 assert.match(
   jobMatchPage,
-  /去招聘流程查看/,
+  /去候选人管道查看/,
   'After joining from matching, the CTA should tell HR the next destination plainly',
 );
 
 assert.match(
   pipelinePage,
-  /岗位 → 匹配候选人 → 加入流程 → AI 初筛 → 业务反馈 → 安排面试 → 面试反馈 → Offer \/ 淘汰沉淀/,
-  'Pipeline page should explain the end-to-end hiring path including business feedback ownership',
+  /待筛选 → AI 初筛 → 业务反馈 → 面试中 → Offer → 已入职 \/ 淘汰沉淀/,
+  'Pipeline page should explain the simplified MVP hiring path including business feedback ownership',
 );
 
 assert.match(
@@ -54,8 +87,8 @@ assert.match(
 
 assert.match(
   candidateCard,
-  /去面试中心/,
-  'Interview-stage candidate cards should point HR to the interview center for scheduling and feedback',
+  /去面试工作台/,
+  'Interview-stage candidate cards should point HR to the interview workbench for scheduling and feedback',
 );
 
 assert.match(
@@ -66,12 +99,18 @@ assert.match(
 
 assert.match(
   interviewPage,
-  /安排面试、填写反馈、查看面试记录/,
-  'Interview center copy should focus on scheduling and feedback, not another pipeline',
+  /title=\{interviewTitle\}/,
+  'Interview task page should use a role-aware title instead of a broad center label',
 );
 
 assert.match(
   interviewPage,
-  /AI 初筛评估/,
-  'The standalone AI interview entry should be named as AI screening evaluation',
+  /处理面试安排、待补反馈和面试记录/,
+  'Interview task copy should focus on execution work, not another candidate pipeline',
+);
+
+assert.match(
+  interviewsPage,
+  /回面试工作台/,
+  'The standalone AI interview entry should send users back to the interview workbench',
 );

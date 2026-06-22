@@ -1,7 +1,9 @@
 """试点上线安全硬化（C1 密钥强制 / C2 CORS / C3 注册关闭）回归测试。"""
+from contextlib import contextmanager
+
 import pytest
 
-from app import create_app, _enforce_production_security
+from app import create_app, _enforce_production_security, db
 from app.config import Config, TestingConfig, _normalize_database_url
 
 
@@ -17,6 +19,18 @@ def _mk(**over):
     cfg = type("C", (_ProdLike,), over)
     app = type("A", (), {"config": {k: getattr(cfg, k) for k in dir(cfg) if k.isupper()}})()
     return app
+
+
+@contextmanager
+def _managed_app(config):
+    app = create_app(config)
+    try:
+        yield app
+    finally:
+        with app.app_context():
+            db.session.remove()
+            db.drop_all()
+            db.engine.dispose()
 
 
 def test_prod_rejects_default_secret():
@@ -55,9 +69,9 @@ def test_dev_mode_skips_enforcement():
 
 
 def test_public_register_closed_by_default():
-    app = create_app(Config.__class__ if False else _DefaultClosed)
-    client = app.test_client()
-    r = client.post("/api/auth/register", json={"email": "a@b.com", "password": "pw123456"})
+    with _managed_app(_DefaultClosed) as app:
+        client = app.test_client()
+        r = client.post("/api/auth/register", json={"email": "a@b.com", "password": "pw123456"})
     assert r.status_code == 403
     assert "公开注册" in r.get_json()["error"]
 
@@ -74,10 +88,10 @@ class _RuntimeHardeningConfig(_DefaultClosed):
 
 
 def test_security_headers_are_added_to_api_responses():
-    app = create_app(_DefaultClosed)
-    client = app.test_client()
+    with _managed_app(_DefaultClosed) as app:
+        client = app.test_client()
 
-    response = client.post("/api/auth/register", json={"email": "a@b.com", "password": "pw123456"})
+        response = client.post("/api/auth/register", json={"email": "a@b.com", "password": "pw123456"})
 
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     assert response.headers["X-Frame-Options"] == "DENY"
@@ -87,22 +101,22 @@ def test_security_headers_are_added_to_api_responses():
 
 
 def test_login_rate_limit_blocks_repeated_failures():
-    app = create_app(_RuntimeHardeningConfig)
-    client = app.test_client()
+    with _managed_app(_RuntimeHardeningConfig) as app:
+        client = app.test_client()
 
-    for _ in range(2):
-        response = client.post(
+        for _ in range(2):
+            response = client.post(
+                "/api/auth/login",
+                json={"email": "missing@example.com", "password": "wrong"},
+                environ_base={"REMOTE_ADDR": "203.0.113.10"},
+            )
+            assert response.status_code == 401
+
+        blocked = client.post(
             "/api/auth/login",
             json={"email": "missing@example.com", "password": "wrong"},
             environ_base={"REMOTE_ADDR": "203.0.113.10"},
         )
-        assert response.status_code == 401
-
-    blocked = client.post(
-        "/api/auth/login",
-        json={"email": "missing@example.com", "password": "wrong"},
-        environ_base={"REMOTE_ADDR": "203.0.113.10"},
-    )
 
     assert blocked.status_code == 429
     assert "请求过于频繁" in blocked.get_json()["error"]

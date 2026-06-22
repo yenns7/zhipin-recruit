@@ -17,7 +17,7 @@ class MatchService:
 
     def _compute_rankings(self, job_id: int, candidate_query=None) -> List[Dict[str, Any]]:
         """纯计算匹配排名，不持久化。"""
-        job = Job.query.get(job_id)
+        job = db.session.get(Job, job_id)
         if not job:
             return []
 

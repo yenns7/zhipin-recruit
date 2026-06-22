@@ -1,8 +1,9 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 import re
 
 from .. import db
 from ..models import Candidate, InterviewAssignment, Job, PipelineStage, UploadBatch, User
+from ..time_utils import utc_now
 
 
 DEMO_REPLACEMENT_NAMES = [
@@ -48,7 +49,13 @@ DEMO_REPLACEMENT_NAMES = [
     "崔明煦",
 ]
 
-INTERVIEW_STAGES = {"interview_first", "interview_second", "interview_final"}
+INTERVIEW_STAGES = {"interview", "interview_first", "interview_second", "interview_final"}
+DEMO_ROUND_BY_STAGE = {
+    "interview": "round_1",
+    "interview_first": "round_1",
+    "interview_second": "round_2",
+    "interview_final": "round_3",
+}
 SYNTHETIC_NAME_PATTERN = re.compile(r".+-\d+$")
 GENERIC_CANDIDATE_NAME_PATTERN = re.compile(r"^候选人\d+$")
 NON_ASCII_EMAIL_PATTERN = re.compile(r"[^\x00-\x7F]")
@@ -194,7 +201,7 @@ def _ensure_candidate_source_batches(jobs):
         if not target_job_id:
             continue
 
-        batch = UploadBatch.query.get(candidate.upload_batch_id) if candidate.upload_batch_id else None
+        batch = db.session.get(UploadBatch, candidate.upload_batch_id) if candidate.upload_batch_id else None
         if batch and batch.target_job_id:
             continue
         if batch is None:
@@ -260,16 +267,16 @@ def _ensure_interview_assignments():
         exists = InterviewAssignment.query.filter_by(
             candidate_id=stage.candidate_id,
             job_id=stage.job_id,
-            round=stage.stage,
+            round=DEMO_ROUND_BY_STAGE.get(stage.stage, "round_1"),
         ).first()
         if exists:
             continue
         db.session.add(InterviewAssignment(
             candidate_id=stage.candidate_id,
             job_id=stage.job_id,
-            round=stage.stage,
+            round=DEMO_ROUND_BY_STAGE.get(stage.stage, "round_1"),
             interviewer_id=interviewer.id,
-            scheduled_at=datetime.utcnow() + timedelta(days=1 + created),
+            scheduled_at=utc_now() + timedelta(days=1 + created),
             location="腾讯会议 / 现场面试",
             note=DEMO_ASSIGNMENT_NOTE,
             status="scheduled",

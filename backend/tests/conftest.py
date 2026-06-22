@@ -20,6 +20,7 @@ def app():
         yield app
         _db.session.remove()
         _db.drop_all()
+        _db.engine.dispose()
 
 
 @pytest.fixture()
@@ -31,7 +32,7 @@ def client(app):
 def make_user(app):
     """直接建用户并返回 (user_id, token)。绕过 register，便于建任意角色做测试前置。"""
     import bcrypt, jwt
-    from datetime import datetime, timedelta
+    from datetime import UTC, datetime, timedelta
     from app.models import User
     from app.config import TestingConfig
 
@@ -43,7 +44,7 @@ def make_user(app):
             db_.session.add(u); db_.session.commit()
             uid = u.id
         token = jwt.encode({"user_id": uid, "role": role,
-                            "exp": datetime.utcnow() + timedelta(hours=1)},
+                            "exp": datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=1)},
                            TestingConfig.JWT_SECRET, algorithm="HS256")
         return uid, token
     return _make

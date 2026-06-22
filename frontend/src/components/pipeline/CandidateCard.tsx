@@ -12,17 +12,7 @@ import { Spinner } from '../ui';
 import { FeedbackForm } from '../interview/FeedbackForm';
 import { OfferDrawer } from './OfferDrawer';
 import { RejectionDispositionForm } from './RejectionDispositionForm';
-
-// 给定当前阶段，推算"推进到下一阶段"的目标（用于一键推进按钮）。
-const FORWARD: Partial<Record<PipelineStage, PipelineStage>> = {
-  pending: 'ai_screen',
-  ai_screen: 'business_review',
-  business_review: 'interview_first',
-  interview_first: 'interview_second',
-  interview_second: 'interview_final',
-  interview_final: 'offer',
-  offer: 'onboarded',
-};
+import { NEXT_STAGE, isInterviewStage } from '../../lib/pipelineInsights';
 
 function stageAgeDays(updatedAt?: string | null): number | null {
   if (!updatedAt) return null;
@@ -64,18 +54,14 @@ export function CandidateCard({
   const [showFeedback, setShowFeedback] = useState(false);
   const [showDisposition, setShowDisposition] = useState(false);
   const [showOffer, setShowOffer] = useState(false);
-  const atInterview =
-    candidate.stage === 'interview_first' ||
-    candidate.stage === 'interview_second' ||
-    candidate.stage === 'interview_final';
+  const atInterview = isInterviewStage(candidate.stage);
   const stage = STAGE_BY_KEY[candidate.stage];
-  const next = FORWARD[candidate.stage];
+  const next = NEXT_STAGE[candidate.stage];
   const isTerminal = candidate.stage === 'onboarded' || candidate.stage === 'rejected';
   const ageDays = stageAgeDays(candidate.updated_at);
 
   const move = (toStage: PipelineStage) => {
-    const note = window.prompt('变更备注（可留空）') ?? undefined;
-    onMove(candidate.candidate_id, toStage, note);
+    onMove(candidate.candidate_id, toStage);
   };
 
   return (
@@ -150,7 +136,7 @@ export function CandidateCard({
               to={`/interviews?job=${jobId}&candidate=${candidate.candidate_id}`}
               className="rounded-md px-2 py-1 text-[11px] font-medium text-ink hover:bg-surface-soft"
             >
-              去面试中心
+              去面试工作台
             </Link>
             <button
               type="button"
@@ -217,13 +203,12 @@ export function CandidateCard({
       {/* 内联评分表单 */}
       {atInterview && showFeedback && (
         <div className="mt-2">
-          <FeedbackForm
-            candidateId={candidate.candidate_id}
-            jobId={jobId}
-            initialRound={candidate.stage}
-            onMove={(toStage, note) => onMove(candidate.candidate_id, toStage, note)}
-            onSubmitted={() => setShowFeedback(false)}
-          />
+            <FeedbackForm
+              candidateId={candidate.candidate_id}
+              jobId={jobId}
+              onMove={(toStage, note) => onMove(candidate.candidate_id, toStage, note)}
+              onSubmitted={() => setShowFeedback(false)}
+            />
         </div>
       )}
 

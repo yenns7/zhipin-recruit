@@ -139,10 +139,10 @@ function MatchRow({
             </span>
             <Link
               to={`/pipeline?job=${jobId}&candidate=${item.candidate_id}`}
-              aria-label="查看流程"
+              aria-label="查看候选人管道"
               className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-hairline bg-canvas px-3 text-sm font-semibold text-ink transition-colors hover:bg-surface-soft hover:border-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
             >
-              去招聘流程查看
+              去候选人管道查看
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>

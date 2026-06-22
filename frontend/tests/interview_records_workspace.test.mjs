@@ -71,8 +71,14 @@ assert.match(
 
 assert.match(
   nav,
-  /label:\s*'面试中心'/,
-  'Navigation should label the interview workspace as 面试中心 instead of a passive records page',
+  /label:\s*'面试工作台'/,
+  'Navigation should label the interview workspace as a workbench instead of a duplicate pipeline module',
+);
+
+assert.match(
+  nav,
+  /interviewer:\s*'我的面试'/,
+  'Interviewers should see a personal interview inbox label',
 );
 
 assert.match(
@@ -119,8 +125,8 @@ assert.match(
 
 assert.match(
   feedbackForm,
-  /提交并推进/,
-  'Feedback form should expose a submit-and-advance action',
+  /提交并推进 Offer/,
+  'Feedback form should expose a submit-and-advance-to-offer action',
 );
 
 assert.match(

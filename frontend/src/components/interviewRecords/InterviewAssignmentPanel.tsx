@@ -6,9 +6,9 @@ import { INTERVIEW_ROUNDS, roundLabel } from '../../lib/interviewRecords';
 import type {
   CandidateListItem,
   InterviewAssignment,
+  InterviewRound,
   InterviewerOption,
   JobListItem,
-  PipelineStage,
 } from '../../types';
 import { Badge, Button, Card, CardBody, CardHeader, CardTitle, EmptyState, Input, Select } from '../ui';
 
@@ -30,7 +30,7 @@ export function InterviewAssignmentPanel({
   const [open, setOpen] = useState(false);
   const [candidateId, setCandidateId] = useState('');
   const [jobId, setJobId] = useState('');
-  const [round, setRound] = useState<PipelineStage>('interview_first');
+  const [round, setRound] = useState<InterviewRound>('round_1');
   const [interviewerId, setInterviewerId] = useState('');
   const [scheduledAt, setScheduledAt] = useState('');
   const [location, setLocation] = useState('');
@@ -110,7 +110,7 @@ export function InterviewAssignmentPanel({
                   </option>
                 ))}
               </Select>
-              <Select label="轮次" value={round} onChange={(e) => setRound(e.target.value as PipelineStage)}>
+              <Select label="轮次" value={round} onChange={(e) => setRound(e.target.value as InterviewRound)}>
                 {INTERVIEW_ROUNDS.map((item) => (
                   <option key={item.key} value={item.key}>
                     {item.label}

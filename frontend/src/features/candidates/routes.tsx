@@ -1,17 +1,19 @@
+import { lazy } from 'react';
 import type { FeatureRoute } from '../../app/featureRegistry';
-import { CANDIDATE_ROLES } from './permissions';
-import { CandidatesPage } from './pages/CandidatesPage';
-import { CandidateProfilePage } from './pages/CandidateProfilePage';
+import { CANDIDATE_DETAIL_ROLES, CANDIDATE_LIST_ROLES } from './permissions';
+
+const CandidatesPage = lazy(() => import('./pages/CandidatesPage').then((module) => ({ default: module.CandidatesPage })));
+const CandidateProfilePage = lazy(() => import('./pages/CandidateProfilePage').then((module) => ({ default: module.CandidateProfilePage })));
 
 export const candidatesRoutes: FeatureRoute[] = [
   {
     path: '/candidates',
     element: <CandidatesPage />,
-    roles: CANDIDATE_ROLES,
+    roles: CANDIDATE_LIST_ROLES,
   },
   {
     path: '/candidates/:id',
     element: <CandidateProfilePage />,
-    roles: CANDIDATE_ROLES,
+    roles: CANDIDATE_DETAIL_ROLES,
   },
 ];

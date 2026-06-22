@@ -1,13 +1,12 @@
 import {
-  createContext,
   useCallback,
-  useContext,
   useMemo,
   useState,
   type ReactNode,
 } from 'react';
 import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
+import { ToastContext, type ToastApi } from './ToastContext';
 
 type ToastTone = 'success' | 'error' | 'info';
 
@@ -16,14 +15,6 @@ interface ToastItem {
   tone: ToastTone;
   message: string;
 }
-
-interface ToastApi {
-  success: (message: string) => void;
-  error: (message: string) => void;
-  info: (message: string) => void;
-}
-
-const ToastContext = createContext<ToastApi | null>(null);
 
 const TONE_CONFIG: Record<
   ToastTone,
@@ -103,12 +94,4 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       </div>
     </ToastContext.Provider>
   );
-}
-
-export function useToast(): ToastApi {
-  const context = useContext(ToastContext);
-  if (!context) {
-    throw new Error('useToast must be used within ToastProvider');
-  }
-  return context;
 }

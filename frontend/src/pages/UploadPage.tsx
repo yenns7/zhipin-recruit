@@ -20,6 +20,7 @@ import {
   SegmentedControl,
 } from '../components/ui';
 import { useAsync } from '../lib/useAsync';
+import { RESUME_SOURCE_CHANNEL_OPTIONS } from '../lib/sourceChannels';
 import type { ResumeUploadResultItem } from '../types';
 
 const ACCEPTED = ['.pdf', '.doc', '.docx', '.zip'];
@@ -76,8 +77,9 @@ export function UploadPage() {
   const [lastBatchId, setLastBatchId] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
-  const [sourceOpen, setSourceOpen] = useState(false);
+  const [sourceOpen, setSourceOpen] = useState(true);
   const [sourceChannel, setSourceChannel] = useState('');
+  const [customSourceChannel, setCustomSourceChannel] = useState('');
   const [sourceLink, setSourceLink] = useState('');
   const [referrer, setReferrer] = useState('');
   const [targetJobId, setTargetJobId] = useState('');
@@ -158,9 +160,11 @@ export function UploadPage() {
     setUploading(true);
     setUploadError(null);
     setResults(null);
+    const resolvedSourceChannel =
+      sourceChannel === '其他' ? customSourceChannel.trim() : sourceChannel.trim();
     try {
       const res = await api.uploadResumes(selectedFiles, {
-        source_channel: sourceChannel.trim(),
+        source_channel: resolvedSourceChannel,
         source_link: sourceLink.trim(),
         referrer: referrer.trim(),
         target_job_id: uploadMode === 'job' ? Number(targetJobId) : null,
@@ -220,7 +224,7 @@ export function UploadPage() {
               size="sm"
               onClick={() => setSourceOpen((v) => !v)}
             >
-              {sourceOpen ? '收起来源信息' : '填写来源信息'}
+              {sourceOpen ? '收起来源信息' : '展开来源信息'}
             </Button>
           </div>
         </CardHeader>
@@ -277,13 +281,31 @@ export function UploadPage() {
         {sourceOpen && (
           <CardBody className="border-t border-hairline">
             <div className="grid gap-3 md:grid-cols-2">
-              <Input
-                label="来源渠道"
+              <Select
+                label="标准来源渠道"
                 name="source_channel"
-                placeholder="例：BOSS直聘 / 猎聘 / 内推"
                 value={sourceChannel}
-                onChange={(e) => setSourceChannel(e.target.value)}
-              />
+                onChange={(e) => {
+                  setSourceChannel(e.target.value);
+                  if (e.target.value !== '其他') setCustomSourceChannel('');
+                }}
+              >
+                <option value="">请选择来源渠道</option>
+                {RESUME_SOURCE_CHANNEL_OPTIONS.map((channel) => (
+                  <option key={channel} value={channel}>
+                    {channel}
+                  </option>
+                ))}
+              </Select>
+              {sourceChannel === '其他' && (
+                <Input
+                  label="自定义来源"
+                  name="custom_source_channel"
+                  placeholder="填写其他渠道名称"
+                  value={customSourceChannel}
+                  onChange={(e) => setCustomSourceChannel(e.target.value)}
+                />
+              )}
               <Input
                 label="来源链接"
                 name="source_link"
@@ -299,6 +321,9 @@ export function UploadPage() {
                 onChange={(e) => setReferrer(e.target.value)}
               />
             </div>
+            <p className="mt-2 text-xs text-muted-soft">
+              来源渠道会进入 BI 渠道质量统计，建议优先选择标准渠道。
+            </p>
             <textarea
               className="mt-3 w-full rounded-md border border-hairline bg-canvas px-3 py-2 text-sm text-ink placeholder:text-muted-soft focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
               rows={2}

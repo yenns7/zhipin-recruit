@@ -125,7 +125,7 @@ export function AgentPage() {
         }
       })
     );
-  }, []);
+  }, [setMessages, toolSeqRef]);
 
   const send = useCallback(
     async (raw: string) => {
@@ -192,12 +192,23 @@ export function AgentPage() {
         setStreaming(false);
       }
     },
-    [streaming, messages, conversationId, setConversationId, buildHistory, applyEvent]
+    [
+      streaming,
+      messages,
+      conversationId,
+      setConversationId,
+      buildHistory,
+      applyEvent,
+      abortRef,
+      setInput,
+      setMessages,
+      setStreaming,
+    ]
   );
 
   const stop = useCallback(() => {
     abortRef.current?.abort();
-  }, []);
+  }, [abortRef]);
 
   // Confirm (or cancel) a write proposal on a specific assistant message.
   const resolveProposal = useCallback(
@@ -263,7 +274,7 @@ export function AgentPage() {
         );
       }
     },
-    [messages]
+    [messages, setMessages]
   );
 
   // Load the capability catalogue once for the empty-state cloud.
@@ -278,7 +289,7 @@ export function AgentPage() {
   }, []);
 
   // Abort any in-flight stream on unmount.
-  useEffect(() => () => abortRef.current?.abort(), []);
+  useEffect(() => () => abortRef.current?.abort(), [abortRef]);
 
   // Auto-scroll to the bottom as content streams in.
   useEffect(() => {
@@ -301,7 +312,7 @@ export function AgentPage() {
             </span>
           </div>
           <p className="text-sm text-muted">
-            用自然语言查询候选人、岗位、匹配、流程和团队报表 · 智能体自主决策并调用工具
+            用自然语言查询候选人、岗位、匹配、流程和团队报表 · 涉及写入时必须人工确认
           </p>
         </div>
       </div>
@@ -361,7 +372,7 @@ function EmptyState({
       </span>
       <h2 className="text-lg font-display text-ink">你好，我是招聘智能助手</h2>
       <p className="mt-1.5 max-w-md text-sm text-muted">
-        我可以自主思考、调用系统工具并整合数据来回答你的问题。试试下面的问题，或直接输入。
+        我可以查询系统数据、整理参考建议；需要改数据时，会先等你人工确认。
       </p>
 
       {/* 示例问题 */}
@@ -520,9 +531,12 @@ function ConfirmCard({
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-ink">
-            确认操作：{meta.label}
+            人工确认：{meta.label}
           </p>
           <p className="mt-0.5 text-sm text-body">{proposal.summary}</p>
+          <p className="mt-1 text-xs text-muted-soft">
+            确认后才会写入系统，取消不会改动数据。
+          </p>
 
           {/* 参数明细 */}
           <div className="mt-2 space-y-0.5">
@@ -652,7 +666,7 @@ function Composer({
         )}
       </div>
       <p className="mt-1.5 px-1 text-center text-xs text-muted-soft">
-        智能体可能会犯错，请核对关键信息。
+        AI 只作参考，关键操作请人工确认。
       </p>
     </div>
   );

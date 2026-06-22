@@ -100,6 +100,18 @@ export function InterviewRecordDrawer({ item, onClose }: InterviewRecordDrawerPr
                   </div>
                 </div>
               )}
+              {item.reason_tags.length > 0 && (
+                <div className="rounded-md border border-hairline bg-canvas px-3 py-2">
+                  <p className="text-xs font-medium text-muted">原因分类</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {item.reason_tags.map((tag) => (
+                      <Badge key={tag} tone="warning">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
               <DetailBlock title="优势" body={item.strengths} empty="暂未填写优势" />
               <DetailBlock title="顾虑" body={item.concerns} empty="暂未填写顾虑" />
               <DetailBlock title="备注" body={item.note} empty="暂未填写备注" />
@@ -180,6 +192,15 @@ export function InterviewRecordDrawer({ item, onClose }: InterviewRecordDrawerPr
                       <p className="mt-1 text-sm text-body">
                         {feedback.concerns || feedback.note || feedback.strengths}
                       </p>
+                    )}
+                    {feedback.reason_tags.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {feedback.reason_tags.map((tag) => (
+                          <Badge key={tag} tone="warning">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
                     )}
                     {Object.keys(feedback.evaluation).length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1">

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from app import db
 from app import models
@@ -24,21 +24,21 @@ def test_notifications_are_user_scoped_and_require_auth(app, client, make_user):
                 body="张三已进入一面",
                 link="/pipeline",
                 is_read=False,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(UTC).replace(tzinfo=None),
             ),
             Notification(
                 user_id=user_id,
                 type="feedback_added",
                 title="面试反馈已提交",
                 is_read=True,
-                created_at=datetime.utcnow() - timedelta(minutes=5),
+                created_at=datetime.now(UTC).replace(tzinfo=None) - timedelta(minutes=5),
             ),
             Notification(
                 user_id=other_id,
                 type="candidate_uploaded",
                 title="别人账号的通知",
                 is_read=False,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(UTC).replace(tzinfo=None),
             ),
         ])
         db.session.commit()

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 
 def _auth(t):
@@ -72,6 +72,50 @@ def test_upload_batch_source_metadata_is_attached_to_candidate(client, make_user
     assert item["source"]["target_job_id"] == jid
     assert item["source"]["target_job_title"] == "产品经理"
     assert item["source"]["batch_id"] == body["batch_id"]
+
+
+def test_upload_source_channel_alias_is_normalized_for_bi(client, make_user, app, monkeypatch, tmp_path):
+    uid, token = make_user("source-normalize@x.com", role="recruiter")
+    jid, _ = _seed_job_candidate(app, owner_id=uid)
+
+    def fake_parse_and_save(self, fpath, owner_hr_id, upload_batch_id=None):
+        from app import db
+        from app.models import Candidate
+
+        candidate = Candidate(
+            owner_hr_id=owner_hr_id,
+            upload_batch_id=upload_batch_id,
+            name_masked="来源归一候选人",
+            resume_json={"extracted_info": {}},
+            raw_file_path=fpath,
+        )
+        db.session.add(candidate)
+        db.session.commit()
+        return candidate
+
+    from app.services.resume_service import ResumeBatchService
+
+    monkeypatch.setattr(ResumeBatchService, "parse_and_save", fake_parse_and_save)
+    resume = tmp_path / "resume.pdf"
+    resume.write_bytes(b"%PDF-1.4")
+
+    with resume.open("rb") as f:
+        response = client.post(
+            "/api/resume/upload",
+            headers=_auth(token),
+            data={
+                "files": (f, "resume.pdf"),
+                "source_channel": "BOSS",
+                "target_job_id": str(jid),
+            },
+            content_type="multipart/form-data",
+        )
+
+    assert response.status_code == 202
+    candidate_id = response.get_json()["results"][0]["candidate_id"]
+    library = client.get("/api/candidates", headers=_auth(token)).get_json()
+    item = next(c for c in library if c["id"] == candidate_id)
+    assert item["source"]["channel"] == "BOSS直聘"
 
 
 def test_successful_upload_with_target_job_enters_pending_pipeline(client, make_user, app, monkeypatch, tmp_path):
@@ -240,9 +284,7 @@ def test_offer_record_can_be_saved_without_changing_pipeline_shape(client, make_
         "pending",
         "ai_screen",
         "business_review",
-        "interview_first",
-        "interview_second",
-        "interview_final",
+        "interview",
         "offer",
         "onboarded",
         "rejected",
@@ -326,7 +368,7 @@ def test_assignment_payload_flags_overdue_and_feedback_status(client, make_user,
     uid, token = make_user("overdue-hr@x.com", role="recruiter")
     interviewer_id, iv_token = make_user("overdue-iv@x.com", role="interviewer", name="周面试官")
     jid, cid = _seed_job_candidate(app, owner_id=uid)
-    past = (datetime.utcnow() - timedelta(days=1)).isoformat(timespec="seconds")
+    past = (datetime.now(UTC).replace(tzinfo=None) - timedelta(days=1)).isoformat(timespec="seconds")
 
     created = client.post(
         "/api/interview/assignments",

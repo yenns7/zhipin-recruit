@@ -34,7 +34,7 @@ langchain-core==1.4.7
 langchain-protocol==0.0.17
 
 # ── 简历解析 ──────────────────────────────────────────────
-PyPDF2==3.0.1
+pypdf==6.13.0
 pdfplumber==0.11.9
 pdfminer.six==20251230
 pypdfium2==5.9.0

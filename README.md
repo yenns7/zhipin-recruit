@@ -45,11 +45,14 @@
 - AI 生成定制面试题 → 录入作答 → AI 评估报告
 
 ### 📊 数据看板
-- 团队招聘漏斗（自定义 SVG 漏斗图 + 环形转化率仪表，GSAP 动效）
-- 专员效能对比、单岗位转化漏斗、全角色个人 KPI
+- 团队当前阶段分布（当前流程人数不含已入职/已淘汰，全流程入职占比按活跃流程 + 归档结果去重计算）
+- 专员效能、渠道质量、简历消化和面试责任归因，周期指标按本期入库简历 cohort 统计
+- 岗位级/专员级 BI 按角色权限开放；协作招聘专员只看自己负责候选人的岗位漏斗，并展示分子大于分母等数据质量提醒
 
 ### 🔐 权限与账户
 - JWT 认证 + RBAC（admin / manager / recruiter / interviewer）
+- 公开注册默认关闭，试点账号由管理员创建并分配
+- 面试官账号只保留工作台和“我的面试”主入口，只能填写分配给自己的面试反馈，不开放全量简历库、候选人管道、AI 助手主入口，也不能直接推进 Offer 或淘汰
 - 个人信息、自助改密
 
 
@@ -93,7 +96,7 @@
 cd backend
 pip install -r requirements.txt
 cp .env.example .env          # 填入 LLM API Key
-python run.py                 # http://localhost:5000
+PORT=5001 python run.py       # 开发联调后端：http://localhost:5001
 ```
 
 ### 2. 演示数据（可选，无需 LLM Key）
@@ -105,16 +108,21 @@ cd backend && python seed_dev.py
 ```bash
 cd frontend
 npm install
-npm run dev                   # http://localhost:5173
+npm run dev                   # http://localhost:5173，代理到 :5001
 ```
 
-### 演示账号（密码 `demo1234`）
+### MVP 内部试用账号（统一密码 `Zhipin2026`）
 | 角色 | 邮箱 |
 |------|------|
-| 管理员 | admin@demo.com |
-| 经理 | manager@demo.com |
-| 招聘专员 | hr1@demo.com |
-| 面试官 | interviewer@demo.com |
+| 管理员 | admin01@mvp.local |
+| 招聘经理 | manager01@mvp.local |
+| 招聘负责人 | lead01@mvp.local |
+| 招聘专员 | hr01@mvp.local |
+| 招聘专员 | hr02@mvp.local |
+| 招聘专员 | hr03@mvp.local |
+| 面试官 | interviewer01@mvp.local |
+
+面试官账号用于查看分配给自己的面试任务、候选人详情和填写反馈；不会显示“推进 Offer/淘汰”等流程按钮，招聘流程推进仍由 HR/经理/管理员完成。
 
 > 完整部署指南（生产/gunicorn/systemd/公网穿透）见 [DEPLOYMENT.md](DEPLOYMENT.md)
 

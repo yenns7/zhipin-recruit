@@ -281,7 +281,7 @@ AI 判断意图
   </thead>
   <tbody>
     <tr><td>选择文件</td><td>点击选择文件、拖拽上传、移除文件</td><td>已完成</td><td>支持 PDF、Word、ZIP。</td></tr>
-    <tr><td>来源信息</td><td>目标岗位、来源渠道、来源链接、推荐人、备注</td><td>已完成</td><td>用于追踪候选人来源。</td></tr>
+    <tr><td>来源信息</td><td>目标岗位、标准来源渠道、来源链接、推荐人、备注</td><td>已完成</td><td>来源渠道改为可选项，支持 BOSS直聘、58同城、猎聘、鱼泡直聘、智联招聘、前程无忧、内推、官网、LinkedIn、其他；用于 BI 渠道质量统计。</td></tr>
     <tr><td>上传</td><td>上传按钮、重置按钮</td><td>已完成</td><td>上传后展示每个文件的解析结果。</td></tr>
     <tr><td>上传结果</td><td>继续上传、查看候选人</td><td>已完成</td><td>结果包含成功、跳过、失败。</td></tr>
     <tr><td>解析失败处理</td><td>重新解析</td><td>部分完成</td><td>候选人详情支持 retry parse，上传页失败体验仍可优化。</td></tr>
@@ -362,11 +362,14 @@ AI 判断意图
     <tr><th background-color="light-gray">功能点</th><th background-color="light-gray">按钮 / 字段</th><th background-color="light-gray">状态</th><th background-color="light-gray">说明</th></tr>
   </thead>
   <tbody>
-    <tr><td>时间筛选</td><td>近 7 天、近 30 天、近 90 天</td><td>已完成</td><td>切换统计周期。</td></tr>
-    <tr><td>团队指标</td><td>在招专员、本期入职、整体转化率、简历总量</td><td>已完成</td><td>展示整体招聘数据。</td></tr>
-    <tr><td>招聘漏斗</td><td>待筛选、AI 初筛、面试、Offer、已入职</td><td>已完成</td><td>展示流程转化。</td></tr>
-    <tr><td>专员效能</td><td>点击专员查看详情、返回团队看板</td><td>已完成</td><td>支持下钻单个招聘专员。</td></tr>
-    <tr><td>指标说明</td><td>暂无</td><td>待优化</td><td>后续需要补充数据口径和指标解释。</td></tr>
+    <tr><td>时间筛选</td><td>近 7 天、近 30 天、近 90 天</td><td>已完成</td><td>切换本期入库简历 cohort 的统计周期；当前阶段分布不受周期筛选影响。</td></tr>
+    <tr><td>团队指标</td><td>在招专员、当前入职、全流程入职占比、当前流程人数</td><td>已完成</td><td>当前流程人数不含已入职/已淘汰；全流程入职占比按活跃流程 + 归档结果去重计算。</td></tr>
+    <tr><td>招聘漏斗</td><td>待筛选、AI 初筛、面试、Offer、已入职、已淘汰</td><td>已完成</td><td>按候选人 + 岗位取全量最新阶段，展示当前阶段分布，并区分活跃流程和归档结果。</td></tr>
+    <tr><td>专员效能</td><td>点击专员查看详情、返回团队看板</td><td>已完成</td><td>按候选人负责人归属，团队均值采用总入职/总简历的加权口径，支持下钻单个招聘专员。</td></tr>
+    <tr><td>渠道质量</td><td>来源渠道、简历量、面试进入、通过、Offer、入职</td><td>已完成</td><td>按标准来源渠道和本期入库简历 cohort 聚合。</td></tr>
+    <tr><td>数据质量提醒</td><td>分子大于分母、跳阶或漏录提醒</td><td>已完成</td><td>例如 Offer 数高于面试进入数时在总览和专员下钻提示主管检查流程记录。</td></tr>
+    <tr><td>指标说明</td><td>口径说明</td><td>已完成</td><td>说明有效推荐、推荐成功面试、面试通过、待补反馈、当前阶段和周期 cohort。</td></tr>
+    <tr><td>岗位 BI 权限</td><td>scope、单岗位漏斗</td><td>已完成</td><td>主管/管理员和岗位负责人可看全岗位；协作招聘专员只看自己负责候选人的岗位漏斗；面试官不可访问。</td></tr>
   </tbody>
 </table>
 
@@ -420,7 +423,7 @@ AI 判断意图
   <tbody>
     <tr><td>User</td><td>用户账号、角色、密码、启停状态。</td><td>已完成</td></tr>
     <tr><td>Candidate</td><td>候选人基础信息、简历解析、解析状态、负责人。</td><td>已完成</td></tr>
-    <tr><td>UploadBatch</td><td>简历上传批次、来源渠道、目标岗位。</td><td>已完成</td></tr>
+    <tr><td>UploadBatch</td><td>简历上传批次、标准化来源渠道、目标岗位。</td><td>已完成</td></tr>
     <tr><td>CandidateTag</td><td>候选人技能标签和评分。</td><td>已完成</td></tr>
     <tr><td>Job</td><td>岗位名称、城市、部门、JD、结构化 JD、状态。</td><td>已完成</td></tr>
     <tr><td>Match</td><td>岗位与候选人的匹配结果。</td><td>已完成</td></tr>
@@ -462,7 +465,7 @@ AI 判断意图
     <tr><td>候选人画像</td><td>增加候选人评分、风险点、优势摘要和人才库标签。</td><td>后续规划</td></tr>
     <tr><td>岗位模板</td><td>沉淀常见岗位 JD 模板和必填项模板。</td><td>后续规划</td></tr>
     <tr><td>面试标准</td><td>配置不同岗位/轮次的评分维度和面试问题模板。</td><td>后续规划</td></tr>
-    <tr><td>BI 增强</td><td>增加指标口径、趋势图、异常提醒和岗位维度分析。</td><td>后续规划</td></tr>
+    <tr><td>BI 增强</td><td>继续增加趋势图、历史对比和岗位维度分析。</td><td>后续规划</td></tr>
     <tr><td>通知规则</td><td>候选人推进、待反馈、面试临期、流程停滞提醒。</td><td>后续规划</td></tr>
     <tr><td>中台对齐</td><td>梳理标准工具接口、权限规则和知识库材料，为未来接入 Agent 中台做准备。</td><td>后续规划</td></tr>
   </tbody>

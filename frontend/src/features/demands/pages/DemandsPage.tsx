@@ -289,8 +289,8 @@ export function DemandsPage() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const jobs = jobsAsync.data ?? [];
-  const demands = demandsAsync.data ?? [];
+  const jobs = useMemo(() => jobsAsync.data ?? [], [jobsAsync.data]);
+  const demands = useMemo(() => demandsAsync.data ?? [], [demandsAsync.data]);
   const canCreate = jobs.length > 0 && form.job_id && !submitting;
 
   const activeDemands = useMemo(

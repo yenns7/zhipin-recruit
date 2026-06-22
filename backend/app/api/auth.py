@@ -1,12 +1,13 @@
 import bcrypt
 import hashlib
-from datetime import datetime, timedelta
+from datetime import timedelta
 from flask import Blueprint, request, jsonify, g, current_app
 import jwt
 from ..middleware.auth import require_auth
 from ..middleware.rate_limit import rate_limit
 from .. import db
 from ..models import User
+from ..time_utils import utc_now
 
 bp = Blueprint("auth", __name__)
 
@@ -55,7 +56,7 @@ def login():
         return jsonify({"error": "Invalid credentials"}), 401
     if not user.is_active:
         return jsonify({"error": "账号已停用，请联系管理员"}), 403
-    exp = datetime.utcnow() + timedelta(hours=current_app.config["JWT_EXPIRY_HOURS"])
+    exp = utc_now() + timedelta(hours=current_app.config["JWT_EXPIRY_HOURS"])
     token = jwt.encode(
         {"user_id": user.id, "role": user.role, "exp": exp},
         current_app.config["JWT_SECRET"], algorithm="HS256"
@@ -67,7 +68,7 @@ def login():
 @require_auth
 def me():
     """当前登录用户信息（前端刷新角色/姓名，不必只依赖 JWT 解析）。"""
-    user = User.query.get(g.user_id)
+    user = db.session.get(User, g.user_id)
     if not user:
         return jsonify({"error": "User not found"}), 404
     return jsonify({
@@ -86,7 +87,7 @@ def change_password():
         return jsonify({"error": "需要提供旧密码和新密码"}), 400
     if len(new_pw) < 6:
         return jsonify({"error": "新密码至少 6 位"}), 400
-    user = User.query.get(g.user_id)
+    user = db.session.get(User, g.user_id)
     if not user:
         return jsonify({"error": "User not found"}), 404
     if not _verify(old_pw, user.password_hash):

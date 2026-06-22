@@ -1,6 +1,8 @@
+import { lazy } from 'react';
 import type { FeatureRoute } from '../../app/featureRegistry';
 import { DEMAND_ROLES } from './permissions';
-import { DemandsPage } from './pages/DemandsPage';
+
+const DemandsPage = lazy(() => import('./pages/DemandsPage').then((module) => ({ default: module.DemandsPage })));
 
 export const demandsRoutes: FeatureRoute[] = [
   {

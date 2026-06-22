@@ -1,6 +1,7 @@
 import functools
 import jwt
 from flask import request, jsonify, g, current_app
+from .. import db
 
 
 def require_auth(f):
@@ -13,7 +14,7 @@ def require_auth(f):
             payload = jwt.decode(token, current_app.config["JWT_SECRET"], algorithms=["HS256"])
             from ..models import User
 
-            user = User.query.get(payload["user_id"])
+            user = db.session.get(User, payload["user_id"])
             if not user:
                 return jsonify({"error": "User not found"}), 401
             if not user.is_active:

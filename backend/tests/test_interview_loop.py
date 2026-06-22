@@ -65,6 +65,33 @@ def test_interviews_list_exposes_feedback_detail_fields(client, make_user, app):
     assert feedback["concerns"] == "系统设计深度不足"
     assert feedback["note"] == "建议暂缓"
 
+def test_feedback_persists_structured_reason_tags(client, make_user, app):
+    interviewer_id, iv_token = make_user("iv-reason@x.com", role="interviewer", name="业务面试官")
+    _, mgr_token = make_user("mgr-reason@x.com", role="manager")
+    jid, cid = _seed(app)
+    _assign(app, cid, jid, interviewer_id, "round_1")
+
+    r = client.post("/api/interview/feedback", headers=_auth(iv_token), json={
+        "candidate_id": cid,
+        "job_id": jid,
+        "round": "round_1",
+        "score": 2,
+        "passed": False,
+        "reason_tags": ["专业能力不匹配", "岗位画像变化", "候选人已接受其他机会", "未知原因"],
+        "concerns": "业务侧重新调整画像",
+    })
+    assert r.status_code == 201
+
+    feedback = client.get(
+        f"/api/interview/feedback?candidate_id={cid}&job_id={jid}",
+        headers=_auth(mgr_token),
+    ).get_json()[0]
+    assert feedback["reason_tags"] == ["专业能力不匹配", "岗位画像变化", "候选人已接受其他机会"]
+
+    listed = client.get("/api/interviews", headers=_auth(mgr_token)).get_json()
+    row = next(item for item in listed if item["type"] == "feedback")
+    assert row["reason_tags"] == ["专业能力不匹配", "岗位画像变化", "候选人已接受其他机会"]
+
 def test_feedback_requires_core_fields(client, make_user, app):
     _, token = make_user("iv@x.com", role="interviewer")
     jid, cid = _seed(app)
@@ -91,7 +118,7 @@ def _latest_stage(app, cid, jid):
         return ps.stage if ps else None
 
 
-def test_ai_pass_writes_interview_first_when_new(client, make_user, app, monkeypatch):
+def test_ai_pass_writes_interview_when_new(client, make_user, app, monkeypatch):
     _, token = make_user("hr@x.com", role="recruiter")
     jid, cid = _seed(app)
     _stub_report(monkeypatch, passed=True)
@@ -99,16 +126,16 @@ def test_ai_pass_writes_interview_first_when_new(client, make_user, app, monkeyp
                     json={"candidate_id": cid, "job_id": jid,
                           "qa_pairs": [{"q": "q", "a": "a"}]})
     assert r.status_code == 200
-    # 未入流程 → 先补 ai_screen 再进 interview_first；最新阶段应为 interview_first
-    assert _latest_stage(app, cid, jid) == "interview_first"
+    # 未入流程 → 先补 ai_screen 再进 interview；最新阶段应为 interview
+    assert _latest_stage(app, cid, jid) == "interview"
 
 
 def test_ai_pass_does_not_move_backward(client, make_user, app, monkeypatch):
-    """R2.1：候选人已在二面，AI 预筛通过不得把其回退到一面。"""
+    """R2.1：候选人已在面试中，AI 预筛通过不得重复写入面试阶段。"""
     _, token = make_user("hr@x.com", role="recruiter")
     jid, cid = _seed(app)
-    # 先推进到二面
-    for stage in ["pending", "ai_screen", "interview_first", "interview_second"]:
+    # 先推进到面试中
+    for stage in ["pending", "ai_screen", "interview"]:
         client.post("/api/pipeline/move", headers=_auth(token),
                     json={"candidate_id": cid, "job_id": jid, "stage": stage})
     _stub_report(monkeypatch, passed=True)
@@ -116,8 +143,8 @@ def test_ai_pass_does_not_move_backward(client, make_user, app, monkeypatch):
                     json={"candidate_id": cid, "job_id": jid,
                           "qa_pairs": [{"q": "q", "a": "a"}]})
     assert r.status_code == 200
-    # 不回退：最新阶段仍是二面
-    assert _latest_stage(app, cid, jid) == "interview_second"
+    # 不重复写：最新阶段仍是面试中
+    assert _latest_stage(app, cid, jid) == "interview"
 
 
 def test_ai_fail_rejects(client, make_user, app, monkeypatch):

@@ -2,6 +2,7 @@
 # 此处提供独立的 /match 端点以供前端直接调用
 from flask import Blueprint, request, jsonify, g
 from ..middleware.auth import require_auth, require_role
+from .. import db
 from ..models import Job
 from ..services.match_service import MatchService
 from .access import can_manage_job, visible_candidate_query
@@ -17,7 +18,7 @@ def match():
     job_id = data.get("job_id")
     if not job_id:
         return jsonify({"error": "job_id required"}), 400
-    job = Job.query.get_or_404(int(job_id))
+    job = db.get_or_404(Job, int(job_id))
     if not can_manage_job(g.user_id, g.role, job):
         return jsonify({"error": "Forbidden"}), 403
     svc = MatchService()

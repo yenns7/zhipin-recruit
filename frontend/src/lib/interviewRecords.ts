@@ -1,10 +1,10 @@
 import type {
   InterviewAssignment,
+  InterviewRound,
   InterviewListItem,
   JobListItem,
   PipelineBoard,
   PipelineBoardCandidate,
-  PipelineStage,
   Role,
 } from '../types';
 
@@ -16,7 +16,7 @@ export type InterviewDateRange = 'all' | 'today' | '7d' | '30d';
 export interface InterviewFiltersState {
   query: string;
   jobId: 'all' | number;
-  round: 'all' | PipelineStage;
+  round: 'all' | InterviewRound;
   type: InterviewTypeFilter;
   result: InterviewResultFilter;
   interviewerId: 'all' | number;
@@ -37,15 +37,22 @@ export interface PendingFeedbackItem {
   name_masked: string;
   job_id: number;
   job_title: string;
-  round: PipelineStage;
+  round: InterviewRound;
   updated_at: string | null;
   updated_by_name: string | null;
 }
 
-export const INTERVIEW_ROUNDS: Array<{ key: PipelineStage; label: string }> = [
-  { key: 'interview_first', label: '一面' },
-  { key: 'interview_second', label: '二面' },
-  { key: 'interview_final', label: '终面' },
+export const INTERVIEW_ROUNDS: Array<{ key: InterviewRound; label: string }> = [
+  { key: 'round_1', label: '第 1 轮面试' },
+  { key: 'round_2', label: '第 2 轮面试' },
+  { key: 'round_3', label: '第 3 轮面试' },
+  { key: 'additional', label: '加面' },
+  { key: 'technical', label: '技术面' },
+  { key: 'business', label: '业务面' },
+  { key: 'hr', label: 'HR 面' },
+  { key: 'interview_first', label: '第 1 轮面试' },
+  { key: 'interview_second', label: '第 2 轮面试' },
+  { key: 'interview_final', label: '第 3 轮面试' },
 ];
 
 const ROUND_LABEL = INTERVIEW_ROUNDS.reduce<Record<string, string>>((acc, item) => {
@@ -88,6 +95,7 @@ export function recordSummary(item: InterviewListItem): string {
     if (item.pass === null || item.score === null) return 'AI 预筛报告待查看';
     return `AI 建议${item.pass ? '通过' : '不通过'}，评分 ${item.score}`;
   }
+  if (item.reason_tags.length > 0) return item.reason_tags.join('、');
   return item.concerns || item.note || item.strengths || '已提交面试结论';
 }
 
@@ -149,6 +157,7 @@ export function filterInterviewRecords(
       item.strengths,
       item.concerns,
       item.note,
+      ...item.reason_tags,
     ]
       .filter(Boolean)
       .join(' ')
@@ -175,7 +184,7 @@ function hasFeedbackForRound(
   records: InterviewListItem[],
   candidateId: number,
   jobId: number,
-  round: PipelineStage,
+  round: InterviewRound,
 ): boolean {
   return records.some(
     (record) =>
@@ -187,7 +196,7 @@ function hasFeedbackForRound(
 }
 
 function isInterviewCandidate(candidate: PipelineBoardCandidate): boolean {
-  return INTERVIEW_ROUNDS.some((round) => round.key === candidate.stage);
+  return candidate.stage === 'interview';
 }
 
 export function buildPendingFeedback(
@@ -197,13 +206,14 @@ export function buildPendingFeedback(
   const pending: PendingFeedbackItem[] = [];
   boards.forEach((board) => {
     board.candidates.filter(isInterviewCandidate).forEach((candidate) => {
-      if (!hasFeedbackForRound(records, candidate.candidate_id, board.job_id, candidate.stage)) {
+      const fallbackRound: InterviewRound = 'round_1';
+      if (!hasFeedbackForRound(records, candidate.candidate_id, board.job_id, fallbackRound)) {
         pending.push({
           candidate_id: candidate.candidate_id,
           name_masked: candidate.name_masked,
           job_id: board.job_id,
           job_title: board.job_title,
-          round: candidate.stage,
+          round: fallbackRound,
           updated_at: candidate.updated_at,
           updated_by_name: candidate.updated_by_name,
         });

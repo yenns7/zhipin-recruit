@@ -128,7 +128,7 @@ def _apply_map_fields(talent_map, data):
         if job_id in ("", None):
             talent_map.job_id = None
         else:
-            job = Job.query.get(job_id)
+            job = db.session.get(Job, job_id)
             if job is None:
                 return "岗位不存在"
             if not can_manage_job(g.user_id, g.role, job):
@@ -238,7 +238,7 @@ def create_talent_map():
 @require_auth
 @require_role("recruiter", "manager", "admin")
 def get_talent_map(map_id):
-    talent_map = TalentMap.query.get_or_404(map_id)
+    talent_map = db.get_or_404(TalentMap, map_id)
     if not _can_manage_map(talent_map):
         return jsonify({"error": "Forbidden"}), 403
     people = _filtered_people_query(talent_map).all()
@@ -249,7 +249,7 @@ def get_talent_map(map_id):
 @require_auth
 @require_role("recruiter", "manager", "admin")
 def update_talent_map(map_id):
-    talent_map = TalentMap.query.get_or_404(map_id)
+    talent_map = db.get_or_404(TalentMap, map_id)
     if not _can_manage_map(talent_map):
         return jsonify({"error": "Forbidden"}), 403
     error = _apply_map_fields(talent_map, request.get_json() or {})
@@ -264,7 +264,7 @@ def update_talent_map(map_id):
 @require_auth
 @require_role("recruiter", "manager", "admin")
 def create_talent_map_company(map_id):
-    talent_map = TalentMap.query.get_or_404(map_id)
+    talent_map = db.get_or_404(TalentMap, map_id)
     if not _can_manage_map(talent_map):
         return jsonify({"error": "Forbidden"}), 403
     data = request.get_json() or {}
@@ -283,7 +283,7 @@ def create_talent_map_company(map_id):
 @require_auth
 @require_role("recruiter", "manager", "admin")
 def update_talent_map_company(company_id):
-    company = TalentMapCompany.query.get_or_404(company_id)
+    company = db.get_or_404(TalentMapCompany, company_id)
     if not _can_manage_map(company.talent_map):
         return jsonify({"error": "Forbidden"}), 403
     _apply_company_fields(company, request.get_json() or {})
@@ -296,7 +296,7 @@ def update_talent_map_company(company_id):
 @require_auth
 @require_role("recruiter", "manager", "admin")
 def create_talent_map_person(map_id):
-    talent_map = TalentMap.query.get_or_404(map_id)
+    talent_map = db.get_or_404(TalentMap, map_id)
     if not _can_manage_map(talent_map):
         return jsonify({"error": "Forbidden"}), 403
     data = request.get_json() or {}
@@ -317,7 +317,7 @@ def create_talent_map_person(map_id):
 @require_auth
 @require_role("recruiter", "manager", "admin")
 def update_talent_map_person(person_id):
-    person = TalentMapPerson.query.get_or_404(person_id)
+    person = db.get_or_404(TalentMapPerson, person_id)
     if not _can_manage_map(person.talent_map):
         return jsonify({"error": "Forbidden"}), 403
     error = _apply_person_fields(person, request.get_json() or {})

@@ -68,12 +68,12 @@ const TOOL_META: Record<string, ToolMeta> = {
   get_candidate: { label: '候选人详情', icon: UserCircle },
   list_jobs: { label: '岗位列表', icon: Briefcase },
   match_candidates_for_job: { label: '岗位匹配候选人', icon: Target },
-  get_pipeline: { label: '招聘流程', icon: KanbanSquare },
+  get_pipeline: { label: '候选人管道', icon: KanbanSquare },
   get_bi_overview: { label: '团队报表', icon: BarChart3 },
   count_summary: { label: '系统概览', icon: Gauge },
   // 写操作工具
   create_job: { label: '创建岗位', icon: Briefcase },
-  move_pipeline: { label: '推进流程', icon: KanbanSquare },
+  move_pipeline: { label: '推进管道', icon: KanbanSquare },
   start_interview: { label: '发起面试', icon: Target },
   run_match: { label: '运行匹配', icon: Target },
 };

@@ -16,16 +16,17 @@ import {
   BarChart3,
   Settings,
   Sparkles,
-  Users,
   AlertTriangle,
   Clock3,
+  CheckCircle2,
+  Inbox,
   type LucideIcon,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Badge, Card } from '../components/ui';
 import { Reveal, AnimatedNumber } from '../components/motion';
-import type { BiManagerAlert, Role } from '../types';
+import type { BiManagerAlert, BiStaffMember, InterviewAssignment, Role } from '../types';
 
 // ─── 角色信息 ─────────────────────────────────────────────────────────────────
 
@@ -41,7 +42,7 @@ interface RoleInfo {
 const ROLE_INFO: Record<Role, RoleInfo> = {
   recruiter: {
     label: '招聘专员',
-    duty: '管理候选人简历、创建岗位，运行智能匹配与 AI 面试',
+    duty: '管理候选人简历、创建岗位，运行智能匹配与预筛参考',
     icon: UserCog,
     accent: 'bg-blue-50 text-accent-blue',
     gradient: 'linear-gradient(135deg, #007AFF, #5856D6)',
@@ -65,11 +66,11 @@ const ROLE_INFO: Record<Role, RoleInfo> = {
   },
   interviewer: {
     label: '面试官',
-    duty: '查看候选人与招聘流程，参与面试评估',
+    duty: '处理分配给我的面试安排与反馈',
     icon: ClipboardCheck,
     accent: 'bg-teal-50 text-teal-700',
     gradient: 'linear-gradient(135deg, #5AC8FA, #34C759)',
-    action: { to: '/candidates', label: '查看候选人' },
+    action: { to: '/interviews', label: '查看我的面试' },
   },
 };
 
@@ -100,10 +101,10 @@ const WORKFLOW_ACTIONS: WorkflowAction[] = [
   },
   {
     to: '/pipeline',
-    label: '跟进招聘流程',
+    label: '跟进候选人管道',
     desc: '推进初筛、面试、Offer、淘汰沉淀',
     icon: KanbanSquare,
-    roles: ['recruiter', 'manager', 'admin', 'interviewer'],
+    roles: ['recruiter', 'manager', 'admin'],
   },
   {
     to: '/interviews',
@@ -120,18 +121,11 @@ const WORKFLOW_ACTIONS: WorkflowAction[] = [
     roles: ['manager', 'admin'],
   },
   {
-    to: '/candidates',
-    label: '查看候选人',
-    desc: '面试前快速查看简历、标签和流程进展',
-    icon: Users,
-    roles: ['interviewer'],
-  },
-  {
     to: '/agent',
     label: '问 AI 助手',
     desc: '用自然语言查询候选人、岗位和流程',
     icon: Sparkles,
-    roles: ['recruiter', 'manager', 'admin', 'interviewer'],
+    roles: ['recruiter', 'manager', 'admin'],
   },
   {
     to: '/admin/settings',
@@ -146,7 +140,7 @@ const ACTION_ORDER_BY_ROLE: Record<Role, string[]> = {
   recruiter: ['/upload', '/jobs', '/pipeline', '/interviews'],
   manager: ['/bi', '/pipeline', '/interviews', '/agent'],
   admin: ['/bi', '/admin/settings', '/interviews', '/agent'],
-  interviewer: ['/interviews', '/candidates', '/pipeline', '/agent'],
+  interviewer: ['/interviews'],
 };
 
 function workflowActionsForRole(role: Role): WorkflowAction[] {
@@ -161,20 +155,56 @@ function workflowActionsForRole(role: Role): WorkflowAction[] {
 interface DashboardStats {
   candidates: number | null;
   jobs: number | null;
+  businessReview: number | null;
   interview: number | null;
+  offer: number | null;
   onboarded: number | null;
   conversionRate: number | null;
   alerts: BiManagerAlert[];
+  performance: BiStaffMember | null;
+  interviewerTasks: InterviewerTaskStats;
+}
+
+interface InterviewerTaskStats {
+  pendingFeedback: number | null;
+  todayInterviews: number | null;
+  submittedFeedback: number | null;
+  overdueFeedback: number | null;
 }
 
 const EMPTY_STATS: DashboardStats = {
   candidates: null,
   jobs: null,
+  businessReview: null,
   interview: null,
+  offer: null,
   onboarded: null,
   conversionRate: null,
   alerts: [],
+  performance: null,
+  interviewerTasks: {
+    pendingFeedback: null,
+    todayInterviews: null,
+    submittedFeedback: null,
+    overdueFeedback: null,
+  },
 };
+
+function isToday(value: string | null): boolean {
+  if (!value) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  return date.toDateString() === new Date().toDateString();
+}
+
+function buildInterviewerTaskStats(assignments: InterviewAssignment[]): InterviewerTaskStats {
+  return {
+    pendingFeedback: assignments.filter((item) => !item.feedback_submitted).length,
+    todayInterviews: assignments.filter((item) => isToday(item.scheduled_at)).length,
+    submittedFeedback: assignments.filter((item) => item.feedback_submitted).length,
+    overdueFeedback: assignments.filter((item) => item.is_overdue && !item.feedback_submitted).length,
+  };
+}
 
 function useDashboardStats(
   role: Role | null,
@@ -189,28 +219,47 @@ function useDashboardStats(
     setLoading(true);
 
     const wantsTeamBi = role === 'manager' || role === 'admin';
-    const wantsOwnBi = (role === 'recruiter' || role === 'interviewer') && userId != null;
+    const wantsOwnBi = role === 'recruiter' && userId != null;
+    const wantsInterviewTasks = role === 'interviewer';
 
-    const candidatesP = api.listCandidates();
-    const jobsP = api.listJobs();
+    const candidatesP = wantsInterviewTasks ? Promise.resolve([]) : api.listCandidates();
+    const jobsP = wantsInterviewTasks ? Promise.resolve([]) : api.listJobs();
     const biP = wantsTeamBi
       ? api.biOverview()
       : wantsOwnBi
         ? api.biStaff(userId as number)
         : Promise.resolve(null);
+    const assignmentsP = wantsInterviewTasks
+      ? api.listInterviewAssignments()
+      : Promise.resolve([] as InterviewAssignment[]);
 
-    Promise.allSettled([candidatesP, jobsP, biP]).then(
-      ([candidatesR, jobsR, biR]) => {
+    Promise.allSettled([candidatesP, jobsP, biP, assignmentsP]).then(
+      ([candidatesR, jobsR, biR, assignmentsR]) => {
         if (!active) return;
         const next: DashboardStats = { ...EMPTY_STATS };
         if (candidatesR.status === 'fulfilled') next.candidates = candidatesR.value.length;
         if (jobsR.status === 'fulfilled') next.jobs = jobsR.value.length;
+        if (assignmentsR.status === 'fulfilled' && wantsInterviewTasks) {
+          next.interviewerTasks = buildInterviewerTaskStats(assignmentsR.value);
+        }
         if (biR.status === 'fulfilled' && biR.value) {
           const f = biR.value.funnel;
-          next.interview =
-            (f.interview_first ?? 0) + (f.interview_second ?? 0) + (f.interview_final ?? 0);
+          next.businessReview = f.business_review ?? 0;
+          next.interview = f.interview ?? 0;
+          next.offer = f.offer ?? 0;
           next.onboarded = f.onboarded ?? 0;
           next.conversionRate = Number.isFinite(f.conversion_rate) ? f.conversion_rate : 0;
+          if ('performance' in biR.value && biR.value.performance) {
+            const p = biR.value.performance;
+            next.performance = p;
+            next.businessReview = p.business_review_entries;
+            next.interview = p.interview_entries;
+            next.offer = p.offer_entries;
+            next.onboarded = p.onboarded;
+            next.conversionRate = Number.isFinite(p.recommendation_to_onboard_rate)
+              ? p.recommendation_to_onboard_rate
+              : 0;
+          }
           if ('alerts' in biR.value) next.alerts = biR.value.alerts ?? [];
         }
         setStats(next);
@@ -322,6 +371,158 @@ function ManagementAlerts({ alerts }: { alerts: BiManagerAlert[] }) {
   );
 }
 
+function valueOrNull(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function RecruiterPerformancePanel({ performance }: { performance: BiStaffMember | null }) {
+  return (
+    <section>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="font-display text-lg text-ink">我的本月业绩</h2>
+          <p className="mt-1 text-sm text-muted">按当前账号归属统计，经理看板使用同一套口径</p>
+        </div>
+        <Badge tone="neutral">近 30 天</Badge>
+      </div>
+      <Reveal
+        className="grid grid-cols-2 gap-4 lg:grid-cols-6"
+        stagger={0.05}
+        y={14}
+      >
+        <KpiCard
+          label="有效推荐"
+          value={valueOrNull(performance?.effective_recommendations)}
+          accent="#FF9500"
+        />
+        <KpiCard
+          label="推荐成功面试"
+          value={valueOrNull(performance?.interview_entries)}
+          accent="#007AFF"
+        />
+        <KpiCard
+          label="面试通过"
+          value={valueOrNull(performance?.interview_passed)}
+          accent="#5856D6"
+        />
+        <KpiCard
+          label="Offer"
+          value={valueOrNull(performance?.offer_entries)}
+          accent="#AF52DE"
+        />
+        <KpiCard
+          label="已入职"
+          value={valueOrNull(performance?.onboarded)}
+          accent="#34C759"
+        />
+        <KpiCard
+          label="待补反馈"
+          value={valueOrNull(performance?.feedback_pending)}
+          accent="#FF3B30"
+        />
+      </Reveal>
+    </section>
+  );
+}
+
+function TodoCard({
+  to,
+  label,
+  value,
+  desc,
+  icon: Icon,
+  tone,
+}: {
+  to: string;
+  label: string;
+  value: number | null;
+  desc: string;
+  icon: LucideIcon;
+  tone: 'neutral' | 'warning' | 'success';
+}) {
+  const toneClass = {
+    neutral: 'bg-surface-soft text-muted',
+    warning: 'bg-warning-50 text-warning-700',
+    success: 'bg-success-50 text-success-700',
+  }[tone];
+
+  return (
+    <Link
+      to={to}
+      className="group block rounded-apple focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
+    >
+      <Card variant="elevated" className="h-full">
+        <div className="flex items-start gap-3 px-5 py-4">
+          <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${toneClass}`}>
+            <Icon className="h-5 w-5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center justify-between gap-2">
+              <span className="font-semibold text-ink">{label}</span>
+              <span className="font-display text-xl tabular-nums text-ink">
+                {value === null ? '—' : <AnimatedNumber value={value} />}
+              </span>
+            </span>
+            <span className="mt-1 block text-sm text-muted">{desc}</span>
+          </span>
+          <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-muted-soft transition-transform duration-200 group-hover:translate-x-1" />
+        </div>
+      </Card>
+    </Link>
+  );
+}
+
+function RecruiterTodoPanel({ stats }: { stats: DashboardStats }) {
+  const feedbackPending = valueOrNull(stats.performance?.feedback_pending);
+  const businessReview = valueOrNull(stats.performance?.business_review_entries ?? stats.businessReview);
+  const interview = valueOrNull(stats.performance?.interview_entries ?? stats.interview);
+  const offer = valueOrNull(stats.performance?.offer_entries ?? stats.offer);
+
+  return (
+    <section>
+      <h2 className="mb-4 font-display text-lg text-ink">今日待办</h2>
+      <Reveal
+        className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+        stagger={0.05}
+        y={14}
+      >
+        <TodoCard
+          to="/pipeline"
+          label="业务待反馈"
+          value={businessReview}
+          desc="推动用人部门确认"
+          icon={Inbox}
+          tone={businessReview && businessReview > 0 ? 'warning' : 'success'}
+        />
+        <TodoCard
+          to="/pipeline"
+          label="面试中跟进"
+          value={interview}
+          desc="关注候选人当前进展"
+          icon={KanbanSquare}
+          tone={interview && interview > 0 ? 'neutral' : 'success'}
+        />
+        <TodoCard
+          to="/interviews"
+          label="待补反馈"
+          value={feedbackPending}
+          desc="催补面试结论"
+          icon={Clock3}
+          tone={feedbackPending && feedbackPending > 0 ? 'warning' : 'success'}
+        />
+        <TodoCard
+          to="/pipeline"
+          label="Offer跟进"
+          value={offer}
+          desc="跟进发放与入职"
+          icon={CheckCircle2}
+          tone={offer && offer > 0 ? 'neutral' : 'success'}
+        />
+      </Reveal>
+    </section>
+  );
+}
+
 function FeatureCard({
   to,
   label,
@@ -371,8 +572,10 @@ export function DashboardPage() {
 
   const info = ROLE_INFO[role];
   const RoleIcon = info.icon;
-  const showFunnelKpis = role === 'manager' || role === 'admin' || userId != null;
+  const showFunnelKpis = role === 'manager' || role === 'admin' || role === 'recruiter';
   const showManagementAlerts = role === 'manager' || role === 'admin';
+  const showRecruiterPanels = role === 'recruiter';
+  const showInterviewerKpis = role === 'interviewer';
 
   const actions = workflowActionsForRole(role);
 
@@ -416,16 +619,47 @@ export function DashboardPage() {
           stagger={0.07}
           y={16}
         >
-          <KpiCard label="候选人总数" value={stats.candidates} accent="#007AFF" />
-          <KpiCard label="岗位总数" value={stats.jobs} accent="#5856D6" />
-          {showFunnelKpis && <KpiCard label="面试中" value={stats.interview} accent="#FF9500" />}
-          {showFunnelKpis && (
-            <KpiCard label="转化率" value={stats.conversionRate} decimals={1} suffix="%" accent="#34C759" />
+          {showInterviewerKpis ? (
+            <>
+              <KpiCard
+                label="待我反馈"
+                value={stats.interviewerTasks.pendingFeedback}
+                accent="#FF9500"
+              />
+              <KpiCard
+                label="今日面试"
+                value={stats.interviewerTasks.todayInterviews}
+                accent="#007AFF"
+              />
+              <KpiCard
+                label="已反馈"
+                value={stats.interviewerTasks.submittedFeedback}
+                accent="#34C759"
+              />
+              <KpiCard
+                label="超时待反馈"
+                value={stats.interviewerTasks.overdueFeedback}
+                accent="#FF3B30"
+              />
+            </>
+          ) : (
+            <>
+              <KpiCard label="候选人总数" value={stats.candidates} accent="#007AFF" />
+              <KpiCard label="岗位总数" value={stats.jobs} accent="#5856D6" />
+              {showFunnelKpis && <KpiCard label="面试中" value={stats.interview} accent="#FF9500" />}
+              {showFunnelKpis && (
+                <KpiCard label="转化率" value={stats.conversionRate} decimals={1} suffix="%" accent="#34C759" />
+              )}
+            </>
           )}
         </Reveal>
       </section>
 
       {showManagementAlerts && <ManagementAlerts alerts={stats.alerts} />}
+
+      {showRecruiterPanels && <RecruiterPerformancePanel performance={stats.performance} />}
+
+      {showRecruiterPanels && <RecruiterTodoPanel stats={stats} />}
 
       {/* C. 常用动作 */}
       <section>

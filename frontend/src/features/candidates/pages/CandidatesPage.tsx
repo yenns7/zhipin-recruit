@@ -7,6 +7,7 @@ import { candidatesApi as api } from '../api';
 import { formatDate } from '../../../lib/formatDate';
 import { useDebounce } from '../../../lib/useDebounce';
 import { useAsync } from '../../../lib/useAsync';
+import { RESUME_SOURCE_CHANNEL_OPTIONS } from '../../../lib/sourceChannels';
 import {
   Badge,
   Button,
@@ -26,15 +27,7 @@ import { Reveal, AnimatedNumber } from '../../../components/motion';
 import type { CandidateListItem, CandidateTag, ParseStatus } from '../types';
 
 const TAG_TONES = ['accent', 'purple', 'teal', 'info', 'neutral'] as const;
-const COMMON_SOURCE_OPTIONS = [
-  'BOSS直聘',
-  '猎聘',
-  '智联招聘',
-  '前程无忧',
-  '内推',
-  '官网',
-  'LinkedIn',
-] as const;
+const COMMON_SOURCE_OPTIONS = RESUME_SOURCE_CHANNEL_OPTIONS.filter((channel) => channel !== '其他');
 const COMMON_CITY_OPTIONS = [
   '北京',
   '上海',

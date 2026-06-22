@@ -1,10 +1,10 @@
 import json
-from datetime import datetime
 from flask import Blueprint, request, Response, jsonify, g, current_app, stream_with_context
 from ..middleware.auth import require_auth
 from ..middleware.rate_limit import rate_limit
 from .. import db
 from ..models import Conversation, ConversationMessage
+from ..time_utils import utc_now
 from ..services.agent_service import (
     RecruitingAgent,
     TOOLS as AGENT_TOOLS,
@@ -53,7 +53,7 @@ def list_conversations():
 @bp.get("/agent/conversations/<int:conversation_id>")
 @require_auth
 def get_conversation(conversation_id):
-    conversation = Conversation.query.get_or_404(conversation_id)
+    conversation = db.get_or_404(Conversation, conversation_id)
     if conversation.user_id != g.user_id:
         return jsonify({"error": "Forbidden"}), 403
     return jsonify({
@@ -109,7 +109,7 @@ def chat():
             conversation_id = int(conversation_id)
         except (TypeError, ValueError):
             return jsonify({"error": "invalid conversation_id"}), 400
-        conversation = Conversation.query.get(conversation_id)
+        conversation = db.session.get(Conversation, conversation_id)
         if conversation is None:
             return jsonify({"error": "会话不存在"}), 404
         if conversation.user_id != g.user_id:
@@ -163,7 +163,7 @@ def chat():
                 yield f"data: {json.dumps(err, ensure_ascii=False)}\n\n"
 
             if success:
-                conversation = Conversation.query.get(store_conversation_id)
+                conversation = db.session.get(Conversation, store_conversation_id)
                 if conversation and conversation.user_id == user_id:
                     db.session.add(ConversationMessage(
                         conversation_id=conversation.id,
@@ -177,7 +177,7 @@ def chat():
                         tool_calls=tool_calls or None,
                         thoughts=thoughts or None,
                     ))
-                    conversation.updated_at = datetime.utcnow()
+                    conversation.updated_at = utc_now()
                     db.session.commit()
 
     return Response(

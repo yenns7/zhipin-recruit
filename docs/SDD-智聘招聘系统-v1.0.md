@@ -12,7 +12,7 @@
 | 代码基准 | `main` 分支，当前 HEAD: `6a26afe Merge feat/pipeline-stage-management:招聘流程补全 M1-M5(PRD G1-G10)` |
 | 本地项目路径 | `/Users/yenns/Desktop/智聘` |
 | 主要用途 | 后续按模块指定改动时，用来快速判断要改哪些文件、影响哪些接口/表/流程 |
-| 文档生成日期 | 2026-06-15 |
+| 文档生成日期 | 2026-06-19 |
 
 ### 1.1 本地兼容补丁说明
 
@@ -20,11 +20,12 @@
 
 | 文件 | 目的 |
 |---|---|
-| `backend/app/api/auth.py` | 兼容旧演示数据库中的 SHA256 密码，同时保留新注册用户的 bcrypt 校验 |
+| `backend/app/api/auth.py` | 兼容旧演示数据库中的 SHA256 密码；公开注册默认关闭，试点账号由 admin 分配 |
 | `base_agent/llm_client.py` | 支持 `keychain:<service>` 形式读取 macOS 钥匙串中的 API Key |
 | `base_agent/resume_parser.py` | 简历解析器也支持钥匙串 API Key，避免上传简历时把 `keychain:` 字符串当作真实 key |
 | `backend/tests/test_auth_passwords.py` | 覆盖 bcrypt 与旧 SHA256 密码兼容 |
 | `base_agent/tests/test_llm_client_secrets.py` | 覆盖钥匙串密钥解析和简历解析器密钥路径 |
+| `backend/migrate_stages.py` | 将历史一面/二面/终面主流程阶段归并为当前 MVP 的 `interview` |
 
 这些补丁是为了让本地演示环境稳定运行。若后续要推到云端，应作为单独 PR 合入，并同步更新 `.env.example` / 部署文档。
 
@@ -41,12 +42,12 @@
 | 简历上传解析 | 已实现 | PDF / Word / ZIP 批量上传，AI 解析入库 |
 | 岗位管理 | 已实现 | 创建、编辑、关闭岗位，JD AI 结构化与澄清追问 |
 | 智能匹配 | 已实现 | 岗位找候选人，生成匹配分、命中标签、缺失标签 |
-| 招聘流程看板 | 已实现 | pending → ai_screen → interview_first/second/final → offer → onboarded/rejected |
+| 候选人管道 | 已实现 | pending → ai_screen → business_review → interview → offer → onboarded/rejected |
 | AI 面试 | 已实现 | 生成题目、提交回答、AI 评分、报告落库、预筛后回写流程 |
-| 面试官反馈 | 已实现 | 按轮次写反馈，进入候选人 journey |
+| 面试官反馈 | 已实现 | 按轮次写反馈，支持固定原因分类，进入候选人 journey |
 | BI 看板 | 已实现 | 团队漏斗、专员效能、岗位漏斗 |
 | AI 助手 | 已实现 | LangGraph ReAct 工具调用，支持读工具与用户确认后的写工具 |
-| 用户管理 | 已实现 | admin 管理用户角色与启停 |
+| 用户管理 | 已实现 | admin 管理用户角色、启停、创建账号与重置密码 |
 
 ### 2.2 明确不做或尚未工程化的能力
 
@@ -159,7 +160,7 @@ gunicorn -w 2 -b 0.0.0.0:5000 --timeout 120 --keep-alive 5 "run:app"
 | `admin` | 全部模块 | 用户管理、BI、候选人、岗位、流程、面试、AI 助手 |
 | `manager` | 工作台、AI 助手、候选人、上传、岗位、流程、面试、BI | 团队视角管理、候选人转派、BI 查看 |
 | `recruiter` | 工作台、AI 助手、候选人、上传、岗位、流程、面试 | 负责自己的候选人和招聘操作 |
-| `interviewer` | 工作台、AI 助手、候选人、流程、面试 | 查看候选人、提交面试反馈 |
+| `interviewer` | 工作台、我的面试、候选人详情 | 只处理分配给自己的面试安排与反馈；不浏览全量简历库、不推进候选人管道、不使用 AI 助手 |
 
 ### 5.1 前端路由守卫
 
@@ -169,13 +170,13 @@ gunicorn -w 2 -b 0.0.0.0:5000 --timeout 120 --keep-alive 5 "run:app"
 |---|---|---|
 | `/login` | `LoginPage` | 未登录 |
 | `/` | `DashboardPage` | 全部登录角色 |
-| `/agent` | `AgentPage` | 全部登录角色 |
-| `/candidates` | `CandidatesPage` | 全部登录角色 |
-| `/candidates/:id` | `CandidateProfilePage` | 全部登录角色，后端继续做 recruiter 归属限制 |
+| `/agent` | `AgentPage` | recruiter / manager / admin |
+| `/candidates` | `CandidatesPage` | recruiter / manager / admin |
+| `/candidates/:id` | `CandidateProfilePage` | recruiter / manager / admin / interviewer |
 | `/upload` | `UploadPage` | recruiter / manager / admin |
 | `/jobs` | `JobsPage` | recruiter / manager / admin |
 | `/jobs/:id/match` | `JobMatchPage` | recruiter / manager / admin |
-| `/pipeline` | `PipelinePage` | recruiter / manager / admin / interviewer |
+| `/pipeline` | `PipelinePage` | recruiter / manager / admin |
 | `/interviews` | `InterviewListPage` | recruiter / interviewer / manager / admin |
 | `/interviews/new` | `InterviewsPage` | recruiter / manager / admin |
 | `/interviews/:id` | `InterviewReportPage` | recruiter / manager / admin / interviewer |
@@ -207,7 +208,7 @@ gunicorn -w 2 -b 0.0.0.0:5000 --timeout 120 --keep-alive 5 "run:app"
 | `pipeline_stages` | `PipelineStage` | `candidate_id`, `job_id`, `stage`, `updated_by`, `note`, `ts` | 招聘流程流水，append-only |
 | `events` | `Event` | `actor_id`, `action`, `entity_id`, `entity_type`, `payload` | 写操作事件，用于 BI 与审计基础 |
 | `audit_logs` | `AuditLog` | `actor_id`, `target_table`, `target_id`, `action` | 预留审计表，当前使用较少 |
-| `interview_feedback` | `InterviewFeedback` | `candidate_id`, `job_id`, `round`, `interviewer_id`, `score`, `passed`, `note` | 面试官反馈 |
+| `interview_feedback` | `InterviewFeedback` | `candidate_id`, `job_id`, `round`, `interviewer_id`, `score`, `passed`, `reason_tags`, `note` | 面试官反馈与原因分类 |
 
 ### 6.1 招聘阶段枚举
 
@@ -216,15 +217,16 @@ gunicorn -w 2 -b 0.0.0.0:5000 --timeout 120 --keep-alive 5 "run:app"
 ```text
 pending
 ai_screen
-interview_first
-interview_second
-interview_final
+business_review
+interview
 offer
 onboarded
 rejected
 ```
 
 主流程顺序定义在 `backend/app/api/pipeline.py` 和 `frontend/src/lib/pipelineStages.ts`。新增阶段时必须两边同步。
+
+历史兼容：`interview_first` / `interview_second` / `interview_final` 仍可被后端读取并归并展示为 `interview`，但新写入的候选人管道主流程不应再生成这些旧阶段。面试第几轮通过 `interview_feedback.round`、面试安排和面试记录表达，不再作为管道主阶段。
 
 ### 6.2 PipelineStage 的重要设计
 
@@ -246,7 +248,7 @@ rejected
 
 | 方法 | 路径 | 权限 | 作用 |
 |---|---|---|---|
-| `POST` | `/auth/register` | 无 | 注册用户，后端强制角色为 recruiter |
+| `POST` | `/auth/register` | 无 | 公开注册入口，默认关闭；试点账号由 admin 创建 |
 | `POST` | `/auth/login` | 无 | 登录，返回 JWT、角色、姓名 |
 | `GET` | `/auth/me` | 登录 | 获取当前用户 |
 | `POST` | `/auth/change-password` | 登录 | 修改当前用户密码 |
@@ -279,7 +281,7 @@ rejected
 
 | 方法 | 路径 | 权限 | 作用 |
 |---|---|---|---|
-| `POST` | `/pipeline/move` | 登录 | 推进候选人到某阶段，写流水与事件 |
+| `POST` | `/pipeline/move` | recruiter/manager/admin；interviewer 禁止 | 推进候选人到某阶段，写流水与事件 |
 | `GET` | `/pipeline/<job_id>` | 登录 | 某岗位当前阶段人数 |
 | `GET` | `/pipeline/<job_id>/board` | 登录 | 某岗位看板候选人卡片数据 |
 | `GET` | `/pipeline/<job_id>/history/<candidate_id>` | 登录 | 候选人某岗位流程历史 |
@@ -291,19 +293,21 @@ rejected
 | `POST` | `/interview/start` | 登录 | 生成 AI 面试题 |
 | `POST` | `/interview/submit` | 登录 | 提交回答，AI 评分，报告落库，并可能回写流程 |
 | `GET` | `/interview/<interview_id>` | 登录 | AI 面试报告详情 |
-| `POST` | `/interview/feedback` | 登录 | 面试官提交反馈 |
-| `GET` | `/interview/feedback` | 登录 | 查询反馈 |
+| `POST` | `/interview/feedback` | 登录 | 面试官提交反馈，可带 `reason_tags` 原因分类 |
+| `GET` | `/interview/feedback` | 登录 | 查询反馈，返回原因分类 |
 | `GET` | `/interviews` | 登录 | 面试记录列表，按角色过滤 |
 
 ### 7.6 BI / Admin / Agent
 
 | 方法 | 路径 | 权限 | 作用 |
 |---|---|---|---|
-| `GET` | `/bi/overview` | manager/admin | 团队漏斗和专员效能 |
-| `GET` | `/bi/staff/<hr_id>` | 登录，recruiter 仅自己 | 单专员漏斗 |
+| `GET` | `/bi/overview` | manager/admin | 团队漏斗、专员效能、面试官责任、用人部门责任 |
+| `GET` | `/bi/staff/<hr_id>` | 登录，recruiter 仅自己 | 单专员漏斗 + `performance` 个人绩效行 |
 | `GET` | `/bi/job/<job_id>` | 登录 | 单岗位漏斗 |
 | `GET` | `/admin/users` | admin | 用户列表 |
+| `POST` | `/admin/users` | admin | 创建试点账号 |
 | `PATCH` | `/admin/users/<user_id>` | admin | 修改角色、启停 |
+| `POST` | `/admin/users/<user_id>/reset-password` | admin | 重置用户密码 |
 | `GET` | `/agent/tools` | 登录 | AI 助手工具清单 |
 | `POST` | `/agent/chat` | 登录 | SSE 流式 AI 对话 |
 | `POST` | `/agent/execute` | 登录 + 工具 RBAC | 执行 AI 助手提议的写操作 |
@@ -415,7 +419,7 @@ flowchart TD
 - 修改 `job_matcher.py` 会影响岗位匹配页面和 AI 助手工具。
 - 只读匹配和持久化匹配要区分：AI 助手读工具使用只读模式。
 
-### 8.5 招聘流程推进
+### 8.5 候选人管道推进
 
 入口：
 
@@ -435,7 +439,10 @@ flowchart TD
 重要约束：
 
 - `rejected` 是终态，但当前代码没有强限制不允许再次移动。
-- 阶段移动目前是通用接口，业务规则主要靠前端 UI 和测试约束。
+- 主流程阶段为 `pending → ai_screen → business_review → interview → offer → onboarded/rejected`。
+- 历史一面/二面/终面阶段只做兼容读取，新写入统一使用 `interview`。
+- 阶段移动由 HR/经理/管理员完成；面试官账号即使被分配了面试，也不能调用 `/pipeline/move` 直接推进 Offer 或淘汰。
+- 前端反馈表通过 `canMovePipeline` 控制按钮显示，后端 `/pipeline/move` 也会兜底拦截面试官账号。
 
 ### 8.6 AI 面试与流程回写
 
@@ -452,12 +459,12 @@ flowchart TD
 3. LLM 对每个回答评分。
 4. 生成平均分与 `pass_recommended`。
 5. 写入 `interviews`。
-6. 若通过且候选人尚未到一面或更后阶段，流程推进到 `interview_first`。
+6. 若通过且候选人尚未到面试中或更后阶段，流程推进到 `interview`。
 7. 若不通过，流程推进到 `rejected`。
 
 关键规则：
 
-- AI 通过时不会把已经在一面或更后阶段的候选人回退。
+- AI 通过时不会把已经在面试中或更后阶段的候选人回退。
 - AI 未通过会写 `rejected`。
 - 这是会自动写主流程状态的 AI 行为，风险高于只读建议型 AI。
 
@@ -468,7 +475,9 @@ flowchart TD
 - 前端：`frontend/src/components/interview/FeedbackForm.tsx`
 - 后端：`backend/app/api/interview.py`
 
-面试官反馈写入 `interview_feedback`，候选人详情 journey 会聚合展示流程时间线、AI 面试记录和面试官反馈。
+面试官反馈写入 `interview_feedback`，候选人详情 journey 会聚合展示流程时间线、AI 面试记录和面试官反馈。面试官在“我的面试”中只提交反馈；候选人是否进入 Offer 或淘汰，由 HR/经理/管理员在候选人管道中处理。
+
+`reason_tags` 用于 MVP 试点阶段的责任归因，前端提供固定原因分类，例如专业能力不匹配、项目经验不足、薪资期望不匹配、候选人已接受其他机会、面试时间无法协调、岗位画像变化、部门内部意见不一致、面试标准变化、HC 暂缓或冻结、岗位暂停招聘、需要加面确认等。后端只保存白名单内原因，避免自由文本污染后续 BI 口径。
 
 ### 8.8 BI 看板
 
@@ -482,9 +491,14 @@ BI 主要从两类数据计算：
 | 来源 | 用途 |
 |---|---|
 | `pipeline_stages` 最新阶段 | 漏斗各阶段人数 |
-| `events` | 简历量、预筛量、入职量、专员效能 |
+| `candidates.owner_hr_id` + `pipeline_stages` | 招聘专员有效推荐、推荐成功面试、Offer、入职等个人绩效 |
+| `interview_assignments` | 面试安排、面试官、轮次、待补反馈 |
+| `interview_feedback` | 面试通过/拒绝、评分、面试官反馈 |
+| `jobs.department` | 用人部门责任归属 |
 
 注意：BI 使用最新阶段去重，不能直接统计所有历史流水。
+面试轮次只作为面试事实明细参与 BI 责任归因，不重新拆回候选人管道主流程。
+招聘专员工作台的“我的本月业绩”和“今日待办”复用 `/bi/staff/<hr_id>` 的 `performance` 字段；主管 BI 的专员列表也使用同一套公开绩效字段。
 
 ### 8.9 AI 助手
 
@@ -591,10 +605,10 @@ LLM_API_KEY=keychain:zhipin-deepseek-api-key
 | 岗位列表/编辑 | `JobsPage.tsx` | `api/jobs.py` | `jobs.jd_structured` |
 | JD AI 澄清 | `JobsPage.tsx` | `api/jobs.py` | LLM，只读或写结构化 |
 | 岗位匹配 | `JobMatchPage.tsx` | `services/match_service.py` | `candidate_tags`, `matches`, `job_matcher.py` |
-| 招聘流程看板 | `PipelinePage.tsx`, `components/pipeline/*` | `api/pipeline.py` | `pipeline_stages`, `events` |
+| 候选人管道 | `PipelinePage.tsx`, `components/pipeline/*` | `api/pipeline.py` | `pipeline_stages`, `events` |
 | 新增招聘阶段 | `frontend/src/lib/pipelineStages.ts` | `models.py`, `api/pipeline.py` | 高风险，需测试 |
 | AI 面试 | `InterviewsPage.tsx`, `InterviewReportPage.tsx` | `api/interview.py`, `services/interview_service.py` | LLM + `interviews` + 流程回写 |
-| 面试官反馈 | `FeedbackForm.tsx` | `api/interview.py` | `interview_feedback` |
+| 面试官反馈 | `FeedbackForm.tsx` | `api/interview.py` | `interview_feedback.reason_tags` |
 | BI 看板 | `BiPage.tsx`, `components/bi/*` | `api/bi.py` | `events`, `pipeline_stages` |
 | AI 助手 | `AgentPage.tsx`, `lib/agent.ts` | `api/agent.py`, `services/agent_service.py` | 取决于工具，写工具风险高 |
 | 用户管理 | `pages/admin/UsersPage.tsx` | `api/admin.py` | `users` |
@@ -728,6 +742,8 @@ LLM_API_KEY=keychain:zhipin-deepseek-api-key
 | `backend/tests/test_candidate_journey.py` | 候选人 journey、转派、归属限制 |
 | `backend/tests/test_pipeline_rounds.py` | 阶段推进、备注、非法阶段 |
 | `backend/tests/test_interview_loop.py` | AI 面试回写流程、面试官反馈 |
+| `backend/tests/test_security_hardening_next.py` | 试点权限边界、面试官禁止上传/重解析/推进流程 |
+| `frontend/tests/interviewer_role_scope.test.mjs` | 面试官导航、路由、面试工作台与反馈按钮边界 |
 | `base_agent/tests/test_job_matcher.py` | 岗位匹配算法 |
 | `base_agent/tests/test_llm_client_secrets.py` | keychain 密钥解析 |
 
@@ -737,6 +753,7 @@ LLM_API_KEY=keychain:zhipin-deepseek-api-key
 |---|---|
 | 只改前端样式 | `npm run build` |
 | 改登录/权限 | `pytest tests/test_auth_security.py tests/test_auth_passwords.py -q` |
+| 改角色页面/面试官权限 | `pytest tests/test_security_hardening_next.py -q` + `node frontend/tests/interviewer_role_scope.test.mjs` |
 | 改候选人/流程 | `pytest tests/test_candidate_journey.py tests/test_pipeline_rounds.py -q` |
 | 改 AI 面试 | `pytest tests/test_interview_loop.py -q` |
 | 改匹配算法 | `pytest ../base_agent/tests/test_job_matcher.py -q` 或在 base_agent 目录跑 |

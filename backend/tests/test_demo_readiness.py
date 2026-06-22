@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 
 def test_demo_readiness_service_cleans_demo_data_idempotently(app):
@@ -64,7 +64,7 @@ def test_demo_readiness_service_cleans_demo_data_idempotently(app):
             job_id=job.id,
             stage="interview_first",
             updated_by=admin.id,
-            ts=datetime.utcnow() - timedelta(days=1),
+            ts=datetime.now(UTC).replace(tzinfo=None) - timedelta(days=1),
         ))
         db.session.commit()
 

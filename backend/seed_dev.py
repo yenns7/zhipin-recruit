@@ -61,16 +61,17 @@ def seed():
         wipe()
 
         # ── 1. USERS ──────────────────────────────────────────────────────────
-        pw = _hash("demo1234")
+        pw = _hash("Zhipin2026")
 
-        manager = User(name="陈经理", email="manager@demo.com", role="manager", password_hash=pw, created_at=_dt(60))
-        hr1     = User(name="张专员", email="hr1@demo.com",      role="recruiter", password_hash=pw, created_at=_dt(55))
-        hr2     = User(name="李专员", email="hr2@demo.com",      role="recruiter", password_hash=pw, created_at=_dt(50))
-        hr3     = User(name="王专员", email="hr3@demo.com",      role="recruiter", password_hash=pw, created_at=_dt(45))
-        ivr     = User(name="赵面试官", email="interviewer@demo.com", role="interviewer", password_hash=pw, created_at=_dt(40))
-        adm     = User(name="系统管理员", email="admin@demo.com", role="admin", password_hash=pw, created_at=_dt(60))
+        manager = User(name="招聘经理01", email="manager01@mvp.local", role="manager", password_hash=pw, created_at=_dt(60))
+        lead    = User(name="招聘负责人01", email="lead01@mvp.local", role="manager", password_hash=pw, created_at=_dt(58))
+        hr1     = User(name="招聘专员01", email="hr01@mvp.local", role="recruiter", password_hash=pw, created_at=_dt(55))
+        hr2     = User(name="招聘专员02", email="hr02@mvp.local", role="recruiter", password_hash=pw, created_at=_dt(50))
+        hr3     = User(name="招聘专员03", email="hr03@mvp.local", role="recruiter", password_hash=pw, created_at=_dt(45))
+        ivr     = User(name="面试官01", email="interviewer01@mvp.local", role="interviewer", password_hash=pw, created_at=_dt(40))
+        adm     = User(name="系统管理员", email="admin01@mvp.local", role="admin", password_hash=pw, created_at=_dt(60))
 
-        db.session.add_all([manager, hr1, hr2, hr3, ivr, adm])
+        db.session.add_all([manager, lead, hr1, hr2, hr3, ivr, adm])
         db.session.flush()  # get IDs
 
         # ── 2. JOBS ───────────────────────────────────────────────────────────
@@ -360,23 +361,23 @@ def seed():
             # (candidate, job, stage, updated_by, days_ago)
             (c1,  job1, "pending",    hr1.id, 28),
             (c1,  job1, "ai_screen",  hr1.id, 26),
-            (c1,  job1, "interview_first",  hr1.id, 22),
+            (c1,  job1, "interview",  hr1.id, 22),
             (c1,  job1, "offer",      manager.id, 18),
             (c1,  job1, "onboarded",  manager.id, 10),
 
             (c2,  job2, "pending",    hr1.id, 25),
             (c2,  job2, "ai_screen",  hr1.id, 23),
-            (c2,  job2, "interview_first",  hr1.id, 19),
+            (c2,  job2, "interview",  hr1.id, 19),
             (c2,  job2, "offer",      manager.id, 14),
 
             (c3,  job3, "pending",    hr2.id, 22),
             (c3,  job3, "ai_screen",  hr2.id, 20),
-            (c3,  job3, "interview_first",  hr2.id, 16),
+            (c3,  job3, "interview",  hr2.id, 16),
             (c3,  job3, "onboarded",  manager.id, 8),
 
             (c4,  job4, "pending",    hr2.id, 20),
             (c4,  job4, "ai_screen",  hr2.id, 18),
-            (c4,  job4, "interview_first",  hr2.id, 14),
+            (c4,  job4, "interview",  hr2.id, 14),
 
             (c5,  job1, "pending",    hr3.id, 18),
             (c5,  job1, "ai_screen",  hr3.id, 16),
@@ -388,20 +389,20 @@ def seed():
 
             (c7,  job3, "pending",    hr1.id, 12),
             (c7,  job3, "ai_screen",  hr1.id, 10),
-            (c7,  job3, "interview_first",  hr1.id, 7),
+            (c7,  job3, "interview",  hr1.id, 7),
             (c7,  job3, "offer",      manager.id, 4),
             (c7,  job3, "onboarded",  manager.id, 2),
 
             (c8,  job1, "pending",    hr2.id, 10),
             (c8,  job1, "ai_screen",  hr2.id, 8),
-            (c8,  job1, "interview_first",  hr2.id, 5),
+            (c8,  job1, "interview",  hr2.id, 5),
 
             (c9,  job2, "pending",    hr3.id, 8),
             (c9,  job2, "ai_screen",  hr3.id, 6),
 
             (c10, job4, "pending",    hr1.id, 6),
             (c10, job4, "ai_screen",  hr1.id, 4),
-            (c10, job4, "interview_first",  hr1.id, 2),
+            (c10, job4, "interview",  hr1.id, 2),
             (c10, job4, "offer",      manager.id, 1),
         ]
 
@@ -550,16 +551,17 @@ def seed():
         print("\n" + "="*60)
         print("  HireInsight Dev Seed — Complete")
         print("="*60)
-        print("\nLogin Credentials (password: demo1234 for all):")
+        print("\nMVP Trial Credentials (password: Zhipin2026 for all):")
         print(f"  {'Role':<12} {'Email':<30} {'Name'}")
         print(f"  {'-'*12} {'-'*30} {'-'*10}")
         creds = [
-            ("admin",       "admin@demo.com",       "系统管理员"),
-            ("manager",     "manager@demo.com",     "陈经理"),
-            ("recruiter",   "hr1@demo.com",         "张专员"),
-            ("recruiter",   "hr2@demo.com",         "李专员"),
-            ("recruiter",   "hr3@demo.com",         "王专员"),
-            ("interviewer", "interviewer@demo.com", "赵面试官"),
+            ("admin",       "admin01@mvp.local",       "系统管理员"),
+            ("manager",     "manager01@mvp.local",     "招聘经理01"),
+            ("manager",     "lead01@mvp.local",        "招聘负责人01"),
+            ("recruiter",   "hr01@mvp.local",          "招聘专员01"),
+            ("recruiter",   "hr02@mvp.local",          "招聘专员02"),
+            ("recruiter",   "hr03@mvp.local",          "招聘专员03"),
+            ("interviewer", "interviewer01@mvp.local", "面试官01"),
         ]
         for role, email, name in creds:
             print(f"  {role:<12} {email:<30} {name}")

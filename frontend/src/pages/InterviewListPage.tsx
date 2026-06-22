@@ -69,16 +69,17 @@ export function InterviewListPage() {
   const [filters, setFilters] = useState<InterviewFiltersState>(DEFAULT_INTERVIEW_FILTERS);
   const [selectedRecord, setSelectedRecord] = useState<InterviewListItem | null>(null);
   const [selectedPending, setSelectedPending] = useState<PendingFeedbackItem | null>(null);
+  const isInterviewer = role === 'interviewer';
 
   const workspaceAsync = useAsync<InterviewWorkspaceData>(async () => {
     const [records, jobs, candidates, assignments, interviewers] = await Promise.all([
       api.listInterviews(),
-      api.listJobs(),
-      api.listCandidates(),
+      isInterviewer ? Promise.resolve([] as JobListItem[]) : api.listJobs(),
+      isInterviewer ? Promise.resolve([] as CandidateListItem[]) : api.listCandidates(),
       api.listInterviewAssignments(),
-      role === 'interviewer' ? Promise.resolve([]) : api.listInterviewers(),
+      isInterviewer ? Promise.resolve([] as InterviewerOption[]) : api.listInterviewers(),
     ]);
-    const boards = role === 'interviewer'
+    const boards = isInterviewer
       ? []
       : await Promise.all(
           jobs.map(async (job) => {
@@ -97,7 +98,7 @@ export function InterviewListPage() {
       interviewers,
       boards: boards.filter((board): board is PipelineBoard => board !== null),
     };
-  }, [role]);
+  }, [role, isInterviewer]);
 
   const records = useMemo(() => workspaceAsync.data?.records ?? [], [workspaceAsync.data]);
   const jobs = useMemo(() => workspaceAsync.data?.jobs ?? [], [workspaceAsync.data]);
@@ -126,6 +127,7 @@ export function InterviewListPage() {
   const jobOptions = useMemo(() => uniqueJobs(records, jobs), [records, jobs]);
   const interviewerOptions = useMemo(() => uniqueInterviewers(records), [records]);
   const showInterviewerFilter = role === 'manager' || role === 'admin';
+  const interviewTitle = role === 'interviewer' ? '我的面试' : '面试工作台';
 
   const focusOptions = [
     { value: 'pending' as const, label: `待我处理 ${pending.length}` },
@@ -137,11 +139,11 @@ export function InterviewListPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="面试中心"
-        description="安排面试、填写反馈、查看面试记录；流程推进仍回到招聘流程看板"
+        title={interviewTitle}
+        description="处理面试安排、待补反馈和面试记录；AI 预筛只作为参考"
         actions={role !== 'interviewer' ? (
           <Link to="/interviews/new">
-            <Button>AI 初筛评估</Button>
+            <Button>AI 预筛参考</Button>
           </Link>
         ) : undefined}
       />
@@ -166,11 +168,11 @@ export function InterviewListPage() {
             <EmptyState
               icon={Bot}
               title="暂无面试内容"
-              description="安排面试、填写反馈、查看面试记录；AI 初筛评估会在这里留下记录"
+              description="可以先安排面试并填写人工反馈，也可以生成 AI 预筛参考"
               action={role !== 'interviewer' ? (
                 <Link to="/interviews/new">
                   <Button variant="secondary" size="sm">
-                    AI 初筛评估
+                    AI 预筛参考
                   </Button>
                 </Link>
               ) : undefined}
@@ -263,6 +265,7 @@ export function InterviewListPage() {
                       candidateId={selectedPending.candidate_id}
                       jobId={selectedPending.job_id}
                       initialRound={selectedPending.round}
+                      canMovePipeline={!isInterviewer}
                       onSubmitted={() => {
                         setSelectedPending(null);
                         void workspaceAsync.reload();

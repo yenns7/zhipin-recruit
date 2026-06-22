@@ -48,6 +48,9 @@ def _extract_jd_structured(llm, jd_text):
     import json as _json
     import re
     try:
+        if llm is None:
+            from llm_client import LLMClient
+            llm = LLMClient()
         raw = llm.chat(JD_EXTRACT_SYS, jd_text[:4000])
         m = re.search(r"\{.*\}", raw, re.DOTALL)
         return _json.loads(m.group()) if m else {}
@@ -128,9 +131,6 @@ def create_job():
     if not data or not data.get("title") or not data.get("jd_text"):
         return jsonify({"error": "title and jd_text required"}), 400
 
-    from llm_client import LLMClient
-    llm = LLMClient()
-
     # 若前端带来了澄清问答，拼接进 JD 文本，让提取更准确
     jd_text = data["jd_text"]
     clarifications = data.get("clarifications") or []
@@ -143,7 +143,7 @@ def create_job():
         if extra:
             jd_text = f"{jd_text}\n\n【HR 澄清补充】\n{extra}"
 
-    structured = _extract_jd_structured(llm, jd_text)
+    structured = _extract_jd_structured(None, jd_text)
 
     job = Job(
         title=data["title"],
@@ -182,7 +182,7 @@ def list_jobs():
 @require_auth
 def get_job(job_id):
     """单个岗位详情，含结构化 JD。"""
-    job = Job.query.get_or_404(job_id)
+    job = db.get_or_404(Job, job_id)
     if g.role == "interviewer" and job.id not in assigned_job_ids_for_interviewer(g.user_id):
         return jsonify({"error": "Forbidden"}), 403
     return jsonify(_job_detail_payload(job))
@@ -197,7 +197,7 @@ def _can_manage_job(job):
 @require_auth
 def update_job(job_id):
     """编辑岗位：改基础信息 / JD（jd_text 变化时重新结构化）。"""
-    job = Job.query.get_or_404(job_id)
+    job = db.get_or_404(Job, job_id)
     if not _can_manage_job(job):
         return jsonify({"error": "无权编辑该岗位"}), 403
     data = request.get_json() or {}
@@ -214,8 +214,7 @@ def update_job(job_id):
             return jsonify({"error": "JD 不能为空"}), 400
         job.jd_text = jd_text
         # JD 变了，重新结构化
-        from llm_client import LLMClient
-        job.jd_structured = _extract_jd_structured(LLMClient(), jd_text)
+        job.jd_structured = _extract_jd_structured(None, jd_text)
     if "city" in data:
         job.city = _clean_optional(data.get("city"), 80)
     if "department" in data:
@@ -231,7 +230,7 @@ def update_job(job_id):
 @require_auth
 def close_job(job_id):
     """关闭/下线岗位（status=closed），不物理删除以保留历史与 BI 关联。"""
-    job = Job.query.get_or_404(job_id)
+    job = db.get_or_404(Job, job_id)
     if not _can_manage_job(job):
         return jsonify({"error": "无权关闭该岗位"}), 403
     job.status = "closed"
@@ -245,7 +244,7 @@ def close_job(job_id):
 def match_job(job_id):
     if g.role not in ("recruiter", "manager", "admin"):
         return jsonify({"error": "Forbidden"}), 403
-    job = Job.query.get_or_404(job_id)
+    job = db.get_or_404(Job, job_id)
     if not can_manage_job(g.user_id, g.role, job):
         return jsonify({"error": "Forbidden"}), 403
     svc = MatchService()
@@ -268,7 +267,7 @@ def batch_add_to_pipeline(job_id):
     if not isinstance(raw_ids, list) or len(raw_ids) == 0:
         return jsonify({"error": "candidate_ids required"}), 400
 
-    job = Job.query.get_or_404(job_id)
+    job = db.get_or_404(Job, job_id)
     if not can_manage_job(g.user_id, g.role, job):
         return jsonify({"error": "Forbidden"}), 403
 

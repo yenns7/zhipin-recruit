@@ -153,6 +153,9 @@ def _ensure_workflow_enhancement_columns():
         if "evaluation_json" not in feedback_columns:
             db.session.execute(text("ALTER TABLE interview_feedback ADD COLUMN evaluation_json JSON"))
             changed = True
+        if "reason_tags" not in feedback_columns:
+            db.session.execute(text("ALTER TABLE interview_feedback ADD COLUMN reason_tags JSON"))
+            changed = True
 
     if changed:
         db.session.commit()

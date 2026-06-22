@@ -12,23 +12,23 @@ def _seed(app, owner_id):
 def test_candidate_pipelines_lists_current_stage_per_job(client, make_user, app):
     uid, token = make_user("hr@x.com", role="recruiter")
     jid, cid = _seed(app, uid)
-    for stage in ["pending", "ai_screen", "interview_first"]:
+    for stage in ["pending", "ai_screen", "interview"]:
         client.post("/api/pipeline/move", headers=_auth(token),
                     json={"candidate_id": cid, "job_id": jid, "stage": stage})
     r = client.get(f"/api/candidates/{cid}/pipelines", headers=_auth(token))
     assert r.status_code == 200
     body = r.get_json()
     assert len(body["pipelines"]) == 1
-    assert body["pipelines"][0]["stage"] == "interview_first"
+    assert body["pipelines"][0]["stage"] == "interview"
     assert body["pipelines"][0]["job_id"] == jid
 
 def test_journey_aggregates_timeline_and_feedback(client, make_user, app):
     uid, token = make_user("hr@x.com", role="recruiter")
     jid, cid = _seed(app, uid)
     client.post("/api/pipeline/move", headers=_auth(token),
-                json={"candidate_id": cid, "job_id": jid, "stage": "interview_first", "note": "n1"})
+                json={"candidate_id": cid, "job_id": jid, "stage": "interview", "note": "n1"})
     client.post("/api/interview/feedback", headers=_auth(token),
-                json={"candidate_id": cid, "job_id": jid, "round": "interview_first",
+                json={"candidate_id": cid, "job_id": jid, "round": "round_1",
                       "score": 4, "passed": True, "strengths": "好"})
     r = client.get(f"/api/candidates/{cid}/journey?job_id={jid}", headers=_auth(token))
     assert r.status_code == 200

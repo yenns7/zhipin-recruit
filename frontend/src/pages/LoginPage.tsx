@@ -1,4 +1,4 @@
-// 登录 / 注册页。Apple 风格 — 动态光晕背景 + 毛玻璃卡片。
+// 登录页。Apple 风格 — 动态光晕背景 + 毛玻璃卡片。
 // 强化企业 HR 平台定位，仅限内部员工使用，不面向应聘者。
 
 import { useRef, useState, type FormEvent } from 'react';
@@ -6,18 +6,8 @@ import { useNavigate } from 'react-router-dom';
 import { api, ApiError, clearToken } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { defaultRouteForRole } from '../lib/nav';
-import { Button, Input, ErrorState, Select } from '../components/ui';
+import { Button, Input, ErrorState } from '../components/ui';
 import { gsap, useGSAP, EASE, DUR, STAGGER } from '../lib/motion';
-import type { Role } from '../types';
-
-type Mode = 'login' | 'register';
-
-const ROLE_OPTIONS: { value: Role; label: string }[] = [
-  { value: 'recruiter', label: '招聘专员' },
-  { value: 'manager', label: '经理' },
-  { value: 'admin', label: '管理员' },
-  { value: 'interviewer', label: '面试官' },
-];
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -25,11 +15,8 @@ export function LoginPage() {
 
   const scope = useRef<HTMLDivElement>(null);
 
-  const [mode, setMode] = useState<Mode>('login');
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<Role>('recruiter');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -82,9 +69,6 @@ export function LoginPage() {
     try {
       // 清除残留旧 token，防止 API 请求带无效 token 触发 401
       clearToken();
-      if (mode === 'register') {
-        await api.register({ name, email, password, role });
-      }
       const res = await api.login({ email, password });
       login(res);
       navigate(defaultRouteForRole(), { replace: true });
@@ -95,11 +79,6 @@ export function LoginPage() {
     } finally {
       setLoading(false);
     }
-  }
-
-  function switchMode(next: Mode) {
-    setMode(next);
-    setError(null);
   }
 
   return (
@@ -153,22 +132,12 @@ export function LoginPage() {
 
         {/* Glass card */}
         <div data-anim="card" className="rounded-apple border border-hairline bg-white shadow-apple-lg p-6">
-          <h2 className="mb-5 text-base font-display text-ink">
-            {mode === 'login' ? '登录工作台' : '创建账户'}
-          </h2>
+          <h2 className="mb-2 text-base font-display text-ink">登录工作台</h2>
+          <p className="mb-5 text-sm text-muted">
+            请使用管理员分配的账号登录。
+          </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === 'register' && (
-              <Input
-                label="姓名"
-                name="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="请输入真实姓名"
-                required
-                autoComplete="name"
-              />
-            )}
             <Input
               label="邮箱"
               name="email"
@@ -187,53 +156,19 @@ export function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               required
-              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              autoComplete="current-password"
             />
-            {mode === 'register' && (
-              <Select
-                label="角色"
-                id="role"
-                value={role}
-                onChange={(e) => setRole(e.target.value as Role)}
-              >
-                {ROLE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </Select>
-            )}
 
             {error && <ErrorState message={error} />}
 
             <Button type="submit" className="w-full" loading={loading}>
-              {mode === 'login' ? '登录' : '创建账户'}
+              登录
             </Button>
           </form>
         </div>
 
         <p data-anim="footer" className="mt-6 text-center text-sm text-muted">
-          {mode === 'login' ? (
-            <>
-              还没有账户？{' '}
-              <button
-                onClick={() => switchMode('register')}
-                className="font-medium text-ink hover:underline transition-colors"
-              >
-                去注册
-              </button>
-            </>
-          ) : (
-            <>
-              已有账户？{' '}
-              <button
-                onClick={() => switchMode('login')}
-                className="font-medium text-ink hover:underline transition-colors"
-              >
-                去登录
-              </button>
-            </>
-          )}
+          账号开通、密码重置请联系系统管理员。
         </p>
       </div>
     </div>

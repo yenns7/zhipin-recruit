@@ -28,7 +28,7 @@ def test_deactivated_user_token_is_rejected(client, make_user, app):
         from app import db
         from app.models import User
 
-        user = User.query.get(user_id)
+        user = db.session.get(User, user_id)
         user.is_active = False
         db.session.commit()
 
@@ -44,7 +44,7 @@ def test_role_change_takes_effect_without_waiting_for_token_expiry(client, make_
         from app import db
         from app.models import User
 
-        user = User.query.get(user_id)
+        user = db.session.get(User, user_id)
         user.role = "recruiter"
         db.session.commit()
 

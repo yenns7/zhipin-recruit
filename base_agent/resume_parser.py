@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import pandas as pd
-import PyPDF2
+from pypdf import PdfReader
 import requests
 import time
 
@@ -164,7 +164,7 @@ class ResumeParser:
         """按文件类型分派文本提取：PDF / Word(.docx) / 纯文本。
 
         历史问题：原先无论扩展名一律走 PDF 解析器，导致 .docx 报
-        "EOF marker not found"（PyPDF2 找不到 PDF 的 %%EOF 标记）。
+        "EOF marker not found"（PDF 解析器找不到 PDF 的 %%EOF 标记）。
         现按扩展名分派，且 PDF 优先用更稳健的 pdfplumber。
         """
         ext = Path(file_path).suffix.lower().lstrip(".")
@@ -183,7 +183,7 @@ class ResumeParser:
 
     def extract_text_from_pdf(self, pdf_path: str) -> str:
         """从PDF文件中提取文本。优先 pdfplumber（对真实简历更稳健），
-        失败再回退 PyPDF2，两者都失败才抛错。"""
+        失败再回退 pypdf，两者都失败才抛错。"""
         # 1) 首选 pdfplumber
         try:
             import pdfplumber
@@ -194,15 +194,15 @@ class ResumeParser:
             text = "\n".join(parts).strip()
             if text:
                 return text
-            logging.warning("pdfplumber 未提取到文本，尝试 PyPDF2 回退")
+            logging.warning("pdfplumber 未提取到文本，尝试 pypdf 回退")
         except Exception as e:
-            logging.warning(f"pdfplumber 提取失败，回退 PyPDF2: {e}")
+            logging.warning(f"pdfplumber 提取失败，回退 pypdf: {e}")
 
-        # 2) 回退 PyPDF2
+        # 2) 回退 pypdf
         try:
             text = ""
             with open(pdf_path, "rb") as file:
-                pdf_reader = PyPDF2.PdfReader(file)
+                pdf_reader = PdfReader(file)
                 for page in pdf_reader.pages:
                     text += (page.extract_text() or "") + "\n"
             return text.strip()

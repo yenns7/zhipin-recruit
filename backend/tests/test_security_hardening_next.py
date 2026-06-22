@@ -58,8 +58,9 @@ def test_upload_rejects_oversized_resume_before_parse(client, make_user, monkeyp
         "app.services.resume_service.ResumeBatchService.parse_and_save",
         fail_if_called,
     )
+    monkeypatch.setattr("app.api.resume.RESUME_MAX_FILE_SIZE", 32)
 
-    oversized_pdf = b"%PDF-1.4\n" + (b"x" * (20 * 1024 * 1024 + 1))
+    oversized_pdf = b"%PDF-1.4\n" + (b"x" * 64)
     response = client.post(
         "/api/resume/upload",
         headers=_auth(token),
@@ -133,6 +134,43 @@ def test_interviewer_cannot_retry_parse_even_when_assigned(client, make_user, ap
     response = client.post(
         f"/api/resume/{candidate_id}/retry-parse",
         headers=_auth(interviewer_token),
+    )
+
+    assert response.status_code == 403
+
+
+def test_interviewer_cannot_move_pipeline_even_when_assigned(client, make_user, app):
+    owner_id, _ = make_user("pipeline-owner-hardening@x.com", role="recruiter")
+    interviewer_id, interviewer_token = make_user("pipeline-interviewer@x.com", role="interviewer")
+    job_id, candidate_id = _seed_job_candidate(app, owner_id)
+
+    with app.app_context():
+        from app import db
+        from app.models import InterviewAssignment, PipelineStage
+
+        db.session.add(PipelineStage(
+            candidate_id=candidate_id,
+            job_id=job_id,
+            stage="interview",
+            updated_by=owner_id,
+        ))
+        db.session.add(InterviewAssignment(
+            candidate_id=candidate_id,
+            job_id=job_id,
+            round="round_1",
+            interviewer_id=interviewer_id,
+        ))
+        db.session.commit()
+
+    response = client.post(
+        "/api/pipeline/move",
+        headers=_auth(interviewer_token),
+        json={
+            "candidate_id": candidate_id,
+            "job_id": job_id,
+            "stage": "offer",
+            "note": "面试官账号不应直接推进流程",
+        },
     )
 
     assert response.status_code == 403

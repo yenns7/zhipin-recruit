@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 
 def _auth(token):
@@ -23,7 +23,7 @@ def test_candidates_support_search_stage_sort_and_pagination(client, make_user, 
             email_masked="alpha@example.com",
             phone_masked="13800000001",
             resume_json={"extracted_info": {}},
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(UTC).replace(tzinfo=None),
         )
         second = Candidate(
             owner_hr_id=recruiter_id,
@@ -31,7 +31,7 @@ def test_candidates_support_search_stage_sort_and_pagination(client, make_user, 
             email_masked="beta@example.com",
             phone_masked="13800000002",
             resume_json={"extracted_info": {}},
-            created_at=datetime.utcnow() - timedelta(minutes=5),
+            created_at=datetime.now(UTC).replace(tzinfo=None) - timedelta(minutes=5),
         )
         db.session.add_all([first, second])
         db.session.flush()

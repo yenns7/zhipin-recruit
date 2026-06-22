@@ -25,6 +25,26 @@ assert.match(
 );
 assert.match(
   types,
+  /interface BiSourceQuality/,
+  'BI overview should type source quality metrics for HR performance analysis',
+);
+assert.match(
+  types,
+  /interview_passed:\s*number/,
+  'BI staff metrics should expose generic interview pass counts',
+);
+assert.match(
+  types,
+  /interview_to_offer_rate:\s*number/,
+  'BI staff metrics should expose interview-to-offer conversion',
+);
+assert.doesNotMatch(
+  types,
+  /(?:first|second|final)_interview_(?:entries|feedbacks|passed|pass_rate|rate):\s*number/,
+  'BI public types should not expose legacy fixed interview rounds',
+);
+assert.match(
+  types,
   /demands:\s*BiDemandMetrics/,
   'BiOverview should expose demand health metrics',
 );
@@ -34,9 +54,39 @@ assert.match(
   'BiOverview should expose resume consumption metrics',
 );
 assert.match(
+  types,
+  /source_quality:\s*BiSourceQuality\[\]/,
+  'BiOverview should expose source quality metrics',
+);
+assert.match(
+  types,
+  /interface BiDataQualityWarning/,
+  'BI overview should type data quality warning rows',
+);
+assert.match(
+  types,
+  /archived_total\?:\s*number/,
+  'BI funnel should expose archived terminal-stage totals separately',
+);
+assert.match(
+  types,
+  /funnel_total\?:\s*number/,
+  'BI funnel should expose the all-stage denominator for conversion rates',
+);
+assert.match(
+  types,
+  /scope\?:\s*'all'\s*\|\s*'owned_candidates'/,
+  'Job BI detail should tell the frontend whether a recruiter sees all or owned-candidate scope',
+);
+assert.match(
+  types,
+  /data_quality_warnings:\s*BiDataQualityWarning\[\]/,
+  'BiOverview should expose data quality warnings',
+);
+assert.match(
   biPage,
-  /流程内入职占比/,
-  'BI KPI copy should describe the bounded delivery-safe rate',
+  /全流程入职占比/,
+  'BI KPI copy should describe the full-funnel conversion denominator',
 );
 assert.match(
   biPage,
@@ -62,6 +112,61 @@ assert.match(
   biPage,
   /当前流程人数/,
   'BI should avoid calling current-stage pipeline count resume total',
+);
+assert.match(
+  biPage,
+  /当前阶段分布 = 全量最新阶段，不受周期筛选影响/,
+  'BI page should explain that current-stage funnel is a stock metric',
+);
+assert.match(
+  biPage,
+  /周期指标 = 按本期入库简历追踪后续结果/,
+  'BI page should explain source and staff metrics use a resume cohort',
+);
+assert.match(
+  biPage,
+  /数据质量提醒/,
+  'BI page should show data quality warnings from the backend',
+);
+assert.match(
+  biPage,
+  /data\.data_quality_warnings/,
+  'BI page should render backend data quality warnings',
+);
+assert.match(
+  biPage,
+  /data\?\.data_quality_warnings\s*\?\?\s*\[\]/,
+  'Staff drilldown should render staff-level data quality warnings',
+);
+assert.match(
+  biPage,
+  /sumStaff\(staff,\s*'onboarded'\)/,
+  'Team average conversion should be weighted by onboarded count',
+);
+assert.match(
+  biPage,
+  /sumStaff\(staff,\s*'resumes'\)/,
+  'Team average conversion should be weighted by resume count',
+);
+assert.match(
+  biPage,
+  /HR 绩效/,
+  'BI page should expose a recruiter performance section',
+);
+assert.match(
+  biPage,
+  /推荐成功面试/,
+  'BI page should render generic interview entry metrics',
+);
+assert.match(
+  biPage,
+  /面试通过/,
+  'BI page should render generic interview pass metrics',
+);
+assert.match(
+  biPage,
+  /渠道质量/,
+  'BI page should render source quality metrics',
 );
 assert.match(
   biPage,

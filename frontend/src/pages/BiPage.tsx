@@ -15,7 +15,14 @@ import {
   Spinner,
   PageHeader,
 } from '../components/ui';
-import type { BiFunnel, BiStaffMember } from '../types';
+import type {
+  BiDataQualityWarning,
+  BiDepartmentAccountability,
+  BiFunnel,
+  BiInterviewerAccountability,
+  BiSourceQuality,
+  BiStaffMember,
+} from '../types';
 import type { ReactNode } from 'react';
 import { Reveal, AnimatedNumber } from '../components/motion';
 import { FunnelDiagram, ConversionRing } from '../components/bi/BiVisuals';
@@ -28,16 +35,11 @@ const DAYS_OPTIONS: { label: string; value: number }[] = [
   { label: '近 90 天', value: 90 },
 ];
 
-// 漏斗展示的 5 个概念阶段。面试阶段在后端已拆为一面/二面/终面三轮，
-// 这里用 value(funnel) 取值，"面试"行把三轮合并求和。
+// 漏斗展示的 5 个概念阶段。MVP 主流程只保留一个"面试中"阶段。
 const FUNNEL_STAGES: { label: string; value: (f: BiFunnel) => number }[] = [
   { label: '待筛选', value: (f) => safeNum(f.pending) },
   { label: 'AI初筛', value: (f) => safeNum(f.ai_screen) },
-  {
-    label: '面试',
-    value: (f) =>
-      safeNum(f.interview_first) + safeNum(f.interview_second) + safeNum(f.interview_final),
-  },
+  { label: '面试中', value: (f) => safeNum(f.interview) },
   { label: 'Offer', value: (f) => safeNum(f.offer) },
   { label: '已入职', value: (f) => safeNum(f.onboarded) },
 ];
@@ -53,8 +55,8 @@ const FUNNEL_COLORS: string[] = [
 const REJECTED_COLOR = '#FF3B30';
 
 const BAR_COLOR_RESUMES = '#007AFF';
-const BAR_COLOR_SCREENS = '#5856D6';
 const BAR_COLOR_ONBOARDED = '#34C759';
+const BAR_COLOR_RECOMMENDATIONS = '#FF9500';
 
 // ─── 工具函数 ─────────────────────────────────────────────────────────────────
 
@@ -68,10 +70,76 @@ function pct(n: number): string {
   return v.toFixed(1) + '%';
 }
 
+function safeRate(numerator: number, denominator: number): number {
+  const n = safeNum(numerator);
+  const d = safeNum(denominator);
+  if (d <= 0) return 0;
+  return Math.round((n / d) * 1000) / 10;
+}
+
+function sumStaff(staff: BiStaffMember[], field: keyof BiStaffMember): number {
+  return staff.reduce((acc, item) => {
+    const value = item[field];
+    return acc + (typeof value === 'number' ? safeNum(value) : 0);
+  }, 0);
+}
+
 function teamAvgConversion(staff: BiStaffMember[]): number {
-  if (staff.length === 0) return 0;
-  const sum = staff.reduce((acc, s) => acc + safeNum(s.conversion_rate), 0);
-  return sum / staff.length;
+  const resumes = sumStaff(staff, 'resumes');
+  if (resumes <= 0) return 0;
+  return safeRate(sumStaff(staff, 'onboarded'), resumes);
+}
+
+function MetricDefinitionStrip() {
+  const items = [
+    '有效推荐 = 已进入候选人管道',
+    '推荐成功面试 = 进入“面试中”阶段，不固定看一面/二面/三面',
+    '面试通过 = 面试反馈里标记通过的人',
+    'Offer = 已推进到 Offer 阶段',
+    '已入职 = 已推进到已入职阶段',
+    '待补反馈 = 已安排面试但未提交反馈',
+    '主绩效按候选人负责人归属',
+    '当前阶段分布 = 全量最新阶段，不受周期筛选影响',
+    '周期指标 = 按本期入库简历追踪后续结果',
+  ];
+
+  return (
+    <div className="rounded-md border border-hairline bg-surface-soft px-4 py-3">
+      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">口径说明</div>
+      <div className="grid gap-2 text-sm text-body md:grid-cols-2 xl:grid-cols-3">
+        {items.map((item) => (
+          <div key={item} className="rounded-md bg-canvas px-3 py-2">
+            {item}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DataQualityWarningsPanel({ warnings }: { warnings: BiDataQualityWarning[] }) {
+  if (warnings.length === 0) return null;
+
+  return (
+    <div className="rounded-md border border-warning-200 bg-warning-50 px-4 py-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-warning-700">数据质量提醒</p>
+        <Badge tone="warning">{warnings.length} 条</Badge>
+      </div>
+      <div className="space-y-2">
+        {warnings.slice(0, 4).map((item) => (
+          <div key={`${item.metric}-${item.label}`} className="text-sm text-warning-700">
+            <span className="font-medium">{item.label}</span>
+            <span className="mx-1 text-warning-700">·</span>
+            <span>{item.detail}</span>
+            <span className="ml-2 tabular-nums text-warning-700">
+              {item.numerator}/{item.denominator}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 // ─── 子组件 ───────────────────────────────────────────────────────────────────
@@ -147,9 +215,11 @@ function StaffTable({
   onSelect: (hrId: number) => void;
 }) {
   const maxResumes = Math.max(...staff.map((s) => safeNum(s.resumes)), 1);
-  const maxScreens = Math.max(...staff.map((s) => safeNum(s.screens)), 1);
+  const maxRecommendations = Math.max(...staff.map((s) => safeNum(s.effective_recommendations)), 1);
   const maxOnboarded = Math.max(...staff.map((s) => safeNum(s.onboarded)), 1);
-  const avgConv = teamAvgConversion(staff);
+  const avgRecommendRate = staff.length === 0
+    ? 0
+    : staff.reduce((acc, s) => acc + safeNum(s.recommendation_to_onboard_rate), 0) / staff.length;
 
   if (staff.length === 0) {
     return <p className="text-sm text-muted py-2">暂无专员数据</p>;
@@ -167,21 +237,27 @@ function StaffTable({
               简历量
             </th>
             <th className="py-2.5 pr-6 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap" style={{ minWidth: 100 }}>
-              初筛量
+              有效推荐
+            </th>
+            <th className="py-2.5 pr-6 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap" style={{ minWidth: 96 }}>
+              推荐成功面试
+            </th>
+            <th className="py-2.5 pr-6 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap" style={{ minWidth: 96 }}>
+              面试通过
             </th>
             <th className="py-2.5 pr-6 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap" style={{ minWidth: 100 }}>
               入职数
             </th>
             <th className="py-2.5 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap">
-              转化率
+              推荐入职率
             </th>
           </tr>
         </thead>
         <Reveal as="tbody" stagger={0.05} y={10}>
           {staff.map((s) => {
-            const conv = safeNum(s.conversion_rate);
-            const aboveAvg = conv > avgConv;
-            const atAvg = conv === avgConv;
+            const recommendRate = safeNum(s.recommendation_to_onboard_rate);
+            const aboveAvg = recommendRate > avgRecommendRate;
+            const atAvg = recommendRate === avgRecommendRate;
             const convColor = aboveAvg ? '#34C759' : atAvg ? '#111111' : '#FF3B30';
             return (
               <tr
@@ -202,8 +278,32 @@ function StaffTable({
                   <InlineBar value={safeNum(s.resumes)} max={maxResumes} color={BAR_COLOR_RESUMES} />
                 </td>
                 <td className="py-3 pr-6" style={{ minWidth: 100 }}>
-                  <InlineBar value={safeNum(s.screens)} max={maxScreens} color={BAR_COLOR_SCREENS} />
+                  <InlineBar
+                    value={safeNum(s.effective_recommendations)}
+                    max={maxRecommendations}
+                    color={BAR_COLOR_RECOMMENDATIONS}
+                  />
                 </td>
+	                <td className="py-3 pr-6" style={{ minWidth: 96 }}>
+	                  <div className="flex flex-col gap-0.5">
+	                    <span className="text-sm font-semibold tabular-nums text-ink">
+	                      {safeNum(s.interview_entries)}
+	                    </span>
+	                    <span className="text-xs tabular-nums text-muted-soft">
+	                      推荐进面
+	                    </span>
+	                  </div>
+	                </td>
+	                <td className="py-3 pr-6" style={{ minWidth: 96 }}>
+	                  <div className="flex flex-col gap-0.5">
+	                    <span className="text-sm font-semibold tabular-nums text-ink">
+	                      {safeNum(s.interview_passed)} / {safeNum(s.interview_entries)}
+	                    </span>
+	                    <span className="text-xs tabular-nums text-muted-soft">
+	                      {pct(safeNum(s.interview_pass_rate))}
+	                    </span>
+	                  </div>
+	                </td>
                 <td className="py-3 pr-6" style={{ minWidth: 100 }}>
                   <InlineBar value={safeNum(s.onboarded)} max={maxOnboarded} color={BAR_COLOR_ONBOARDED} />
                 </td>
@@ -212,7 +312,7 @@ function StaffTable({
                     className="text-xs font-semibold tabular-nums"
                     style={{ color: convColor }}
                   >
-                    {pct(conv)}
+                    {pct(recommendRate)}
                   </span>
                 </td>
               </tr>
@@ -221,6 +321,245 @@ function StaffTable({
         </Reveal>
       </table>
       <p className="mt-2 text-xs text-muted-soft">点击专员行可查看其漏斗详情</p>
+    </div>
+  );
+}
+
+function SourceQualityTable({ sources }: { sources: BiSourceQuality[] }) {
+  const maxResumes = Math.max(...sources.map((s) => safeNum(s.resumes)), 1);
+  const maxOnboarded = Math.max(...sources.map((s) => safeNum(s.onboarded)), 1);
+
+  if (sources.length === 0) {
+    return <p className="text-sm text-muted py-2">暂无渠道数据</p>;
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-hairline">
+            <th className="py-2.5 pr-4 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap">
+              渠道
+            </th>
+            <th className="py-2.5 pr-6 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap" style={{ minWidth: 100 }}>
+              简历量
+            </th>
+            <th className="py-2.5 pr-6 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap" style={{ minWidth: 96 }}>
+              推荐成功面试
+            </th>
+            <th className="py-2.5 pr-6 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap" style={{ minWidth: 96 }}>
+              面试通过
+            </th>
+            <th className="py-2.5 pr-6 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap" style={{ minWidth: 96 }}>
+              面试到 Offer
+            </th>
+            <th className="py-2.5 pr-6 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap" style={{ minWidth: 90 }}>
+              Offer
+            </th>
+            <th className="py-2.5 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap" style={{ minWidth: 100 }}>
+              入职率
+            </th>
+          </tr>
+        </thead>
+        <Reveal as="tbody" stagger={0.05} y={10}>
+          {sources.map((source) => (
+            <tr key={source.channel} className="border-b border-hairline-soft transition-colors hover:bg-surface-soft">
+              <td className="py-3 pr-4 font-medium text-ink whitespace-nowrap">
+                {source.channel}
+              </td>
+              <td className="py-3 pr-6" style={{ minWidth: 100 }}>
+                <InlineBar value={safeNum(source.resumes)} max={maxResumes} color={BAR_COLOR_RESUMES} />
+              </td>
+	              <td className="py-3 pr-6 tabular-nums text-body" style={{ minWidth: 96 }}>
+	                {safeNum(source.interview_entries)}
+	                <span className="ml-1 text-xs text-muted-soft">
+	                  {pct(safeRate(safeNum(source.interview_entries), safeNum(source.resumes)))}
+	                </span>
+	              </td>
+	              <td className="py-3 pr-6" style={{ minWidth: 96 }}>
+	                <div className="flex flex-col gap-0.5">
+	                  <span className="text-sm font-semibold tabular-nums text-ink">
+	                    {safeNum(source.interview_passed)} / {safeNum(source.interview_entries)}
+	                  </span>
+	                  <span className="text-xs tabular-nums text-muted-soft">
+	                    {pct(safeNum(source.interview_pass_rate))}
+	                  </span>
+	                </div>
+	              </td>
+	              <td className="py-3 pr-6" style={{ minWidth: 96 }}>
+	                <div className="flex flex-col gap-0.5">
+	                  <span className="text-sm font-semibold tabular-nums text-ink">
+	                    {safeNum(source.offer_entries)} / {safeNum(source.interview_entries)}
+	                  </span>
+	                  <span className="text-xs tabular-nums text-muted-soft">
+	                    {pct(safeNum(source.interview_to_offer_rate))}
+	                  </span>
+	                </div>
+	              </td>
+              <td className="py-3 pr-6 tabular-nums text-body" style={{ minWidth: 90 }}>
+                {safeNum(source.offer_entries)}
+              </td>
+              <td className="py-3" style={{ minWidth: 100 }}>
+                <div className="flex items-center gap-2">
+                  <div className="w-16 shrink-0">
+                    <InlineBar value={safeNum(source.onboarded)} max={maxOnboarded} color={BAR_COLOR_ONBOARDED} />
+                  </div>
+                  <span className="text-xs font-semibold tabular-nums text-success-700">
+                    {pct(safeNum(source.onboard_rate))}
+                  </span>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </Reveal>
+      </table>
+    </div>
+  );
+}
+
+function InterviewerAccountabilityTable({ interviewers }: { interviewers: BiInterviewerAccountability[] }) {
+  if (interviewers.length === 0) {
+    return <p className="text-sm text-muted py-2">暂无面试官数据</p>;
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-hairline">
+            <th className="py-2.5 pr-4 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap">
+              面试官
+            </th>
+            <th className="py-2.5 pr-4 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap">
+              面试安排
+            </th>
+            <th className="py-2.5 pr-4 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap">
+              通过 / 拒绝
+            </th>
+            <th className="py-2.5 pr-4 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap">
+              通过率
+            </th>
+            <th className="py-2.5 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap">
+              待补反馈
+            </th>
+          </tr>
+        </thead>
+        <Reveal as="tbody" stagger={0.04} y={8}>
+          {interviewers.map((item) => (
+            <tr
+              key={`${item.interviewer_id ?? 'unknown'}-${item.interviewer_name}`}
+              className="border-b border-hairline-soft transition-colors hover:bg-surface-soft"
+            >
+              <td className="py-3 pr-4 font-medium text-ink whitespace-nowrap">
+                {item.interviewer_name}
+              </td>
+              <td className="py-3 pr-4 tabular-nums text-body whitespace-nowrap">
+                {safeNum(item.assigned_count)}
+                <span className="ml-1 text-xs text-muted-soft">
+                  已反馈 {safeNum(item.feedback_submitted)}
+                </span>
+              </td>
+              <td className="py-3 pr-4 tabular-nums whitespace-nowrap">
+                <span className="text-success-700">{safeNum(item.passed_count)}</span>
+                <span className="mx-1 text-muted-soft">/</span>
+                <span className="text-danger-700">{safeNum(item.rejected_count)}</span>
+              </td>
+              <td className="py-3 pr-4 tabular-nums text-body whitespace-nowrap">
+                {pct(safeNum(item.pass_rate))}
+              </td>
+              <td className="py-3 tabular-nums whitespace-nowrap">
+                <span className={item.pending_feedback > 0 ? 'text-warning-700' : 'text-muted'}>
+                  {safeNum(item.pending_feedback)}
+                </span>
+                <span className="ml-1 text-xs text-muted-soft">
+                  超时 {safeNum(item.overdue_feedback)}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </Reveal>
+      </table>
+    </div>
+  );
+}
+
+function DepartmentAccountabilityTable({ departments }: { departments: BiDepartmentAccountability[] }) {
+  if (departments.length === 0) {
+    return <p className="text-sm text-muted py-2">暂无用人部门数据</p>;
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-hairline">
+            <th className="py-2.5 pr-4 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap">
+              用人部门
+            </th>
+            <th className="py-2.5 pr-4 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap">
+              面试安排
+            </th>
+            <th className="py-2.5 pr-4 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap">
+              通过 / 拒绝
+            </th>
+            <th className="py-2.5 pr-4 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap">
+              待补反馈
+            </th>
+            <th className="py-2.5 text-left text-xs font-medium text-muted uppercase tracking-wide whitespace-nowrap">
+              轮次明细
+            </th>
+          </tr>
+        </thead>
+        <Reveal as="tbody" stagger={0.04} y={8}>
+          {departments.map((item) => (
+            <tr
+              key={item.department}
+              className="border-b border-hairline-soft transition-colors hover:bg-surface-soft"
+            >
+              <td className="py-3 pr-4 font-medium text-ink whitespace-nowrap">
+                {item.department}
+                <div className="mt-0.5 text-xs text-muted-soft">
+                  {safeNum(item.jobs_count)} 个岗位 · {safeNum(item.interviewers_count)} 位面试官
+                </div>
+              </td>
+              <td className="py-3 pr-4 tabular-nums text-body whitespace-nowrap">
+                {safeNum(item.assigned_count)}
+                <span className="ml-1 text-xs text-muted-soft">
+                  已反馈 {safeNum(item.feedback_submitted)}
+                </span>
+              </td>
+              <td className="py-3 pr-4 tabular-nums whitespace-nowrap">
+                <span className="text-success-700">{safeNum(item.passed_count)}</span>
+                <span className="mx-1 text-muted-soft">/</span>
+                <span className="text-danger-700">{safeNum(item.rejected_count)}</span>
+                <span className="ml-2 text-xs text-muted-soft">
+                  {pct(safeNum(item.pass_rate))}
+                </span>
+              </td>
+              <td className="py-3 pr-4 tabular-nums whitespace-nowrap">
+                <span className={item.pending_feedback > 0 ? 'text-warning-700' : 'text-muted'}>
+                  {safeNum(item.pending_feedback)}
+                </span>
+                <span className="ml-1 text-xs text-muted-soft">
+                  超时 {safeNum(item.overdue_feedback)}
+                </span>
+              </td>
+              <td className="py-3">
+                <div className="flex min-w-[220px] flex-wrap gap-1.5">
+                  {item.rounds.slice(0, 4).map((round) => (
+                    <span
+                      key={`${item.department}-${round.round}`}
+                      className="rounded-md bg-surface-soft px-2 py-1 text-xs tabular-nums text-body"
+                    >
+                      {round.round_label} {safeNum(round.passed_count)}/{safeNum(round.assigned_count)}
+                    </span>
+                  ))}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </Reveal>
+      </table>
     </div>
   );
 }
@@ -240,6 +579,7 @@ function TeamOverview({
   );
 
   const [selectedHrId, setSelectedHrId] = useState<number | null>(null);
+  const sourceQuality = data?.source_quality ?? [];
 
   if (selectedHrId !== null) {
     const staffMember = data?.staff.find((s) => s.hr_id === selectedHrId) ?? null;
@@ -260,7 +600,7 @@ function TeamOverview({
       {/* Page Header */}
       <PageHeader
         title="数据看板"
-        description="团队招聘漏斗与专员效能对比"
+        description="当前存量、周期简历 cohort 与责任归因"
         actions={
           <SegmentedControl<number>
             options={DAYS_OPTIONS}
@@ -270,6 +610,8 @@ function TeamOverview({
           />
         }
       />
+
+      <MetricDefinitionStrip />
 
       {loading && (
         <div className="flex items-center justify-center py-32">
@@ -288,6 +630,8 @@ function TeamOverview({
 
       {!loading && !error && data && (
         <div className="space-y-6">
+          <DataQualityWarningsPanel warnings={data.data_quality_warnings} />
+
           {/* KPI 指标行 — Apple 风格毛玻璃卡片 */}
           <Reveal as="div" className="grid grid-cols-2 gap-4 sm:grid-cols-4" stagger={0.07}>
             <KpiCard
@@ -297,22 +641,63 @@ function TeamOverview({
               accent="#007AFF"
             />
             <KpiCard
-              label="本期入职"
+              label="当前入职"
               value={<AnimatedNumber value={safeNum(data.funnel.onboarded)} />}
-              sub="已入职人数"
+              sub={`归档 ${safeNum(data.funnel.archived_total)} 人`}
               accent="#34C759"
             />
             <KpiCard
-              label="流程内入职占比"
+              label="全流程入职占比"
               value={<AnimatedNumber value={safeNum(data.funnel.conversion_rate)} decimals={1} suffix="%" />}
-              sub="当前流程人数口径"
+              sub="活跃流程 + 归档结果"
               accent="#AF52DE"
             />
             <KpiCard
               label="当前流程人数"
               value={<AnimatedNumber value={safeNum(data.funnel.pipeline_total)} />}
-              sub="按当前阶段去重"
+              sub="不含已入职/已淘汰"
               accent="#FF9500"
+            />
+          </Reveal>
+
+          <Reveal as="div" className="grid grid-cols-2 gap-4 sm:grid-cols-4" stagger={0.07}>
+            <KpiCard
+              label="有效推荐"
+              value={<AnimatedNumber value={sumStaff(data.staff, 'effective_recommendations')} />}
+              sub="已进入候选人管道"
+              accent="#FF9500"
+            />
+            <KpiCard
+              label="推荐成功面试"
+              value={
+                <span className="inline-flex items-baseline gap-1">
+                  <AnimatedNumber value={sumStaff(data.staff, 'interview_entries')} />
+                </span>
+              }
+              sub="进入面试中阶段"
+              accent="#007AFF"
+            />
+            <KpiCard
+              label="面试通过"
+              value={
+                <span className="inline-flex items-baseline gap-1">
+                  <AnimatedNumber value={sumStaff(data.staff, 'interview_passed')} />
+                  <span className="text-base text-muted">
+                    / {sumStaff(data.staff, 'interview_entries')}
+                  </span>
+                </span>
+              }
+              sub={`通过率 ${pct(safeRate(
+                sumStaff(data.staff, 'interview_passed'),
+                sumStaff(data.staff, 'interview_entries'),
+              ))}`}
+              accent="#5856D6"
+            />
+            <KpiCard
+              label="待补反馈"
+              value={<AnimatedNumber value={sumStaff(data.staff, 'feedback_pending')} />}
+              sub={`${sumStaff(data.staff, 'feedback_overdue')} 条已超时`}
+              accent="#FF3B30"
             />
           </Reveal>
 
@@ -433,7 +818,7 @@ function TeamOverview({
                 <div className="mb-5 flex justify-center">
                   <ConversionRing
                     percent={safeNum(data.funnel.conversion_rate)}
-                    label="流程内入职占比"
+                    label="全流程入职占比"
                     color="#007AFF"
                   />
                 </div>
@@ -455,7 +840,7 @@ function TeamOverview({
           <Card variant="elevated">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>专员效能对比</CardTitle>
+                <CardTitle>HR 绩效</CardTitle>
                 {data.staff.length > 0 && (
                   <Badge tone="neutral">团队均转化率 {pct(teamAvgConversion(data.staff))}</Badge>
                 )}
@@ -467,6 +852,50 @@ function TeamOverview({
               ) : (
                 <StaffTable staff={data.staff} onSelect={setSelectedHrId} />
               )}
+            </CardBody>
+          </Card>
+
+          <Reveal as="div" className="grid grid-cols-1 gap-6 xl:grid-cols-2" stagger={0.08} y={16}>
+            <Card variant="elevated">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>面试官责任</CardTitle>
+                  {data.interviewer_accountability.length > 0 && (
+                    <Badge tone="neutral">面试官 {data.interviewer_accountability.length}</Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardBody>
+                <InterviewerAccountabilityTable interviewers={data.interviewer_accountability} />
+              </CardBody>
+            </Card>
+
+            <Card variant="elevated">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>用人部门责任</CardTitle>
+                  {data.department_accountability.length > 0 && (
+                    <Badge tone="neutral">部门 {data.department_accountability.length}</Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardBody>
+                <DepartmentAccountabilityTable departments={data.department_accountability} />
+              </CardBody>
+            </Card>
+          </Reveal>
+
+          <Card variant="elevated">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>渠道质量</CardTitle>
+                {sourceQuality.length > 0 && (
+                  <Badge tone="neutral">来源 {sourceQuality.length}</Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardBody>
+              <SourceQualityTable sources={sourceQuality} />
             </CardBody>
           </Card>
         </div>
@@ -515,7 +944,7 @@ function StaffDrilldown({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-display text-ink">{name}</h1>
-          <p className="mt-0.5 text-sm text-muted">专员漏斗详情 · 近 {days} 天</p>
+          <p className="mt-0.5 text-sm text-muted">专员漏斗详情 · 当前存量 · 绩效按近 {days} 天入库简历</p>
         </div>
         {conv !== null && teamAvgConv !== null && (
           <Badge tone={aboveAvg ? 'success' : atAvg ? 'neutral' : 'danger'}>
@@ -528,10 +957,70 @@ function StaffDrilldown({
       {/* Staff KPI cards */}
       {staffMember && (
         <Reveal as="div" className="grid grid-cols-2 gap-4 sm:grid-cols-4" stagger={0.07}>
-          <KpiCard label="简历量" value={<AnimatedNumber value={safeNum(staffMember.resumes)} />} accent="#007AFF" />
-          <KpiCard label="初筛量" value={<AnimatedNumber value={safeNum(staffMember.screens)} />} accent="#5856D6" />
-          <KpiCard label="入职数" value={<AnimatedNumber value={safeNum(staffMember.onboarded)} />} accent="#34C759" />
-            <KpiCard label="入职占比" value={<AnimatedNumber value={safeNum(staffMember.conversion_rate)} decimals={1} suffix="%" />} accent="#AF52DE" />
+          <KpiCard
+            label="简历量"
+            value={<AnimatedNumber value={safeNum(staffMember.resumes)} />}
+            sub={`解析失败 ${safeNum(staffMember.parse_failed)}`}
+            accent="#007AFF"
+          />
+          <KpiCard
+            label="有效推荐"
+            value={<AnimatedNumber value={safeNum(staffMember.effective_recommendations)} />}
+            sub="进入候选人管道"
+            accent="#FF9500"
+          />
+          <KpiCard
+            label="推荐成功面试"
+            value={
+              <span className="inline-flex items-baseline gap-1">
+                <AnimatedNumber value={safeNum(staffMember.interview_entries)} />
+              </span>
+            }
+            sub="进入面试中阶段"
+            accent="#007AFF"
+          />
+          <KpiCard
+            label="面试通过"
+            value={
+              <span className="inline-flex items-baseline gap-1">
+                <AnimatedNumber value={safeNum(staffMember.interview_passed)} />
+                <span className="text-base text-muted">
+                  / {safeNum(staffMember.interview_entries)}
+                </span>
+              </span>
+            }
+            sub={`通过率 ${pct(safeNum(staffMember.interview_pass_rate))}`}
+            accent="#5856D6"
+          />
+          <KpiCard
+            label="Offer"
+            value={<AnimatedNumber value={safeNum(staffMember.offer_entries)} />}
+            sub="已推进到 Offer"
+            accent="#AF52DE"
+          />
+          <KpiCard
+            label="入职数"
+            value={<AnimatedNumber value={safeNum(staffMember.onboarded)} />}
+            sub="候选人已入职"
+            accent="#34C759"
+          />
+          <KpiCard
+            label="推荐入职率"
+            value={
+              <AnimatedNumber
+                value={safeNum(staffMember.recommendation_to_onboard_rate)}
+                decimals={1}
+                suffix="%"
+              />
+            }
+            accent="#34C759"
+          />
+          <KpiCard
+            label="反馈待补"
+            value={<AnimatedNumber value={safeNum(staffMember.feedback_pending)} />}
+            sub={`${safeNum(staffMember.feedback_overdue)} 条已超时`}
+            accent="#FF3B30"
+          />
         </Reveal>
       )}
 
@@ -548,6 +1037,10 @@ function StaffDrilldown({
             重试
           </button>
         </div>
+      )}
+
+      {!loading && !error && (
+        <DataQualityWarningsPanel warnings={data?.data_quality_warnings ?? []} />
       )}
 
       {!loading && !error && data && (

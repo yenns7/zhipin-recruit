@@ -25,8 +25,14 @@ QUESTION_PROMPT_SYS = (
 
 
 class PreScreenService:
-    def __init__(self):
-        self.llm = LLMClient()
+    def __init__(self, llm=None):
+        self._llm = llm
+
+    @property
+    def llm(self):
+        if self._llm is None:
+            self._llm = LLMClient()
+        return self._llm
 
     def generate_questions(self, jd_text: str, count: int = 5) -> list:
         raw = self.llm.chat(

@@ -26,9 +26,9 @@ assert.doesNotMatch(
 assert.ok(
   /label:\s*'简历库'/.test(candidatesNav) &&
     /label:\s*'招聘管理'/.test(demandsNav) &&
-    nav.indexOf('...featureNavItems') < nav.indexOf("label: '招聘流程'") &&
-    nav.indexOf("label: '招聘流程'") < nav.indexOf("label: '面试中心'"),
-  'Sidebar should follow the HR workflow: resume library -> recruitment management -> pipeline -> interviews',
+    nav.indexOf('...featureNavItems') < nav.indexOf("label: '候选人管道'") &&
+    nav.indexOf("label: '候选人管道'") < nav.indexOf("label: '面试工作台'"),
+  'Sidebar should follow the HR workflow: resume library -> recruitment management -> candidate pipeline -> interview workbench',
 );
 
 assert.doesNotMatch(
@@ -38,7 +38,7 @@ assert.doesNotMatch(
 );
 
 assert.ok(
-  nav.indexOf("label: '面试中心'") < nav.indexOf("label: 'AI 助手'"),
+  nav.indexOf("label: '面试工作台'") < nav.indexOf("label: 'AI 助手'"),
   'AI assistant should support the workflow instead of interrupting the main HR path',
 );
 
@@ -82,10 +82,10 @@ assert.doesNotMatch(
 assert.match(
   interviews,
   /待我处理/,
-  'Interview center should lead with pending work for HR and interviewers',
+  'Interview workbench should lead with pending work for HR and interviewers',
 );
 assert.match(
   interviews,
   /面试记录/,
-  'Interview center should expose records as a clear workspace section',
+  'Interview workbench should expose records as a clear workspace section',
 );

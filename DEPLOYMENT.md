@@ -1,6 +1,6 @@
 # 智聘·招聘管理系统 — 部署文档
 
-> **版本**：2026-06-14  
+> **版本**：2026-06-22
 > **适用环境**：Windows 10/11、Linux（Ubuntu 20.04+）、macOS 13+  
 > **架构**：Flask 单进程 + SQLite（开发）/ PostgreSQL（生产）+ Vite React SPA
 
@@ -15,7 +15,7 @@
 5. [LLM API 配置](#5-llm-api-配置)
 6. [生产部署](#6-生产部署)
 7. [公网穿透（cloudflared）](#7-公网穿透cloudflared)
-8. [演示账号](#8-演示账号)
+8. [MVP 内部试用账号](#8-mvp-内部试用账号)
 9. [功能模块说明](#9-功能模块说明)
 10. [常见问题](#10-常见问题)
 
@@ -25,18 +25,18 @@
 
 ```
 前端 (Vite + React + TS + Tailwind)
-    │  开发模式: localhost:5173  →  /api 代理到 :5000
+    │  开发模式: localhost:5173  →  /api 代理到 :5001
     │  生产模式: Flask 直接托管 frontend/dist (SPA)
     ▼
-后端 (Flask + SQLAlchemy)  localhost:5000
+后端 (Flask + SQLAlchemy)  开发 localhost:5001 / 生产 localhost:5000
     ├── /api/auth          认证 (JWT + RBAC)
     ├── /api/resume        简历上传/解析 (PDF + Word)
     ├── /api/candidates    候选人管理
     ├── /api/jobs          岗位管理 + JD 智能解析
     ├── /api/match         候选人-岗位匹配
     ├── /api/interview     AI 面试题生成 + 评估
-    ├── /api/pipeline      招聘流程看板
-    ├── /api/bi            数据看板 (漏斗 + 专员效能)
+    ├── /api/pipeline      候选人管道
+    ├── /api/bi            数据看板 (漏斗 + 专员效能 + 权限化岗位 BI)
     └── /api/agent         LangGraph AI 助手 (SSE 流式)
     │
     ├── base_agent/        LLM 客户端 / 简历解析 / 匹配算法
@@ -49,8 +49,8 @@
 |------|---------|
 | admin | 全量管理 + BI 看板 |
 | manager | BI 看板 + 团队漏斗 |
-| recruiter | 候选人 + 岗位 + 匹配 + AI 面试 |
-| interviewer | 候选人查看 + 流程查看 |
+| recruiter | 候选人 + 岗位 + 匹配 + AI 面试 + 自己负责范围内 BI；协作岗位只看自己负责候选人的漏斗 |
+| interviewer | 分配给自己的候选人查看 + 面试反馈 |
 
 ---
 
@@ -103,10 +103,10 @@ JWT_SECRET=change-me-in-production
 
 ```bash
 cd backend
-python run.py
+PORT=5001 python run.py
 ```
 
-输出 `✓ 智聘 · 招聘管理系统 后端已启动 http://localhost:5000` 即启动成功。
+输出 `✓ 智聘 · 招聘管理系统 后端已启动 http://localhost:5001` 即启动成功。
 
 ### 3.5 安装前端依赖并启动
 
@@ -244,14 +244,14 @@ systemctl start zhipin
 
 ## 7. 公网穿透（cloudflared）
 
-无需域名 / 公网 IP，使用 Cloudflare Tunnel 快速对外暴露：
+内部临时试看优先暴露前端开发服务 `5173`，因为前端会自动把 `/api` 代理到后端 `5001`。
 
 ```bash
 # Windows
-tools\cloudflared.exe tunnel --url http://localhost:5000 --no-autoupdate
+tools\cloudflared.exe tunnel --url http://127.0.0.1:5173 --protocol http2 --no-autoupdate
 
 # Linux/macOS (需先下载 cloudflared)
-cloudflared tunnel --url http://localhost:5000 --no-autoupdate
+cloudflared tunnel --url http://127.0.0.1:5173 --protocol http2 --no-autoupdate
 ```
 
 启动后输出类似：
@@ -263,18 +263,21 @@ https://ward-mounted-concerning-fans.trycloudflare.com
 
 ---
 
-## 8. 演示账号
+## 8. MVP 内部试用账号
 
-所有账号密码：`demo1234`
+所有账号密码：`Zhipin2026`
 
 | 角色 | 邮箱 | 说明 |
 |------|------|------|
-| 管理员 | admin@demo.com | 全量权限 + BI 看板 |
-| 经理 | manager@demo.com | 团队漏斗 + 专员效能 |
-| 招聘专员 | hr1@demo.com | 候选人 / 岗位 / AI 面试 |
-| 招聘专员 | hr2@demo.com | 候选人 / 岗位 / AI 面试 |
-| 招聘专员 | hr3@demo.com | 候选人 / 岗位 / AI 面试 |
-| 面试官 | interviewer@demo.com | 候选人查看 / 流程查看 |
+| 管理员 | admin01@mvp.local | 全量权限 + 账号管理 |
+| 招聘经理 | manager01@mvp.local | 完整 BI 看板 + 团队数据 |
+| 招聘负责人 | lead01@mvp.local | 完整 BI 看板 + 团队数据 |
+| 招聘专员 | hr01@mvp.local | 候选人 / 岗位 / 管道 / 个人数据 |
+| 招聘专员 | hr02@mvp.local | 候选人 / 岗位 / 管道 / 个人数据 |
+| 招聘专员 | hr03@mvp.local | 候选人 / 岗位 / 管道 / 个人数据 |
+| 面试官 | interviewer01@mvp.local | 面试任务 / 候选人查看 |
+
+MVP 试用阶段建议一人一个账号。系统会按用户 ID 记录候选人负责人、流程推进人和面试反馈人；BI 主绩效按候选人负责人归属，流程推进人用于操作留痕和后续动作审计，多人共用账号会导致贡献归属不清。
 
 ---
 
@@ -288,9 +291,9 @@ https://ward-mounted-concerning-fans.trycloudflare.com
 | 简历上传 | `/upload` | 拖拽上传 PDF/Word，AI 自动解析技能标签 |
 | 岗位管理 | `/jobs` | 创建岗位，AI 追问补全 JD，智能解析技能要求 |
 | 候选人匹配 | `/jobs/:id/match` | 按岗位 AI 匹配并排名候选人 |
-| 招聘流程 | `/pipeline` | 看板式阶段管理（待筛选→AI初筛→面试→Offer→入职）|
+| 候选人管道 | `/pipeline` | 阶段管理（待筛选→AI初筛→业务待反馈→面试中→Offer→已入职/淘汰）|
 | AI 面试 | `/interviews` | 生成定制题目，录入作答，AI 评估报告 |
-| 数据看板 | `/bi` | 团队漏斗 + 专员效能（经理/管理员）/ 个人漏斗（其他角色）|
+| 数据看板 | `/bi` | 团队当前阶段分布 + 专员效能 + 渠道质量 + 数据质量提醒（经理/管理员）；当前流程人数不含已入职/已淘汰，招聘专员仅自己负责范围，面试官不开放 BI |
 
 ---
 
@@ -307,7 +310,7 @@ A：检查 `backend/.env` 中的 API Key 是否填写正确，网络是否能访
 ### Q：前端页面空白？
 
 A：
-1. 确认后端已启动（`http://localhost:5000` 可访问）
+1. 开发模式确认后端已启动（`http://localhost:5001` 可访问）；生产模式确认 `http://localhost:5000` 可访问
 2. 生产模式：确认已运行 `npm run build` 生成 `frontend/dist/`
 3. 开发模式：确认 `npm run dev` 在 PowerShell 中运行（不是 Git Bash）
 
@@ -317,7 +320,7 @@ A：删除 `backend/hireinsight.db`，重启后端（自动重建），再运行
 
 ### Q：端口冲突怎么办？
 
-A：修改 `backend/.env` 中的 `PORT=5000` 为其他端口，前端 `vite.config.ts` 中的 proxy 也需同步修改。
+A：开发联调优先固定 `PORT=5001` 和前端 `5173`。如果必须改后端端口，前端 `vite.config.ts` 中的 proxy 也需同步修改。
 
 ### Q：Windows 下 npm 命令找不到？
 
@@ -338,7 +341,7 @@ cd backend && python seed_dev.py
 cd frontend; npm run typecheck; npm run build
 
 # 4. 接口验证
-curl http://localhost:5000/api/jobs   # → 401 (未登录，正常)
+curl http://localhost:5001/api/jobs   # → 401 (未登录，正常)
 ```
 
 ---

@@ -1,13 +1,13 @@
 import { Lightbulb } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAsync } from '../../lib/useAsync';
-import type { InterviewGuide, PipelineStage } from '../../types';
+import type { InterviewGuide, InterviewRound } from '../../types';
 import { Badge, Spinner } from '../ui';
 
 interface InterviewGuidePanelProps {
   candidateId: number;
   jobId: number;
-  round: PipelineStage;
+  round: InterviewRound;
 }
 
 export function InterviewGuidePanel({ candidateId, jobId, round }: InterviewGuidePanelProps) {
@@ -20,8 +20,8 @@ export function InterviewGuidePanel({ candidateId, jobId, round }: InterviewGuid
     <div className="rounded-lg border border-hairline bg-surface-soft p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-ink">AI 面试提纲</p>
-          <p className="mt-1 text-xs text-muted-soft">建议追问会结合候选人标签和岗位要求生成</p>
+          <p className="text-sm font-semibold text-ink">追问参考</p>
+          <p className="mt-1 text-xs text-muted-soft">结合候选人标签和岗位要求生成，面试官可按现场情况取舍</p>
         </div>
         <Lightbulb className="h-4 w-4 text-warning-700" aria-hidden="true" />
       </div>

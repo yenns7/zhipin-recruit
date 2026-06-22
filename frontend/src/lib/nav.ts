@@ -15,6 +15,7 @@ import type { Role } from '../types';
 export interface NavItem {
   to: string;
   label: string;
+  labelByRole?: Partial<Record<Role, string>>;
   icon: LucideIcon;
   // Roles allowed to see this item.
   roles: Role[];
@@ -31,13 +32,16 @@ export const NAV_ITEMS: NavItem[] = [
   ...featureNavItems,
   {
     to: '/pipeline',
-    label: '招聘流程',
+    label: '候选人管道',
     icon: KanbanSquare,
-    roles: ['recruiter', 'manager', 'admin', 'interviewer'],
+    roles: ['recruiter', 'manager', 'admin'],
   },
   {
     to: '/interviews',
-    label: '面试中心',
+    label: '面试工作台',
+    labelByRole: {
+      interviewer: '我的面试',
+    },
     icon: Bot,
     roles: ['recruiter', 'interviewer', 'manager', 'admin'],
   },
@@ -51,7 +55,7 @@ export const NAV_ITEMS: NavItem[] = [
     to: '/agent',
     label: 'AI 助手',
     icon: Sparkles,
-    roles: ['recruiter', 'manager', 'admin', 'interviewer'],
+    roles: ['recruiter', 'manager', 'admin'],
   },
   {
     to: '/admin/settings',
@@ -63,6 +67,11 @@ export const NAV_ITEMS: NavItem[] = [
 
 export function navItemsForRole(role: Role): NavItem[] {
   return NAV_ITEMS.filter((item) => item.roles.includes(role));
+}
+
+export function navLabelForRole(item: NavItem, role: Role | null): string {
+  if (!role) return item.label;
+  return item.labelByRole?.[role] ?? item.label;
 }
 
 // Default landing route after login. All roles land on the dashboard (/).

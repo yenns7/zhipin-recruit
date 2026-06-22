@@ -7,6 +7,7 @@ from ..middleware.auth import require_auth, require_role
 from ..middleware.rate_limit import rate_limit
 from ..middleware.events import record_event
 from ..services.resume_service import ResumeBatchService
+from ..source_channels import normalize_resume_source_channel
 from .. import db
 
 bp = Blueprint("resume", __name__)
@@ -108,7 +109,7 @@ def _related_jobs_for_candidate(candidate):
 
     job_ids = set()
     if candidate.upload_batch_id:
-        batch = UploadBatch.query.get(candidate.upload_batch_id)
+        batch = db.session.get(UploadBatch, candidate.upload_batch_id)
         if batch and batch.target_job_id:
             job_ids.add(batch.target_job_id)
 
@@ -332,7 +333,7 @@ def upload():
     from .access import can_manage_job
 
     target_job_id = request.form.get("target_job_id", type=int)
-    target_job = Job.query.get(target_job_id) if target_job_id else None
+    target_job = db.session.get(Job, target_job_id) if target_job_id else None
     if target_job_id and target_job is None:
         return jsonify({"error": "目标岗位不存在"}), 400
     if target_job is not None and not can_manage_job(g.user_id, g.role, target_job):
@@ -340,7 +341,7 @@ def upload():
 
     batch = UploadBatch(
         owner_hr_id=g.user_id,
-        source_channel=(request.form.get("source_channel") or "").strip()[:120],
+        source_channel=normalize_resume_source_channel(request.form.get("source_channel")),
         source_link=(request.form.get("source_link") or "").strip(),
         referrer=(request.form.get("referrer") or "").strip()[:120],
         target_job_id=target_job_id,
@@ -403,7 +404,7 @@ def upload():
 @require_auth
 def get_resume(candidate_id):
     from ..models import Candidate
-    c = Candidate.query.get_or_404(candidate_id)
+    c = db.get_or_404(Candidate, candidate_id)
     # 专员只能看自己负责的
     if g.role == "recruiter" and c.owner_hr_id != g.user_id:
         return jsonify({"error": "Forbidden"}), 403
@@ -428,7 +429,7 @@ def get_resume(candidate_id):
 def update_resume_profile(candidate_id):
     from ..models import Candidate
 
-    candidate = Candidate.query.get_or_404(candidate_id)
+    candidate = db.get_or_404(Candidate, candidate_id)
     if g.role == "interviewer":
         return jsonify({"error": "Forbidden"}), 403
     if g.role == "recruiter" and candidate.owner_hr_id != g.user_id:
@@ -473,7 +474,7 @@ def update_resume_profile(candidate_id):
 def retry_parse(candidate_id):
     from ..models import Candidate
 
-    candidate = Candidate.query.get_or_404(candidate_id)
+    candidate = db.get_or_404(Candidate, candidate_id)
     if g.role == "interviewer":
         return jsonify({"error": "Forbidden"}), 403
     if g.role == "recruiter" and candidate.owner_hr_id != g.user_id:
@@ -511,13 +512,13 @@ def _candidate_source_payload(candidate):
 
     if not candidate.upload_batch_id:
         return None
-    batch = UploadBatch.query.get(candidate.upload_batch_id)
+    batch = db.session.get(UploadBatch, candidate.upload_batch_id)
     if batch is None:
         return None
-    target_job = Job.query.get(batch.target_job_id) if batch.target_job_id else None
+    target_job = db.session.get(Job, batch.target_job_id) if batch.target_job_id else None
     return {
         "batch_id": batch.id,
-        "channel": batch.source_channel or "",
+        "channel": normalize_resume_source_channel(batch.source_channel),
         "source_link": batch.source_link or "",
         "referrer": batch.referrer or "",
         "target_job_id": batch.target_job_id,

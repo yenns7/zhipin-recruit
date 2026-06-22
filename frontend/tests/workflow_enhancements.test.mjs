@@ -69,7 +69,7 @@ assert.match(feedbackForm, /专业能力/);
 assert.match(feedbackForm, /evaluation/);
 
 const guidePanel = readSource('components/interview/InterviewGuidePanel.tsx');
-assert.match(guidePanel, /AI 面试提纲/);
+assert.match(guidePanel, /追问参考/);
 assert.match(guidePanel, /建议追问/);
 
 const progress = readSource('components/candidate/PipelineProgress.tsx');
