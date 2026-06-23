@@ -151,6 +151,12 @@ def _tool_get_pipeline(job_id: int, **_) -> Dict[str, Any]:
 
 def _tool_get_bi_overview(days: int = 30, **_) -> Dict[str, Any]:
     """团队 BI 报表：招聘漏斗（复用 _funnel）+ 专员效能。"""
+    role = _.get("_role")
+    if role not in ("manager", "admin"):
+        return {
+            "error": "Forbidden",
+            "message": "团队 BI 仅经理和管理员可查看；招聘专员请查看工作台里的个人指标或自己的候选人流程。",
+        }
     try:
         days = int(days) if days else 30
     except (TypeError, ValueError):
@@ -344,7 +350,7 @@ _TOOL_DEFS: List[Dict[str, Any]] = [
     },
     {
         "name": "get_bi_overview",
-        "description": "团队BI报表：招聘漏斗各阶段人数+转化率，以及各招聘专员效能。",
+        "description": "团队BI报表（仅经理/管理员）：招聘漏斗各阶段人数+转化率，以及各招聘专员效能。",
         "params": {"days": "int，可选，统计天数，默认30"},
         "execute": _tool_get_bi_overview,
     },
@@ -547,7 +553,8 @@ def get_agent_architecture_dashboard() -> Dict[str, Any]:
             "read_scope_note": (
                 "AI 助手后端入口仅允许招聘专员、经理和管理员访问；"
                 "面试官即使直接请求 /api/agent/* 也会返回 403。"
-                "查询工具继续按当前登录用户角色与候选人归属过滤。"
+                "查询工具继续按当前登录用户角色与候选人归属过滤；"
+                "团队 BI 工具只允许经理和管理员使用，招聘专员不能通过 AI 助手绕过 BI 页面权限。"
             ),
             "write_requires_confirmation": True,
             "write_scope_note": (

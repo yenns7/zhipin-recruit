@@ -20,8 +20,9 @@
 - `DATABASE_URL` 仍为 SQLite 且指向本地 Desktop 路径 → 无法搬迁
 - `backend/.env` 缺失键：`CORS_ORIGINS`、`SECURITY_HEADERS_ENABLED`、`RATE_LIMIT_ENABLED`、`RATE_LIMIT_LOGIN`、`BACKUP_DIR`、`ALLOW_PUBLIC_REGISTRATION`（代码默认值见下）
 - 自检脚本当前结果：13 项检查里 11 项 FAIL，只有 `JWT_EXPIRY_HOURS` 和 `.env gitignore` 通过；这些 FAIL 是服务器侧必填配置，不是已完成项
-- 演示数据：`uploads/` 363 文件 + `backend/uploads/` 161 文件 + `backend/hireinsight.db` 内 22 个用户，其中 7 个 `@mvp.local` demo 账号
-- 工作区有 80+ 个未提交/未跟踪改动 → 上线前需分类收尾并提交
+- 演示数据/运行态文件：`backend/uploads/` 有本地上传文件，`backend/hireinsight.db` 为本地 SQLite 数据库；交接包和 git 不应包含这些运行态文件
+- 工作区已从上一轮大量变更收口到当前分支变更；交接前仍需以 `git status --short` 最终确认
+- AI 助手团队 BI 权限已加服务端防线：`recruiter` 调用团队 BI 工具返回 `Forbidden`，经理/管理员权限不变
 
 > 关键机制：`backend/app/__init__.py::_enforce_production_security` 仅在「非 TESTING 且 `FLASK_DEBUG=false`」时触发。它会强制 `JWT_SECRET` 非弱值且 `len>=32`、`CORS_ORIGINS` 非空，否则 `raise RuntimeError` 拒绝启动。**因此 FLASK_DEBUG 一旦设 false，下面 1/4 两项不达标会直接启动失败——这是设计好的护栏。**
 

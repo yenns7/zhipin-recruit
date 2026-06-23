@@ -6,6 +6,13 @@
 
 当前交接包是部署接手包，不是已完成生产上线包。真实用户开放前必须完成配置、合规、备份和冒烟验收。
 
+## 本次最后收口点
+
+- 修复 AI 助手团队 BI 权限边界：招聘专员不能再通过自然语言查询团队 BI 或其他专员效能；经理/管理员仍可查询团队 BI。
+- 新增后端回归测试 `test_agent_team_bi_tool_rejects_recruiter_scope`，防止后续把这个权限洞改回来。
+- 刷新上线清单：`docs/07_上线部署前TOP10清单_给AI执行.md` 不再使用上一轮“80+ 未提交改动”的旧状态。
+- 给 `DEPLOY.md` 增加历史演示文档提示，避免研发把 cloudflared 临时公网演示方案当成公司内网部署方案。
+
 ## 收到代码后先做什么
 
 1. 解压交接包到服务器或研发本机。
@@ -69,6 +76,15 @@ cd frontend && npm audit --audit-level=moderate
 ```
 
 说明：当前 Python 3.12 环境下，`pip_audit -r` 的默认依赖解析模式可能在临时 venv 创建阶段崩溃；本项目依赖均固定版本，交接时使用 `--no-deps --disable-pip` 审计 pinned requirements。
+
+## 本次本机验证结果
+
+- `python backend/scripts/check_pilot_readiness.py`：未通过，原因是本机 `backend/.env` 仍是开发配置；服务器真实 `.env` 填完后必须重新跑到 0 失败。
+- `.venv/bin/python -m pytest backend/tests base_agent/tests -q`：155 passed。
+- `cd frontend && npm run lint && npm run typecheck && npm run build`：通过。
+- `for f in frontend/tests/*.mjs; do node "$f" || exit $?; done`：通过。
+- `.venv/bin/python -m pip_audit -r backend/requirements.txt --no-deps --disable-pip`：No known vulnerabilities found。
+- `cd frontend && npm audit --omit=dev`：found 0 vulnerabilities。
 
 ## 真实用户冒烟 10 步
 

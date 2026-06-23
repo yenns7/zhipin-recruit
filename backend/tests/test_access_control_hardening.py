@@ -135,6 +135,20 @@ def test_agent_read_tools_are_scoped_to_current_recruiter(app, make_user):
     assert names == {"自有候选人"}
 
 
+def test_agent_team_bi_tool_rejects_recruiter_scope(app, make_user):
+    recruiter_id, _ = make_user("agent-bi-recruiter@x.com", role="recruiter", name="招聘专员A")
+    make_user("agent-bi-other@x.com", role="recruiter", name="招聘专员B")
+    _seed_owned_job_candidate(app, recruiter_id, name="只属于专员A的候选人")
+
+    with app.app_context():
+        from app.services.agent_service import _tool_get_bi_overview
+
+        result = _tool_get_bi_overview(days=30, _user_id=recruiter_id, _role="recruiter")
+
+    assert result["error"] == "Forbidden"
+    assert "团队 BI" in result["message"]
+
+
 def test_agent_write_tool_rejects_cross_recruiter_pipeline_move(app, make_user):
     owner_id, _ = make_user("agent-write-owner@x.com", role="recruiter")
     other_id, _ = make_user("agent-write-other@x.com", role="recruiter")
