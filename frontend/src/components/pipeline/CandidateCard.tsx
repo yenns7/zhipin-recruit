@@ -1,0 +1,220 @@
+// 看板候选人卡片：展示候选人当前阶段，并提供就地变更状态的下拉控件。
+// 这是过去缺失的"给候选人改状态栏"的核心交互入口。
+
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, User } from 'lucide-react';
+import type { CandidateDispositionInput, PipelineBoardCandidate, PipelineStage } from '../../types';
+import { STAGES, STAGE_BY_KEY } from '../../lib/pipelineStages';
+import { formatDate } from '../../lib/formatDate';
+import { cn } from '../../lib/cn';
+import { Spinner } from '../ui';
+import { FeedbackForm } from '../interview/FeedbackForm';
+import { OfferDrawer } from './OfferDrawer';
+import { RejectionDispositionForm } from './RejectionDispositionForm';
+import { NEXT_STAGE, isInterviewStage } from '../../lib/pipelineInsights';
+
+function stageAgeDays(updatedAt?: string | null): number | null {
+  if (!updatedAt) return null;
+  const ts = new Date(updatedAt).getTime();
+  if (Number.isNaN(ts)) return null;
+  const diff = Date.now() - ts;
+  if (diff < 0) return 0;
+  return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
+
+function stageAgeClass(stage: PipelineStage, days: number | null): string {
+  if (days === null) return 'text-muted-soft';
+  if (stage === 'business_review' && days >= 3) return 'text-warning-700';
+  if ((stage === 'pending' || stage === 'ai_screen') && days >= 5) return 'text-warning-700';
+  return 'text-muted-soft';
+}
+
+interface CandidateCardProps {
+  candidate: PipelineBoardCandidate;
+  busy: boolean;
+  jobId: number;
+  highlighted: boolean;
+  onMove: (
+    candidateId: number,
+    toStage: PipelineStage,
+    note?: string,
+    disposition?: CandidateDispositionInput,
+  ) => void | Promise<void>;
+}
+
+export function CandidateCard({
+  candidate,
+  busy,
+  jobId,
+  highlighted,
+  onMove,
+}: CandidateCardProps) {
+  const [picking, setPicking] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [showDisposition, setShowDisposition] = useState(false);
+  const [showOffer, setShowOffer] = useState(false);
+  const atInterview = isInterviewStage(candidate.stage);
+  const stage = STAGE_BY_KEY[candidate.stage];
+  const next = NEXT_STAGE[candidate.stage];
+  const isTerminal = candidate.stage === 'onboarded' || candidate.stage === 'rejected';
+  const ageDays = stageAgeDays(candidate.updated_at);
+
+  const move = (toStage: PipelineStage) => {
+    onMove(candidate.candidate_id, toStage);
+  };
+
+  return (
+    <div
+      className={cn(
+        'rounded-lg border border-hairline bg-canvas px-3 py-2.5 shadow-sm transition-all hover:shadow-md',
+        highlighted && 'ring-2 ring-brand-500 ring-offset-2 ring-offset-canvas',
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <Link
+          to={`/candidates/${candidate.candidate_id}`}
+          className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-ink hover:underline"
+        >
+          <User className="h-3.5 w-3.5 shrink-0 text-muted" />
+          <span className="truncate">{candidate.name_masked}</span>
+        </Link>
+        {busy && <Spinner size="sm" />}
+      </div>
+
+      {candidate.updated_at && (
+        <p className={cn('mt-1 text-[11px]', stageAgeClass(candidate.stage, ageDays))}>
+          {formatDate(candidate.updated_at)}
+          {ageDays !== null ? ` · 停留 ${ageDays} 天` : ''}
+          {candidate.updated_by_name ? ` · ${candidate.updated_by_name}` : ''}
+        </p>
+      )}
+
+      {/* 状态变更操作区 */}
+      <div className="mt-2 flex items-center gap-1.5">
+        {/* 一键推进到下一阶段 */}
+        {next && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => move(next)}
+            className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium ${stage.badgeBg} transition-opacity hover:opacity-80 disabled:opacity-50`}
+          >
+            {STAGE_BY_KEY[next].label}
+            <ArrowRight className="h-3 w-3" />
+          </button>
+        )}
+
+        {/* 淘汰（非终态时展示） */}
+        {!isTerminal && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setShowDisposition((v) => !v)}
+            className="rounded-md px-2 py-1 text-[11px] font-medium text-danger-600 hover:bg-danger-50 disabled:opacity-50"
+          >
+            {showDisposition ? '收起淘汰' : '淘汰'}
+          </button>
+        )}
+
+        {candidate.stage === 'offer' && (
+          <button
+            type="button"
+            disabled={busy}
+            aria-label="Offer 信息"
+            onClick={() => setShowOffer((v) => !v)}
+            className="rounded-md px-2 py-1 text-[11px] font-medium text-success-700 hover:bg-success-50 disabled:opacity-50"
+          >
+            记录 Offer
+          </button>
+        )}
+
+        {/* 录入评分：仅在面试阶段展示 */}
+        {atInterview && (
+          <>
+            <Link
+              to={`/interviews?job=${jobId}&candidate=${candidate.candidate_id}`}
+              className="rounded-md px-2 py-1 text-[11px] font-medium text-ink hover:bg-surface-soft"
+            >
+              填写面试反馈
+            </Link>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setShowFeedback((v) => !v)}
+              className="rounded-md px-2 py-1 text-[11px] font-medium text-muted hover:bg-surface-soft disabled:opacity-50"
+            >
+              {showFeedback ? '收起' : '录入评分'}
+            </button>
+          </>
+        )}
+
+        {/* 更多：跳到任意阶段 */}
+        <div className="relative ml-auto">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setPicking((p) => !p)}
+            className="rounded-md px-1.5 py-1 text-[11px] font-medium text-muted hover:bg-surface-soft disabled:opacity-50"
+            aria-haspopup="listbox"
+            aria-expanded={picking}
+          >
+            更改…
+          </button>
+          {picking && (
+            <ul
+              role="listbox"
+              className="absolute right-0 z-10 mt-1 w-28 overflow-hidden rounded-md border border-hairline bg-canvas py-1 shadow-lg"
+            >
+              {STAGES.map((s) => (
+                <li key={s.key}>
+                  <button
+                    type="button"
+                    disabled={s.key === candidate.stage}
+                    onClick={() => {
+                      setPicking(false);
+                      move(s.key);
+                    }}
+                    className={`flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-xs hover:bg-surface-soft disabled:cursor-default disabled:opacity-40 ${
+                      s.key === candidate.stage ? 'font-semibold text-ink' : 'text-body'
+                    }`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
+                    {s.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      {showDisposition && (
+        <RejectionDispositionForm
+          busy={busy}
+          onCancel={() => setShowDisposition(false)}
+          onSubmit={async (disposition, note) => {
+            await onMove(candidate.candidate_id, 'rejected', note, disposition);
+            setShowDisposition(false);
+          }}
+        />
+      )}
+
+      {/* 内联评分表单 */}
+      {atInterview && showFeedback && (
+        <div className="mt-2">
+            <FeedbackForm
+              candidateId={candidate.candidate_id}
+              jobId={jobId}
+              onMove={(toStage, note) => onMove(candidate.candidate_id, toStage, note)}
+              onSubmitted={() => setShowFeedback(false)}
+            />
+        </div>
+      )}
+
+      {candidate.stage === 'offer' && showOffer && (
+        <OfferDrawer candidateId={candidate.candidate_id} jobId={jobId} />
+      )}
+    </div>
+  );
+}
