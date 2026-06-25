@@ -65,6 +65,15 @@ import type {
   TalentMapPerson,
   TalentMapPersonInput,
   TalentMapSummary,
+  BossStatus,
+  BossLoginGuide,
+  BossJob,
+  BossSearchParams,
+  BossRecommendParams,
+  BossInboxParams,
+  BossAccount,
+  BossQrStartResult,
+  BossQrStatusResult,
 } from '../types';
 
 const API_BASE = '/api';
@@ -153,10 +162,22 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     if (res.status === 401 && unauthorizedHandler) {
       unauthorizedHandler();
     }
+    // 错误体形态有两种：
+    //   1) 多数蓝图：{ error: "字符串消息" }
+    //   2) boss 蓝图：{ ok:false, error: { code, message } }（嵌套对象）
+    // 对嵌套对象需取 error.message，否则 String(对象) 会得到 "[object Object]"，
+    // 既丢失真实提示，也让上层基于 message 文本的错误分类失效。
+    const rawError =
+      data && typeof data === 'object' && 'error' in data
+        ? (data as Record<string, unknown>).error
+        : null;
+    const nestedErrorMessage =
+      rawError && typeof rawError === 'object' && 'message' in rawError
+        ? String((rawError as Record<string, unknown>).message)
+        : null;
     const message =
-      (data && typeof data === 'object' && 'error' in data
-        ? String((data as Record<string, unknown>).error)
-        : null) ||
+      nestedErrorMessage ||
+      (typeof rawError === 'string' ? rawError : null) ||
       (data && typeof data === 'object' && 'message' in data
         ? String((data as Record<string, unknown>).message)
         : null) ||
@@ -165,6 +186,15 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   }
 
   return data as T;
+}
+
+// Boss 端点返回 {ok, data, error?} 信封；解包 data，错误抛 ApiError。
+async function bossRequest<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+  const res = await request<{ ok: boolean; data: T; error?: { code: string; message: string } }>(path, opts);
+  if (!res.ok) {
+    throw new ApiError(0, res.error?.message ?? 'BOSS 接口错误');
+  }
+  return res.data;
 }
 
 export const api = {
@@ -492,5 +522,106 @@ export const api = {
       method: 'PATCH',
       body: { owner_hr_id: ownerHrId, reason },
     });
+  },
+
+  // ---- BOSS 直聘集成（boss-cli 招聘端）----
+  // 后端统一返回 {ok, data}；bossRequest 解包 data。错误以 ApiError 抛出。
+  bossStatus(): Promise<BossStatus> {
+    return bossRequest('/boss/status');
+  },
+  bossLoginGuide(): Promise<BossLoginGuide> {
+    return bossRequest('/boss/login/guide');
+  },
+  bossLoginCookie(browser = 'chrome'): Promise<BossStatus> {
+    return bossRequest('/boss/login/cookie', { method: 'POST', body: { browser } });
+  },
+  bossJobs(): Promise<BossJob[]> {
+    return bossRequest('/boss/jobs');
+  },
+  bossJobClose(encryptJobId: string): Promise<{ status: string }> {
+    return bossRequest(`/boss/jobs/${encodeURIComponent(encryptJobId)}/close`, { method: 'POST' });
+  },
+  bossJobReopen(encryptJobId: string): Promise<{ status: string }> {
+    return bossRequest(`/boss/jobs/${encodeURIComponent(encryptJobId)}/reopen`, { method: 'POST' });
+  },
+  bossSearchCandidates(params: BossSearchParams): Promise<unknown> {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== '') qs.set(k, String(v));
+    });
+    return bossRequest(`/boss/candidates/search?${qs}`);
+  },
+  bossRecommendCandidates(params: BossRecommendParams): Promise<unknown> {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== '') qs.set(k, String(v));
+    });
+    return bossRequest(`/boss/candidates/recommend?${qs}`);
+  },
+  bossInbox(params: BossInboxParams): Promise<unknown> {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== '') qs.set(k, String(v));
+    });
+    return bossRequest(`/boss/candidates/inbox?${qs}`);
+  },
+  bossResume(
+    encryptGeekId: string,
+    params?: { job?: string; security_id?: string },
+  ): Promise<unknown> {
+    const qs = new URLSearchParams();
+    if (params) Object.entries(params).forEach(([k, v]) => {
+      if (v) qs.set(k, String(v));
+    });
+    return bossRequest(`/boss/candidates/${encodeURIComponent(encryptGeekId)}/resume?${qs}`);
+  },
+  bossGreet(encryptGeekId: string, body?: { job?: string }): Promise<unknown> {
+    return bossRequest(`/boss/candidates/${encodeURIComponent(encryptGeekId)}/greet`, {
+      method: 'POST',
+      body: body ?? {},
+    });
+  },
+  bossRequestResume(encryptGeekId: string, friendId: number): Promise<unknown> {
+    return bossRequest(`/boss/candidates/${encodeURIComponent(encryptGeekId)}/request-resume`, {
+      method: 'POST',
+      body: { friend_id: friendId },
+    });
+  },
+  bossReply(friendId: number, message: string): Promise<unknown> {
+    return bossRequest(`/boss/chat/${friendId}/reply`, { method: 'POST', body: { message } });
+  },
+  // 简历下载走专用 URL（返回 text/markdown），由调用方用 window.open 触发；
+  // ?token= 让后端做查询参数鉴权（无法带 Authorization 头）。
+  bossResumeDownloadUrl(encryptGeekId: string, params?: { job?: string; security_id?: string }): string {
+    const qs = new URLSearchParams();
+    if (params) Object.entries(params).forEach(([k, v]) => {
+      if (v) qs.set(k, String(v));
+    });
+    const token = getToken();
+    if (token) qs.set('token', token);
+    return `${API_BASE}/boss/candidates/${encodeURIComponent(encryptGeekId)}/resume/download?${qs}`;
+  },
+
+  // ---- BOSS 账号管理 + 扫码登录 ----
+  bossQrLoginStart(): Promise<BossQrStartResult> {
+    return bossRequest('/boss/qr-login/start', { method: 'POST' });
+  },
+  bossQrLoginStatus(sessionId: string): Promise<BossQrStatusResult> {
+    return bossRequest(`/boss/qr-login/status?session_id=${encodeURIComponent(sessionId)}`);
+  },
+  bossQrLoginConfirm(sessionId: string, label: string): Promise<BossAccount> {
+    return bossRequest('/boss/qr-login/confirm', { method: 'POST', body: { session_id: sessionId, label } });
+  },
+  bossAccounts(): Promise<BossAccount[]> {
+    return bossRequest('/boss/accounts');
+  },
+  bossActivateAccount(accountId: number): Promise<void> {
+    return bossRequest(`/boss/accounts/${accountId}/activate`, { method: 'POST' });
+  },
+  bossDeleteAccount(accountId: number): Promise<void> {
+    return bossRequest(`/boss/accounts/${accountId}`, { method: 'DELETE' });
+  },
+  bossVerifyAccount(accountId: number): Promise<{ authenticated: boolean; status: unknown }> {
+    return bossRequest(`/boss/accounts/${accountId}/verify`, { method: 'POST' });
   },
 };

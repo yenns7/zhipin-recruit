@@ -971,3 +971,110 @@ export interface CandidateJourney {
   dispositions: JourneyDisposition[];
   decision_summary: DecisionSummary;
 }
+
+// ── BOSS 直聘集成（boss-cli 招聘端）──────────────────────────────
+// 后端统一返回 {ok, data, error?}；此处 data 的形态依接口而定，统一用宽松类型。
+// boss status --json 的裸 dict
+export interface BossStatus {
+  authenticated: boolean;
+  credential_present?: boolean;
+  cookie_count?: number;
+  cookies?: string[];
+  search_authenticated?: boolean;
+  recommend_authenticated?: boolean;
+  reason?: string | null;
+}
+
+export interface BossLoginGuide {
+  installed: boolean;
+  bin: string | null;
+  interactive: boolean;
+  instructions: string[];
+}
+
+// 招聘端在招职位条目（字段来自 boss-cli recruiter jobs）
+export interface BossJob {
+  jobName?: string;
+  salaryDesc?: string;
+  address?: string;
+  encryptJobId?: string;
+  [k: string]: unknown;
+}
+
+// 搜索/推荐候选人条目（字段名随 boss-cli 返回，统一宽松）
+export interface BossCandidate {
+  name?: string;
+  geekName?: string;
+  expectPositionName?: string;
+  jobName?: string;
+  workYearDesc?: string;
+  workYear?: string | number;
+  degreeDesc?: string;
+  degree?: string | number;
+  encryptGeekId?: string;
+  encryptUid?: string;
+  encryptFriendId?: string;
+  friendId?: number;
+  securityId?: string;
+  salaryDesc?: string;
+  lastTime?: string;
+  newGeek?: boolean;
+  sourceType?: number;
+  [k: string]: unknown;
+}
+
+export interface BossSearchParams {
+  keyword: string;
+  city?: string;
+  exp?: string;
+  degree?: string;
+  salary?: string;
+  job?: string;
+  page?: number;
+}
+
+export interface BossRecommendParams {
+  job?: string;
+  limit?: number;
+  page?: number;
+}
+
+export interface BossInboxParams {
+  job?: string;
+  label?: number;
+  limit?: number;
+  page?: number;
+}
+
+// BOSS 账号（多账号，不含 cookies 明文）
+export interface BossAccount {
+  id: number;
+  label: string;
+  cookie_count: number;
+  has_stoken: boolean;
+  is_active: boolean;
+  last_verified_at: string | null;
+  last_verified_ok: boolean | null;
+  created_at: string | null;
+}
+
+// 扫码登录状态
+export type BossQrStatus =
+  | 'pending'    // 已出码，等待扫码
+  | 'scanned'    // 已扫码，等待手机确认
+  | 'done'       // 登录成功
+  | 'expired'    // 二维码过期
+  | 'failed';    // 异常
+
+// 扫码登录启动返回
+export interface BossQrStartResult {
+  session_id: string;
+  qr_image: string;  // base64 图片
+  qr_mime: string;   // 图片 MIME（image/jpeg 或 image/png）
+}
+
+// 扫码状态查询返回
+export interface BossQrStatusResult {
+  status: BossQrStatus;
+  error: string;
+}

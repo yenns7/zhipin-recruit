@@ -313,3 +313,23 @@ class InterviewFeedback(db.Model):
     evaluation_json = db.Column(db.JSON)
     note = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=utc_now)
+
+
+class BossAccount(db.Model):
+    """绑定的 BOSS 直聘账号（多账号，按智聘用户隔离）。
+
+    cookies 经 Fernet 加密存储（cookies_encrypted），明文绝不入库。
+    is_active 标记当前激活账号（每用户至多一个，由服务层保证唯一）。
+    """
+    __tablename__ = "boss_accounts"
+    id = db.Column(db.Integer, primary_key=True)
+    owner_hr_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    label = db.Column(db.String(100))                       # 账号别名，如"主账号"
+    cookies_encrypted = db.Column(db.Text, nullable=False)  # Fernet 加密的 cookies JSON
+    cookie_count = db.Column(db.Integer, default=0)
+    has_stoken = db.Column(db.Boolean, default=False)       # __zp_stoken__ 是否存在
+    is_active = db.Column(db.Boolean, default=False)        # 当前激活账号
+    last_verified_at = db.Column(db.DateTime)               # 最近校验登录态时间
+    last_verified_ok = db.Column(db.Boolean)                # 最近校验结果
+    created_at = db.Column(db.DateTime, default=utc_now)
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)

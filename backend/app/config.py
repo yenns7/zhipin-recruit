@@ -65,6 +65,14 @@ class Config:
     CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "memory://")
     CELERY_TASK_ALWAYS_EAGER = os.environ.get("CELERY_TASK_ALWAYS_EAGER", "true").lower() == "true"
 
+    # boss-cli（BOSS 直聘招聘端集成）：二进制路径覆盖与自动安装开关
+    BOSS_CLI_BIN = os.environ.get("BOSS_CLI_BIN", "")
+    BOSS_CLI_AUTO_INSTALL = os.environ.get("BOSS_CLI_AUTO_INSTALL", "true").lower() == "true"
+
+    # 字段级加密密钥（Fernet，用于加密 BOSS 账号 cookies 等敏感数据）
+    # 生成：python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    FIELD_ENCRYPTION_KEY = os.environ.get("FIELD_ENCRYPTION_KEY", "")
+
     # Flask
     SECRET_KEY = os.environ.get("JWT_SECRET", "dev-secret")
     TESTING = False
