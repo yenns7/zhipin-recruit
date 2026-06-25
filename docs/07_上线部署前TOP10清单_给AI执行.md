@@ -1,9 +1,11 @@
 # 07 · 上线部署前 TOP 10 清单（AI 可执行版）
 
-> 版本：2026-06-22 ｜ 状态：待执行
+> 版本：2026-06-23 ｜ 状态：执行清单，具体完成状态以现场复核为准
 > 读者：执行型 AI（Codex 等）+ 人类负责人（李小明 / 公司 IT）
-> 目标：把当前内测基线安全部署到公司服务器，供少数 HR 用**真实数据**小范围试点。
+> 目标：把经过现场复核的内测基线安全部署到公司服务器，供少数 HR 用**真实数据**小范围试点。
 > 关联：本清单是 `docs/06_试点上线检查清单.md`（C1–C12）的 AI 执行视图，逐项给出**判定依据、命令、验收标准、红线**。
+
+> 接手提醒：本文不是“当前已经完成”的记录，也不是普通开发任务清单。只有用户/负责人明确要求执行上线准备时，AI 才能按本文逐项操作；涉及 `.env`、数据库、上传文件、备份、真实账号、真实数据、服务器和公网访问的动作，必须先拿到现场信息和负责人确认。
 
 ## 给 AI 的执行总则（务必先读）
 
@@ -13,25 +15,21 @@
 4. **每项必须验收**：完成一项后运行该项「验收命令」，把实际输出贴回，再进入下一项。
 5. **遇到需要人类判断的项（标 🧑 HUMAN）**：不要自行决定，停下并向负责人报告所需信息。
 
-## 当前实测状态（2026-06-22 核实，作为执行基线）
+## 历史基线（仅作参考，不代表当前状态）
 
-- `JWT_SECRET` 实测 17 字符 < 生产要求 32 → 不达标
-- `FLASK_DEBUG=true` → 开发态，生产安全校验被跳过
-- `DATABASE_URL` 仍为 SQLite 且指向本地 Desktop 路径 → 无法搬迁
-- `backend/.env` 缺失键：`CORS_ORIGINS`、`SECURITY_HEADERS_ENABLED`、`RATE_LIMIT_ENABLED`、`RATE_LIMIT_LOGIN`、`BACKUP_DIR`、`ALLOW_PUBLIC_REGISTRATION`（代码默认值见下）
-- 自检脚本当前结果：13 项检查里 11 项 FAIL，只有 `JWT_EXPIRY_HOURS` 和 `.env gitignore` 通过；这些 FAIL 是服务器侧必填配置，不是已完成项
-- 演示数据/运行态文件：`backend/uploads/` 有本地上传文件，`backend/hireinsight.db` 为本地 SQLite 数据库；交接包和 git 不应包含这些运行态文件
-- 工作区已从上一轮大量变更收口到当前分支变更；交接前仍需以 `git status --short` 最终确认
-- AI 助手团队 BI 权限已加服务端防线：`recruiter` 调用团队 BI 工具返回 `Forbidden`，经理/管理员权限不变
+> 以下记录 2026-06-22 一次本机检查的观察，用来解释“为什么需要这些硬门槛”。**执行时不要据此判断当前是否已完成**——当前状态必须以现场 `git status --short` 和 `python backend/scripts/check_pilot_readiness.py` 的输出为准。
 
-> 关键机制：`backend/app/__init__.py::_enforce_production_security` 仅在「非 TESTING 且 `FLASK_DEBUG=false`」时触发。它会强制 `JWT_SECRET` 非弱值且 `len>=32`、`CORS_ORIGINS` 非空，否则 `raise RuntimeError` 拒绝启动。**因此 FLASK_DEBUG 一旦设 false，下面 1/4 两项不达标会直接启动失败——这是设计好的护栏。**
+- 当时 `JWT_SECRET` 17 字符 < 生产要求 32、`FLASK_DEBUG=true`、`DATABASE_URL` 仍为本地 SQLite、`.env` 缺多个生产键，自检 13 项里 11 项 FAIL。
+- 这些 FAIL 说明服务器侧必填配置当时还没填，不代表脚本本身失败，也不代表现在仍未完成。
+
+> 关键机制：`backend/app/__init__.py::_enforce_production_security` 仅在「非 TESTING 且 `FLASK_DEBUG=false`」时触发。它会强制 `JWT_SECRET` 非弱值且 `len>=32`、`CORS_ORIGINS` 非空，否则 `raise RuntimeError` 拒绝启动。**因此 FLASK_DEBUG 一旦设 false，下面第 1、4 项不达标会直接启动失败——这是设计好的护栏。**
 
 ---
 
 ## TOP 10（按优先级，1–5 为硬门槛，缺一不可对真实用户开放）
 
 ### 1. 生成强随机 JWT_SECRET〔配置 · 对应 C1〕
-- **为什么**：当前 17 字符，弱密钥可被伪造令牌，等于无认证。
+- **为什么**：`JWT_SECRET` 必须 ≥32 字符且非弱默认值，否则令牌可被伪造，等于无认证。生产护栏会在 `FLASK_DEBUG=false` 时强制校验，不达标直接拒绝启动。
 - **AI 动作**：
   ```bash
   python3 -c "import secrets; print(secrets.token_urlsafe(48))"
@@ -47,13 +45,13 @@
 - **依赖**：设 false 会激活生产安全校验，须确保第 1、4 项已达标，否则启动报 RuntimeError（预期行为）。
 
 ### 3. 切换 PostgreSQL + 定时备份〔部署 · 对应 C3 · 🧑 HUMAN 协同 IT〕
-- **为什么**：SQLite 单文件且指向本地 Desktop，无法搬到服务器、无并发与备份保障。
-- **AI 动作**：`backend/.env` 设 `DATABASE_URL=postgresql://<user>:<pass>@<host>:5432/<db>`（连接串由 IT 提供）；配 `BACKUP_DIR=/var/backups/zhipin` 并交付一个每日 `pg_dump` 的 cron/systemd-timer 示例。
-- **验收**：`python3 -c "from backend.app import create_app; create_app()"` 正常建表；`/api/jobs` 读写正常；备份目录出现当日 dump。
+- **为什么**：SQLite 是单文件、并发弱、随容器重置易丢失，无法搬到服务器；真实简历试点必须用 PostgreSQL 并配每日备份。
+- **AI 动作**：可先 `cp backend/lightweight-pilot.env.example backend/.env`，再把占位值替换为 IT 提供的 PostgreSQL、域名、LLM Key 和强密钥；`DATABASE_URL=postgresql://<user>:<pass>@<host>:5432/<db>`；配 `BACKUP_DIR=/var/backups/zhipin` 并交付一个每日 `pg_dump` 的 cron/systemd-timer 示例。
+- **验收**：`python3 -c "from backend.app import create_app; create_app()"` 正常建表；`/api/jobs` 读写正常；备份目录出现当日 dump；恢复到临时库 `zhipin_restore_check` 后能查到用户、候选人、岗位和审计事件，`uploads.tar.gz` 能解压看到简历文件。
 - **红线**：仅引擎切换，不改 schema 结构（R4）。
 
 ### 4. CORS 收紧到公司域名〔配置 · 对应 C2〕
-- **为什么**：`CORS_ORIGINS` 当前为空；生产校验要求非空白名单。
+- **为什么**：生产校验要求 `CORS_ORIGINS` 必须配置非空白名单，否则 `FLASK_DEBUG=false` 时后端拒绝启动；空白的 CORS 等于允许任意网站跨域调用接口。
 - **AI 动作**：`backend/.env` 设 `CORS_ORIGINS=https://<公司前端内网域名>`（多个用逗号分隔）。若用同源托管 dist 方案，也须填该域名以通过校验。
 - **验收**：非白名单域名的浏览器跨域请求被拦；同源页面正常。
 
@@ -80,7 +78,7 @@
 - **验收**：调用注册接口返回禁用提示；仅管理员可建号。
 
 ### 8. 清理演示数据 + 建真账号〔数据 · 对应 C6 · 🧑 HUMAN 确认后执行〕
-- **为什么**：现库内仍有 demo 账号、样例候选人/岗位/流程和大量测试简历文件，混入真实数据会污染 BI。
+- **为什么**：仓库带的 demo 账号、样例候选人/岗位/流程和测试简历文件，混入真实数据会污染 BI 和审计。部署现场必须先清演示数据，再由 admin 建真实试点账号。
 - **AI 动作**：使用 `backend/scripts/cleanup_demo_data.py`。默认先跑 dry-run：
   ```bash
   python backend/scripts/cleanup_demo_data.py --dry-run
@@ -93,12 +91,17 @@
 - **验收**：`uploads/` 和 `backend/uploads/` 无演示文件；DB 中无 `@mvp.local` demo 账号；候选人、岗位、流程、面试、通知、AI 对话等 demo 业务行已清理；BI 各指标归零或仅反映真实数据。
 - **安全**：删除不可逆；没有负责人确认、没有备份结果，不得加 `--confirm`。
 
+### 8.1 多组织初始化核对〔权限 · 对应 C6/C11〕
+- **为什么**：生产级多组织隔离依赖 `org_id`，如果用户、岗位、候选人、流程、面试、BI 和 AI 对话归属不一致，会出现“看不到应该看的”或“改 ID 看见别人组织”的风险。
+- **AI 动作**：上线前抽查数据库：每个真实组织至少有一个管理员；真实用户、岗位、候选人、上传批次、流程、面试、反馈、通知、AI 对话和事件表均有正确 `org_id`；不存在真实数据默认混在 demo 组织。
+- **验收**：组织 A 的管理员、招聘专员、面试官分别用修改 ID 的方式访问组织 B 的候选人、岗位、面试、反馈、BI、审计日志和 AI 对话，均返回 401/403/404。
+
 ### 9. 收尾未提交改动 + 跑通验收门禁〔验收 · 对应 C7〕
-- **为什么**：当前工作区有 80+ 个未提交/未跟踪文件，不能带半成品上线。
-- **AI 动作**：按部署自检、权限收口、试点体验、文档同步、数据清理脚本等主题分类提交；然后按 05 收口计划 §4 全门禁执行（注意 `.venv312` 为 Mac 编译，Linux 环境需用本机 venv 重建）：
+- **为什么**：部署前必须以现场 `git status --short` 为准，不能带半成品或未跟踪文件上线；门禁全绿才能证明代码和流程可用。
+- **AI 动作**：先重新运行 `git status --short`，再按部署自检、权限收口、试点体验、文档同步、数据清理脚本等主题分类提交；然后按本文和 SDD 的当前门禁执行：
   ```bash
-  python backend/scripts/check_pilot_readiness.py
-  python -m pytest backend/tests base_agent/tests -q
+  python3 backend/scripts/check_pilot_readiness.py
+  python3 -m pytest backend/tests base_agent/tests -q
   cd frontend && npm run lint && npm run typecheck && npm run build
   for f in frontend/tests/*.test.mjs; do node "$f" || exit $?; done
   python3 -m pip_audit -r backend/requirements.txt

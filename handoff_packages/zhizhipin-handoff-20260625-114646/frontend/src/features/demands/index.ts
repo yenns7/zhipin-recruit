@@ -1,0 +1,13 @@
+import type { AppFeature } from '../../app/featureRegistry';
+import { demandsNavItems } from './nav';
+import { demandsRoutes } from './routes';
+
+export const demandsFeature: AppFeature = {
+  id: 'demands',
+  navItems: demandsNavItems,
+  routes: demandsRoutes,
+  topLevelPaths: ['/demands', '/jobs', '/talent-map'],
+};
+
+export { demandsApi } from './api';
+export type * from './types';

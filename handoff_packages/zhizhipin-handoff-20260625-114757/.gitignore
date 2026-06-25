@@ -1,0 +1,56 @@
+# ── Secrets ──────────────────────────────────────────────
+.env
+*.env
+!*.env.example
+backend/.env
+
+# ── Python ───────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+
+# ── Databases ────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+backend/instance/
+# 种子库不再提交（旧库含 SHA256 时代 token 导致 401 循环）；
+# 克隆后运行 python -m backend.seed_dev 生成 bcrypt 密码的全新库。
+
+# ── Node / frontend ──────────────────────────────────────
+node_modules/
+dist/
+.vite/
+# 前端构建产物不纳入版本库；部署前运行 `cd frontend && npm run build` 生成。
+
+# ── Runtime uploads ──────────────────────────────────────
+backend/uploads/
+uploads/
+
+# ── Logs ─────────────────────────────────────────────────
+*.log
+backend/server.log
+frontend/dev.*.log
+tmp/
+
+# ── Agent tooling (installed skills; reproducible via skills-lock.json) ──
+.agents/
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+minutes/
+
+# ── OS / editor ──────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# ── Misc binaries / generated docs ───────────────────────
+cloudflared.exe
+*_已填写.docx
