@@ -137,6 +137,8 @@ function QrLoginModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: 
       setQrMime(r.qr_mime || 'image/png');
     } catch (e) {
       toast.error(errMsg(e, '获取二维码失败'));
+    } finally {
+      // 无论成功失败都要结束 loading，否则成功路径下二维码永远被 Spinner 遮住
       setLoading(false);
     }
   }, [toast]);

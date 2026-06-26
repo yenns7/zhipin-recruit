@@ -40,11 +40,53 @@ def _auto_install_enabled() -> bool:
     return os.getenv("BOSS_CLI_AUTO_INSTALL", "true").lower() == "true"
 
 
-def _resolve_bin() -> Optional[str]:
-    """定位 boss 二进制：env 覆盖 > shutil.which > 与当前 Python 同目录的 bin。
+def _candidate_script_dirs() -> List[Path]:
+    """枚举 boss 可执行脚本可能所在的目录（去重保序）。
 
-    第三档回退覆盖「pip 装进了 venv 但 venv 未激活、PATH 不含 .venv/bin」的常见场景：
-    boss 与 sys.executable 同处 .venv/bin/，故查同目录即可。
+    覆盖三类环境：
+    1. 与当前解释器同目录（标准 venv：boss 与 python 同在 .venv/bin/）。
+    2. sysconfig 的 scripts 安装目录——当 pip 用 `--prefix` 装到非标准前缀
+       （如 /tmp/build/dist），包目录与解释器目录分离，boss 落在 <prefix>/bin，
+       既不在 PATH 也不与解释器同目录，仅 sysconfig 能定位。
+    3. 由已安装包的 site-packages 反推前缀下的 bin（兜底 prefix 不一致）。
+    """
+    dirs: List[Path] = [Path(sys.executable).parent]
+    try:
+        import sysconfig
+
+        for key in ("scripts", "purelib"):
+            p = sysconfig.get_paths().get(key)
+            if not p:
+                continue
+            # purelib 形如 <prefix>/lib/pythonX/site-packages，回推 <prefix>/bin
+            dirs.append(Path(p) if key == "scripts" else Path(p).parent.parent.parent / "bin")
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        import importlib.metadata as _md
+
+        dist = _md.distribution(BOSS_PYPI_PKG)
+        # site-packages 上溯三级到前缀，再拼 bin
+        dirs.append(Path(str(dist.locate_file(""))).parent.parent.parent / "bin")
+    except Exception:  # noqa: BLE001
+        pass
+
+    seen: set[str] = set()
+    uniq: List[Path] = []
+    for d in dirs:
+        s = str(d)
+        if s not in seen:
+            seen.add(s)
+            uniq.append(d)
+    return uniq
+
+
+def _resolve_bin() -> Optional[str]:
+    """定位 boss 二进制：env 覆盖 > shutil.which > 解释器同目录 / sysconfig 脚本目录。
+
+    最后一档回退覆盖两类常见场景：
+    - venv 未激活、PATH 不含 .venv/bin（boss 与 sys.executable 同目录）；
+    - pip 用 --prefix 装到非标准前缀，脚本目录与解释器目录分离（需 sysconfig）。
     """
     override = os.getenv("BOSS_CLI_BIN", "").strip()
     if override:
@@ -52,9 +94,11 @@ def _resolve_bin() -> Optional[str]:
     found = shutil.which(BOSS_BIN_NAME)
     if found:
         return found
-    # 回退：与当前解释器同目录（venv/bin 或 Scripts）查找
-    sibling = Path(sys.executable).parent / BOSS_BIN_NAME
-    return str(sibling) if sibling.exists() else None
+    for d in _candidate_script_dirs():
+        cand = d / BOSS_BIN_NAME
+        if cand.exists():
+            return str(cand)
+    return None
 
 
 def _ensure_cli() -> Tuple[bool, str]:

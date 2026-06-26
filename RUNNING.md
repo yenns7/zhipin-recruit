@@ -104,6 +104,32 @@ python backend/scripts/cleanup_demo_data.py --confirm
 
 ---
 
+## BOSS 直聘集成（boss-cli）
+
+`/boss` 页面通过外部命令行工具 `boss`（PyPI 包 `kabi-boss-cli`）接入 BOSS 直聘招聘端。后端会在调用时自动定位并按需安装该工具：
+
+- 自动安装：默认开启（`BOSS_CLI_AUTO_INSTALL=true`）。`boss` 缺失时自动执行 `pip install git+https://github.com/jackwener/boss-cli.git`（recruiter 子命令仅源码版含，故从 GitHub 装）。
+- 二进制查找顺序：`BOSS_CLI_BIN` 环境变量 → 系统 `PATH`（`which boss`）→ 当前 Python 解释器同目录 → `sysconfig` 脚本目录 / 已安装包前缀下的 `bin`。
+
+### 找不到 `boss` 时的排障
+
+如果日志或接口返回「boss-cli 安装后仍未找到 `boss`」，说明包已装但可执行脚本不在上述任一查找位置（常见于 pip 用 `--prefix` 装到非标准前缀，脚本目录与解释器目录分离）。先定位真实路径再用环境变量兜底：
+
+```bash
+# 1. 确认包已安装并查看安装位置
+python -m pip show kabi-boss-cli
+
+# 2. 找到 boss 脚本真实路径（通常在 <prefix>/bin/boss）
+python -c "import sysconfig; print(sysconfig.get_paths()['scripts'])"
+
+# 3. 指定给后端（最高优先级，重启服务后生效）
+export BOSS_CLI_BIN=/path/to/bin/boss
+```
+
+`/api/boss/status` 在 BOSS 账号未绑定时返回 409 `no_active_account` 属正常业务响应（去 `/boss` 页面扫码登录即可）；只有返回 `boss_cli_not_installed` 才是 CLI 未就绪。
+
+---
+
 ## 需要 LLM Key 的功能
 
 以下功能需要配置 API Key，其余功能（登录、候选人、岗位、流程、BI、面试报告）完全离线可用：
