@@ -3,7 +3,7 @@ from flask import Blueprint, request, Response, jsonify, g, current_app, stream_
 from ..middleware.auth import require_auth, require_role
 from ..middleware.rate_limit import rate_limit
 from .. import db
-from ..models import Conversation, ConversationMessage
+from ..models import Conversation, ConversationMessage, AgentCallLog
 from ..time_utils import utc_now
 from ..services.agent_service import (
     RecruitingAgent,
@@ -16,6 +16,17 @@ bp = Blueprint("agent", __name__)
 
 # 单例：编译一次 LangGraph，复用
 _agent_instance = None
+
+# log 文本字段截断阈值，避免单条记录过大
+_LOG_TEXT_MAX = 8000
+
+
+def _truncate(text, limit=_LOG_TEXT_MAX):
+    """截断超长文本，超出部分用 …(truncated) 标记。"""
+    if not text:
+        return text
+    s = str(text)
+    return s if len(s) <= limit else s[:limit] + "…(truncated)"
 
 
 def _get_agent() -> RecruitingAgent:
@@ -184,6 +195,32 @@ def chat():
                     ))
                     conversation.updated_at = utc_now()
                     db.session.commit()
+                    # 写 AI 调用日志（chat 级）：记录本次对话的输入/输出/工具链/模型/耗时
+                    # final assistant message 的 id 用于关联
+                    _write_chat_call_log(
+                        conversation_id=conversation.id,
+                        user_id=user_id,
+                        role=role,
+                        input_text=message,
+                        output_text=final_answer or "".join(answer_parts),
+                        tool_calls=tool_calls,
+                        thoughts=thoughts,
+                        agent=agent,
+                    )
+            else:
+                # 异常或未成功：补一条 error 日志，便于排障
+                _write_chat_call_log(
+                    conversation_id=store_conversation_id,
+                    user_id=user_id,
+                    role=role,
+                    input_text=message,
+                    output_text="".join(answer_parts) or None,
+                    tool_calls=tool_calls,
+                    thoughts=thoughts,
+                    agent=agent,
+                    status="error",
+                    error_msg="agent stream ended without success",
+                )
 
     return Response(
         generate(),
@@ -199,3 +236,45 @@ def chat():
 def _conversation_title(first_message: str) -> str:
     clean = first_message.strip().replace("\n", " ")
     return clean[:30] + ("…" if len(clean) > 30 else "")
+
+
+def _write_chat_call_log(
+    conversation_id,
+    user_id,
+    role,
+    input_text,
+    output_text,
+    tool_calls,
+    thoughts,
+    agent,
+    status=None,
+    error_msg=None,
+):
+    """写一条 chat 级 AI 调用日志。从 agent.client.last_call_log 取最终答案步的模型/token/耗时。
+    log 写入失败只记 logging.error，不阻断主流程（事务与主业务隔离）。
+    """
+    try:
+        llm_log = getattr(getattr(agent, "client", None), "last_call_log", None) or {}
+        final_status = status or llm_log.get("status") or "ok"
+        final_error = error_msg or llm_log.get("error_msg")
+        db.session.add(AgentCallLog(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            role=role,
+            kind="chat",
+            input_text=_truncate(input_text),
+            output_text=_truncate(output_text),
+            tool_calls=tool_calls or None,
+            thoughts=thoughts or None,
+            model=llm_log.get("model"),
+            prompt_tokens=llm_log.get("prompt_tokens"),
+            completion_tokens=llm_log.get("completion_tokens"),
+            duration_ms=llm_log.get("duration_ms"),
+            status=final_status,
+            error_msg=final_error,
+        ))
+        db.session.commit()
+    except Exception as log_err:
+        # log 写入失败不能影响已成功的对话返回
+        db.session.rollback()
+        current_app.logger.error(f"写入 AgentCallLog 失败: {log_err}")
