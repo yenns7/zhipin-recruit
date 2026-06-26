@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   Sparkles,
   Settings,
+  ScrollText,
   type LucideIcon,
 } from 'lucide-react';
 import { featureNavItems } from '../app/featureRegistry';
@@ -53,6 +54,12 @@ export const NAV_ITEMS: NavItem[] = [
     label: 'AI 助手',
     icon: Sparkles,
     roles: ['recruiter', 'manager', 'admin'],
+  },
+  {
+    to: '/admin/agent-logs',
+    label: 'AI 调用日志',
+    icon: ScrollText,
+    roles: ['admin'],
   },
   {
     to: '/admin/settings',

@@ -33,6 +33,7 @@ const BiPage = lazy(() => import('./pages/BiPage').then((module) => ({ default: 
 const UsersPage = lazy(() => import('./pages/admin/UsersPage').then((module) => ({ default: module.UsersPage })));
 const SystemSettingsPage = lazy(() => import('./pages/admin/SystemSettingsPage').then((module) => ({ default: module.SystemSettingsPage })));
 const AiArchitecturePage = lazy(() => import('./pages/admin/AiArchitecturePage').then((module) => ({ default: module.AiArchitecturePage })));
+const AgentCallLogsPage = lazy(() => import('./pages/admin/AgentCallLogsPage').then((module) => ({ default: module.AgentCallLogsPage })));
 
 // Gate for the authenticated app area.
 function RequireAuth() {
@@ -178,6 +179,10 @@ function AppRoutes() {
         <Route
           path="/admin/ai-architecture"
           element={<RequireRole allow={['admin']} element={<AiArchitecturePage />} />}
+        />
+        <Route
+          path="/admin/agent-logs"
+          element={<RequireRole allow={['admin']} element={<AgentCallLogsPage />} />}
         />
       </Route>
       <Route path="*" element={<HomeRedirect />} />
