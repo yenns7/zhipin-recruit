@@ -85,6 +85,33 @@ def route_model(difficulty: str = "fast") -> Dict[str, str]:
     return MODEL_ROUTES.get(difficulty, MODEL_ROUTES["fast"])
 
 
+def build_call_log(
+    model: Optional[str] = None,
+    prompt_tokens: Optional[int] = None,
+    completion_tokens: Optional[int] = None,
+    duration_ms: Optional[int] = None,
+    status: str = "ok",
+    error_msg: Optional[str] = None,
+) -> Dict[str, Any]:
+    """构造一次 LLM 调用的结构化日志 dict（不写库，由调用方决定入库时机，
+    避免 base_agent 反向依赖 app）。"""
+    return {
+        "model": model,
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "duration_ms": duration_ms,
+        "status": status,
+        "error_msg": error_msg,
+    }
+
+
+def _extract_usage(data: Dict[str, Any]) -> tuple:
+    """从 OpenAI/DeepSeek 兼容响应里取 (prompt_tokens, completion_tokens)。无则 (None, None)。"""
+    usage = (data or {}).get("usage") or {}
+    return usage.get("prompt_tokens"), usage.get("completion_tokens")
+
+
+
 def load_llm_config() -> Dict[str, Any]:
     cfg: Dict[str, Any] = {}
     if DEFAULT_CONFIG_FILE.exists():
@@ -140,6 +167,10 @@ class LLMClient:
         self.max_tokens: Optional[int] = self.cfg.get("max_tokens")
         self.thinking: Optional[str] = self.cfg.get("thinking")
         self.api_key_manager = api_key_manager or self._maybe_build_key_manager()
+
+        # 最近一次调用结构化日志（build_call_log 返回的 dict），供调用方读取入库。
+        # 每次调用覆盖；流式在生成器结束后更新。
+        self.last_call_log: Optional[Dict[str, Any]] = None
 
         # 推理模型给 max_tokens 安全默认值，避免思考耗尽额度导致 content 为空
         if self.max_tokens is None and "deepseek" in (self.model or "").lower():
@@ -230,8 +261,10 @@ class LLMClient:
             {"role": "user", "content": user_prompt},
         ]
         body = self._build_body(messages, response_format, temperature, model, thinking)
+        use_model = body.get("model", self.model)
 
         last_err: Optional[Exception] = None
+        t0 = time.time()
         for attempt in range(1, self.max_retry + 1):
             api_key = self._resolve_key()
             try:
@@ -247,6 +280,11 @@ class LLMClient:
                 message = choice.get("message", {})
                 content = (message.get("content") or "").strip()
                 if content:
+                    p_tok, c_tok = _extract_usage(data)
+                    self.last_call_log = build_call_log(
+                        model=use_model, prompt_tokens=p_tok, completion_tokens=c_tok,
+                        duration_ms=int((time.time() - t0) * 1000), status="ok",
+                    )
                     return content
                 # 空 content：推理模型可能把额度耗在 reasoning 上，或被 length 截断
                 finish = choice.get("finish_reason")
@@ -261,6 +299,10 @@ class LLMClient:
                 logging.warning(f"LLM调用失败（{self.provider}, 第{attempt}/{self.max_retry}次）: {e}")
                 if attempt < self.max_retry:
                     time.sleep(2 ** attempt)
+        self.last_call_log = build_call_log(
+            model=use_model, duration_ms=int((time.time() - t0) * 1000),
+            status="error", error_msg=str(last_err),
+        )
         raise RuntimeError(f"LLM 多次重试后仍失败: {last_err}")
 
     def chat_messages(
@@ -273,7 +315,9 @@ class LLMClient:
     ) -> str:
         """多轮对话：直接传入完整 messages 列表，返回最终回答文本。"""
         body = self._build_body(messages, response_format, temperature, model, thinking)
+        use_model = body.get("model", self.model)
         last_err: Optional[Exception] = None
+        t0 = time.time()
         for attempt in range(1, self.max_retry + 1):
             try:
                 resp = requests.post(
@@ -281,9 +325,15 @@ class LLMClient:
                     json=body, timeout=self.timeout,
                 )
                 resp.raise_for_status()
-                msg = resp.json().get("choices", [{}])[0].get("message", {})
+                data = resp.json()
+                msg = data.get("choices", [{}])[0].get("message", {})
                 content = (msg.get("content") or "").strip()
                 if content:
+                    p_tok, c_tok = _extract_usage(data)
+                    self.last_call_log = build_call_log(
+                        model=use_model, prompt_tokens=p_tok, completion_tokens=c_tok,
+                        duration_ms=int((time.time() - t0) * 1000), status="ok",
+                    )
                     return content
                 raise ValueError("LLM 响应为空")
             except Exception as e:
@@ -291,6 +341,10 @@ class LLMClient:
                 logging.warning(f"LLM多轮调用失败（第{attempt}/{self.max_retry}次）: {e}")
                 if attempt < self.max_retry:
                     time.sleep(2 ** attempt)
+        self.last_call_log = build_call_log(
+            model=use_model, duration_ms=int((time.time() - t0) * 1000),
+            status="error", error_msg=str(last_err),
+        )
         raise RuntimeError(f"LLM 多次重试后仍失败: {last_err}")
 
     def chat_stream(
@@ -303,30 +357,44 @@ class LLMClient:
         """流式对话：逐 token yield {'type':'reasoning'|'content', 'text':...}。
 
         最后 yield {'type':'done'}。供 SSE 端点转发。
+        调用结束后 self.last_call_log 记录本次调用耗时与状态。
         """
         body = self._build_body(messages, None, temperature, model, thinking, stream=True)
+        use_model = body.get("model", self.model)
         api_key = self._resolve_key()
-        with requests.post(
-            self.api_url, headers=self._headers(api_key), json=body,
-            timeout=self.timeout, stream=True,
-        ) as resp:
-            resp.raise_for_status()
-            for raw in resp.iter_lines(decode_unicode=True):
-                if not raw or not raw.startswith("data: "):
-                    continue
-                data = raw[6:]
-                if data.strip() == "[DONE]":
-                    break
-                try:
-                    delta = json.loads(data).get("choices", [{}])[0].get("delta", {})
-                except Exception:
-                    continue
-                reasoning = delta.get("reasoning_content")
-                if reasoning:
-                    yield {"type": "reasoning", "text": reasoning}
-                piece = delta.get("content")
-                if piece:
-                    yield {"type": "content", "text": piece}
-        yield {"type": "done"}
+        t0 = time.time()
+        try:
+            with requests.post(
+                self.api_url, headers=self._headers(api_key), json=body,
+                timeout=self.timeout, stream=True,
+            ) as resp:
+                resp.raise_for_status()
+                for raw in resp.iter_lines(decode_unicode=True):
+                    if not raw or not raw.startswith("data: "):
+                        continue
+                    data = raw[6:]
+                    if data.strip() == "[DONE]":
+                        break
+                    try:
+                        parsed = json.loads(data)
+                        delta = parsed.get("choices", [{}])[0].get("delta", {})
+                    except Exception:
+                        continue
+                    reasoning = delta.get("reasoning_content")
+                    if reasoning:
+                        yield {"type": "reasoning", "text": reasoning}
+                    piece = delta.get("content")
+                    if piece:
+                        yield {"type": "content", "text": piece}
+            self.last_call_log = build_call_log(
+                model=use_model, duration_ms=int((time.time() - t0) * 1000), status="ok",
+            )
+            yield {"type": "done"}
+        except Exception as e:
+            self.last_call_log = build_call_log(
+                model=use_model, duration_ms=int((time.time() - t0) * 1000),
+                status="error", error_msg=str(e),
+            )
+            raise
 
 
