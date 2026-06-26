@@ -14,9 +14,16 @@ class _FakeClient:
 
 
 class _FakeAgent:
-    """模拟 RecruitingAgent，run_stream yield 事件序列。"""
+    """模拟 RecruitingAgent，run_stream yield 事件序列。
+    done 事件附带 _call_log 快照（与真实 run_stream 一致）。"""
     def __init__(self, events, call_log=None):
-        self._events = events
+        # 若 events 里已有 done 事件且未带 _call_log，注入 call_log 快照
+        self._events = []
+        for ev in events:
+            if ev.get("type") == "done" and "_call_log" not in ev and call_log is not None:
+                self._events.append({**ev, "_call_log": dict(call_log)})
+            else:
+                self._events.append(ev)
         self.client = _FakeClient(call_log)
 
     def run_stream(self, message, history, user_id=None, role=None):
@@ -115,8 +122,6 @@ def test_call_log_write_failure_does_not_block_chat(app, client, make_user, monk
     monkeypatch.setattr(agent_api, "_get_agent", lambda: fake)
 
     # 让 _write_chat_call_log 内部构造 AgentCallLog 时抛异常
-    real_agent_call_log = agent_api.AgentCallLog
-
     class _BoomLog:
         def __init__(self, **kwargs):
             raise RuntimeError("db down")

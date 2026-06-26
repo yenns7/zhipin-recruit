@@ -41,6 +41,7 @@ def create_app(config=None):
         db.create_all()
         _ensure_job_metadata_columns()
         _ensure_workflow_enhancement_columns()
+        _ensure_conversation_columns()
 
     _register_frontend(app)
 
@@ -155,6 +156,31 @@ def _ensure_workflow_enhancement_columns():
             changed = True
         if "reason_tags" not in feedback_columns:
             db.session.execute(text("ALTER TABLE interview_feedback ADD COLUMN reason_tags JSON"))
+            changed = True
+
+    if changed:
+        db.session.commit()
+
+
+def _ensure_conversation_columns():
+    """Lightweight compatibility: 给已存在的 conversations 表补 archived/title_source 列。
+    新库由 create_all() 自动建好；此函数仅修复旧库（create_all 不会给已存在表补列）。"""
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(db.engine)
+    if "conversations" not in inspector.get_table_names():
+        return
+
+    columns = {column["name"] for column in inspector.get_columns("conversations")}
+    additions = {
+        "archived": "ALTER TABLE conversations ADD COLUMN archived BOOLEAN DEFAULT 0 NOT NULL",
+        "title_source": "ALTER TABLE conversations ADD COLUMN title_source VARCHAR(20) DEFAULT 'auto_first' NOT NULL",
+    }
+
+    changed = False
+    for name, statement in additions.items():
+        if name not in columns:
+            db.session.execute(text(statement))
             changed = True
 
     if changed:

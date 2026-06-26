@@ -318,6 +318,7 @@ def chat():
             answer_parts = []
             final_answer = ""
             success = False
+            call_log_snapshot = None  # 从 done 事件取的最终答案步日志快照（避免读单例 client 串号）
             yield f"data: {json.dumps({'type': 'conversation_started', 'id': store_conversation_id}, ensure_ascii=False)}\n\n"
             try:
                 for ev in agent.run_stream(message, history, user_id=user_id, role=role):
@@ -339,6 +340,8 @@ def chat():
                     elif ev_type == "done":
                         final_answer = ev.get("answer") or "".join(answer_parts)
                         success = True
+                        # 取最终答案步的调用日志快照（run_stream 已在 done 事件里附带）
+                        call_log_snapshot = ev.get("_call_log")
                     yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
             except Exception as e:
                 err = {"type": "error", "message": f"智能体执行出错：{e}"}
@@ -352,38 +355,40 @@ def chat():
                         role="user",
                         content=message,
                     ))
-                    db.session.add(ConversationMessage(
+                    assistant_msg = ConversationMessage(
                         conversation_id=conversation.id,
                         role="assistant",
                         content=final_answer or "".join(answer_parts),
                         tool_calls=tool_calls or None,
                         thoughts=thoughts or None,
-                    ))
+                    )
+                    db.session.add(assistant_msg)
                     conversation.updated_at = utc_now()
                     db.session.commit()
-                    # 写 AI 调用日志（chat 级）：记录本次对话的输入/输出/工具链/模型/耗时
-                    # final assistant message 的 id 用于关联
+                    # 写 AI 调用日志（chat 级）：用 done 事件里的快照，避免单例 client 并发串号
                     _write_chat_call_log(
                         conversation_id=conversation.id,
+                        message_id=assistant_msg.id,
                         user_id=user_id,
                         role=role,
                         input_text=message,
                         output_text=final_answer or "".join(answer_parts),
                         tool_calls=tool_calls,
                         thoughts=thoughts,
-                        agent=agent,
+                        call_log_snapshot=call_log_snapshot,
                     )
             else:
                 # 异常或未成功：补一条 error 日志，便于排障
                 _write_chat_call_log(
                     conversation_id=store_conversation_id,
+                    message_id=None,
                     user_id=user_id,
                     role=role,
                     input_text=message,
                     output_text="".join(answer_parts) or None,
                     tool_calls=tool_calls,
                     thoughts=thoughts,
-                    agent=agent,
+                    call_log_snapshot=call_log_snapshot,
                     status="error",
                     error_msg="agent stream ended without success",
                 )
@@ -412,19 +417,23 @@ def _write_chat_call_log(
     output_text,
     tool_calls,
     thoughts,
-    agent,
+    call_log_snapshot,
+    message_id=None,
     status=None,
     error_msg=None,
 ):
-    """写一条 chat 级 AI 调用日志。从 agent.client.last_call_log 取最终答案步的模型/token/耗时。
+    """写一条 chat 级 AI 调用日志。
+    call_log_snapshot 是 run_stream 在 done 事件里附带的最终答案步日志快照（dict），
+    用快照而非读单例 agent.client.last_call_log，避免并发请求下共享状态串号。
     log 写入失败只记 logging.error，不阻断主流程（事务与主业务隔离）。
     """
     try:
-        llm_log = getattr(getattr(agent, "client", None), "last_call_log", None) or {}
+        llm_log = call_log_snapshot or {}
         final_status = status or llm_log.get("status") or "ok"
         final_error = error_msg or llm_log.get("error_msg")
         db.session.add(AgentCallLog(
             conversation_id=conversation_id,
+            message_id=message_id,
             user_id=user_id,
             role=role,
             kind="chat",

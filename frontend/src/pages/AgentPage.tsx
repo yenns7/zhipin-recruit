@@ -281,7 +281,7 @@ export function AgentPage() {
       if (!confirm) return;
 
       try {
-        const res = await executeWriteTool(target.tool, target.args);
+        const res = await executeWriteTool(target.tool, target.args, conversationId);
         setMessages((prev) =>
           prev.map((m) => {
             if (m.kind !== 'assistant' || m.id !== assistantId || !m.proposal) return m;
@@ -321,7 +321,7 @@ export function AgentPage() {
         );
       }
     },
-    [messages, setMessages]
+    [messages, setMessages, conversationId]
   );
 
   // Load the capability catalogue once for the empty-state cloud.

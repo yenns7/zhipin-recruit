@@ -951,4 +951,12 @@ class RecruitingAgent:
         tool_results = final_state.get("tool_results", [])
         answer_text = yield from self._stream_final_answer(messages, tool_results)
 
-        yield {"type": "done", "answer": answer_text}
+        # 把本次最终答案步的调用日志快照进 done 事件，供 agent.py 落库。
+        # 用快照而非后续读 self.client.last_call_log，避免单例 client 在并发请求下被覆盖串号。
+        done_event: Dict[str, Any] = {"type": "done", "answer": answer_text}
+        try:
+            if getattr(self.client, "last_call_log", None):
+                done_event["_call_log"] = dict(self.client.last_call_log)
+        except Exception:
+            pass
+        yield done_event
