@@ -161,6 +161,92 @@ def delete_conversation(conversation_id):
     return jsonify({"id": conversation.id, "archived": True})
 
 
+# --- AI 调用日志查询（审计）-------------------------------------------------
+def _call_log_to_dict(log):
+    return {
+        "id": log.id,
+        "conversation_id": log.conversation_id,
+        "message_id": log.message_id,
+        "user_id": log.user_id,
+        "role": log.role,
+        "kind": log.kind,
+        "model": log.model,
+        "prompt_tokens": log.prompt_tokens,
+        "completion_tokens": log.completion_tokens,
+        "duration_ms": log.duration_ms,
+        "status": log.status,
+        "error_msg": log.error_msg,
+        "tool_calls": log.tool_calls,
+        "thoughts": log.thoughts,
+        "input_text": log.input_text,
+        "output_text": log.output_text,
+        "created_at": log.created_at.isoformat() if log.created_at else None,
+    }
+
+
+@bp.get("/agent/call-logs")
+@require_auth
+@require_role("recruiter", "manager", "admin")
+def list_call_logs():
+    """列出 AI 调用日志。管理员看全部，非管理员只看自己。
+    支持 conversation_id / status / kind 筛选 + 分页。
+    """
+    # 非管理员强制只看自己；管理员可看全部，也可用 user_id 筛选
+    if g.role != "admin":
+        query = AgentCallLog.query.filter_by(user_id=g.user_id)
+    else:
+        query = AgentCallLog.query
+        user_id = request.args.get("user_id")
+        if user_id:
+            try:
+                query = query.filter_by(user_id=int(user_id))
+            except (TypeError, ValueError):
+                pass
+
+    conversation_id = request.args.get("conversation_id")
+    if conversation_id:
+        try:
+            query = query.filter_by(conversation_id=int(conversation_id))
+        except (TypeError, ValueError):
+            pass
+
+    status = request.args.get("status")
+    if status:
+        query = query.filter_by(status=status)
+
+    kind = request.args.get("kind")
+    if kind:
+        query = query.filter_by(kind=kind)
+
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+        per_page = min(100, max(1, int(request.args.get("per_page", 50))))
+    except (TypeError, ValueError):
+        page, per_page = 1, 50
+
+    paginated = query.order_by(AgentCallLog.created_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False,
+    )
+    return jsonify({
+        "items": [_call_log_to_dict(log) for log in paginated.items],
+        "page": paginated.page,
+        "per_page": paginated.per_page,
+        "total": paginated.total,
+    })
+
+
+@bp.get("/agent/call-logs/<int:log_id>")
+@require_auth
+@require_role("recruiter", "manager", "admin")
+def get_call_log(log_id):
+    """单条调用日志详情（含完整 input/output/tool_calls/thoughts）。
+    非管理员只能看自己的。"""
+    log = db.get_or_404(AgentCallLog, log_id)
+    if g.role != "admin" and log.user_id != g.user_id:
+        return jsonify({"error": "Forbidden"}), 403
+    return jsonify(_call_log_to_dict(log))
+
+
 @bp.post("/agent/execute")
 @require_auth
 @require_role("recruiter", "manager", "admin")
