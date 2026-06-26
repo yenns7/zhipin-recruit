@@ -16,6 +16,7 @@ import sys
 import json
 import logging
 import re
+import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, TypedDict
 
@@ -36,6 +37,7 @@ from ..models import (  # noqa: E402
     Job,
     Interview,
     PipelineStage,
+    AgentCallLog,
 )
 from .match_service import MatchService  # noqa: E402
 from ..api.bi import _funnel, _safe_rate  # 复用 BI 漏斗逻辑（模块级函数）  # noqa: E402
@@ -583,12 +585,25 @@ def get_agent_architecture_dashboard() -> Dict[str, Any]:
     }
 
 
-def execute_write_tool(name: str, args: Dict[str, Any], user_id: int, role: str) -> Dict[str, Any]:
-    """在请求上下文内执行写工具（供 /api/agent/execute 调用）。做 RBAC 校验。"""
+def execute_write_tool(
+    name: str,
+    args: Dict[str, Any],
+    user_id: int,
+    role: str,
+    conversation_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    """在请求上下文内执行写工具（供 /api/agent/execute 调用）。做 RBAC 校验。
+    执行后写一条 AgentCallLog(kind=tool_write) 用于审计。"""
+    t0 = time.time()
     tool = _WRITE_TOOL_MAP.get(name)
     if not tool:
+        _log_tool_write(conversation_id, user_id, role, name, args, None,
+                        t0, status="error", error_msg=f"未知写工具：{name}")
         return {"ok": False, "error": f"未知写工具：{name}"}
     if role not in tool["rbac"]:
+        _log_tool_write(conversation_id, user_id, role, name, args, None,
+                        t0, status="error",
+                        error_msg=f"当前角色「{role}」无权执行此操作")
         return {"ok": False, "error": f"当前角色「{role}」无权执行此操作"}
     try:
         clean_args = dict(args or {})
@@ -596,11 +611,50 @@ def execute_write_tool(name: str, args: Dict[str, Any], user_id: int, role: str)
         clean_args["actor_role"] = role
         result = tool["execute"](**clean_args)
         if isinstance(result, dict) and result.get("error"):
+            _log_tool_write(conversation_id, user_id, role, name, args, result,
+                            t0, status="error", error_msg=result["error"])
             return {"ok": False, "error": result["error"]}
+        _log_tool_write(conversation_id, user_id, role, name, args, result, t0, status="ok")
         return {"ok": True, "result": result}
     except Exception as e:
         logger.exception("写工具 %s 执行失败", name)
+        _log_tool_write(conversation_id, user_id, role, name, args, None,
+                        t0, status="error", error_msg=f"执行失败：{e}")
         return {"ok": False, "error": f"执行失败：{e}"}
+
+
+def _log_tool_write(
+    conversation_id: Optional[int],
+    user_id: int,
+    role: str,
+    tool_name: str,
+    args: Dict[str, Any],
+    result: Any,
+    t0: float,
+    status: str,
+    error_msg: Optional[str] = None,
+) -> None:
+    """写一条 tool_write 级 AI 调用日志。失败只记日志，不阻断主流程。"""
+    try:
+        # 入参/结果序列化为可读文本（截断防过大）
+        input_text = json.dumps({"tool": tool_name, "args": args}, ensure_ascii=False, default=str)
+        output_text = json.dumps(result, ensure_ascii=False, default=str) if result is not None else None
+        db.session.add(AgentCallLog(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            role=role,
+            kind="tool_write",
+            input_text=input_text[:8000],
+            output_text=output_text[:8000] if output_text else None,
+            tool_calls=[{"name": tool_name, "args": args}],
+            duration_ms=int((time.time() - t0) * 1000),
+            status=status,
+            error_msg=error_msg,
+        ))
+        db.session.commit()
+    except Exception as log_err:
+        db.session.rollback()
+        logger.error("写入 tool_write AgentCallLog 失败: %s", log_err)
 
 
 # =============================================================================

@@ -95,9 +95,12 @@ def execute():
     data = request.get_json(silent=True) or {}
     tool = (data.get("tool") or "").strip()
     args = data.get("args") or {}
+    conversation_id = data.get("conversation_id")
     if not tool:
         return jsonify({"ok": False, "error": "tool required"}), 400
-    result = execute_write_tool(tool, args, user_id=g.user_id, role=g.role)
+    result = execute_write_tool(
+        tool, args, user_id=g.user_id, role=g.role, conversation_id=conversation_id,
+    )
     status = 200 if result.get("ok") else 400
     return jsonify(result), status
 
