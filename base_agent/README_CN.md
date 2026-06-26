@@ -1,3 +1,5 @@
+> 接手提醒：这是 `base_agent/` 原始求职工具资料，不是智聘招聘系统的产品、运行或部署真源。智聘当前开发请先看根目录 `README.md` 和 `docs/README.md`；本文件只在改底层 AI 解析、匹配、面试能力时作背景参考。
+
 <div align="center">
 
 # FindJobs-Agent

@@ -9,7 +9,7 @@
 |---|---|
 | 系统名称 | 智聘 · 招聘管理系统 |
 | 文档类型 | As-built System Design Document |
-| 代码基准 | `main` 分支，当前 HEAD: `6a26afe Merge feat/pipeline-stage-management:招聘流程补全 M1-M5(PRD G1-G10)` |
+| 代码基准 | 以当前工作区代码和实际测试结果为准；本文初版生成时曾参考 `6a26afe`，后续迭代不再依赖固定旧提交号 |
 | 本地项目路径 | `/Users/yenns/Desktop/智聘` |
 | 主要用途 | 后续按模块指定改动时，用来快速判断要改哪些文件、影响哪些接口/表/流程 |
 | 文档生成日期 | 2026-06-19 |
@@ -59,6 +59,8 @@
 | 搜索索引 | 未实现，主要通过数据库查询 |
 | 大规模批量导入队列 | 未实现，当前批量上传在请求中同步解析 |
 | 文件对象存储 | 未实现，简历原文件保存在本地上传目录 |
+
+术语说明：本文中的“多组织隔离”指核心业务数据通过 `org_id` 做服务端过滤和越权拦截。“不做 SaaS 式多租户”指一期不做前端组织管理后台、租户自助开通、跨组织运营管理、计费/套餐等能力；不应理解为当前没有组织级数据隔离。
 
 ## 3. 总体架构
 
@@ -155,6 +157,8 @@ gunicorn -w 2 -b 0.0.0.0:5000 --timeout 120 --keep-alive 5 "run:app"
 
 ## 5. 角色与权限模型
 
+中文角色名以 `docs/README.md` 的“角色名口径”为准。代码和权限判断只认 `admin`、`manager`、`recruiter`、`interviewer` 四类技术角色；旧称或业务别名里的“招聘主管 / HRD / 招聘负责人 / 用人部门负责人”在权限上统一按 `manager` 理解，“HR 专员”按 `recruiter` 理解，“系统管理员”按 `admin` 理解。
+
 | 角色 | 可见模块 | 主要权限 |
 |---|---|---|
 | `admin` | 工作台、AI 助手、候选人、上传、岗位、流程、BI、系统设置 | 当前组织内用户管理、BI、候选人、岗位、流程、AI 助手；面试任务通过工作台待办或候选人流程深链进入 |
@@ -171,17 +175,21 @@ gunicorn -w 2 -b 0.0.0.0:5000 --timeout 120 --keep-alive 5 "run:app"
 | `/login` | `LoginPage` | 未登录 |
 | `/` | `DashboardPage` | 全部登录角色 |
 | `/agent` | `AgentPage` | recruiter / manager / admin |
+| `/notifications` | `NotificationCenterPage` | 全部登录角色 |
 | `/candidates` | `CandidatesPage` | recruiter / manager / admin |
 | `/candidates/:id` | `CandidateProfilePage` | recruiter / manager / admin / interviewer |
 | `/upload` | `UploadPage` | recruiter / manager / admin |
 | `/jobs` | `JobsPage` | recruiter / manager / admin |
 | `/jobs/:id/match` | `JobMatchPage` | recruiter / manager / admin |
+| `/talent-map` | `TalentMapPage` | recruiter / manager / admin |
 | `/pipeline` | `PipelinePage` | recruiter / manager / admin |
 | `/interviews` | `InterviewListPage` | recruiter / interviewer / manager / admin |
 | `/interviews/new` | `InterviewsPage` | recruiter / manager / admin |
 | `/interviews/:id` | `InterviewReportPage` | recruiter / manager / admin / interviewer |
 | `/bi` | `BiPage` | manager / admin |
 | `/admin/users` | `UsersPage` | admin |
+| `/admin/settings` | `SystemSettingsPage` | admin |
+| `/admin/ai-architecture` | `AiArchitecturePage` | admin |
 
 ### 5.2 后端权限
 
@@ -672,6 +680,7 @@ AI_HUMAN_REVIEW_REQUIRED=true
 | 岗位列表/编辑 | `JobsPage.tsx` | `api/jobs.py` | `jobs.jd_structured` |
 | JD AI 澄清 | `JobsPage.tsx` | `api/jobs.py` | LLM，只读或写结构化 |
 | 岗位匹配 | `JobsPage.tsx`, `JobMatchPage.tsx` | `services/match_service.py` | `candidate_tags`, `matches`, `job_matcher.py` |
+| 人才地图 | `TalentMapPage.tsx` | `api/talent_maps.py` | `talent_maps`, `talent_map_companies`, `talent_map_people` |
 | 候选人流程 | `PipelinePage.tsx`, `components/pipeline/*` | `api/pipeline.py` | `pipeline_stages`, `events` |
 | 新增招聘阶段 | `frontend/src/lib/pipelineStages.ts` | `models.py`, `api/pipeline.py` | 高风险，需测试 |
 | AI 面试 | `InterviewsPage.tsx`, `InterviewReportPage.tsx` | `api/interview.py`, `services/interview_service.py` | LLM + `interviews` + 流程回写 |
@@ -701,11 +710,11 @@ AI_HUMAN_REVIEW_REQUIRED=true
 
 | 来源 | 观察 |
 |---|---|
-| `RUNNING.md` | 描述 seed 后应有 29 用户、20 候选人、14 岗位 |
-| 当前 `backend/seed_dev.py` 静态定义 | 6 用户、10 候选人、4 岗位 |
+| `RUNNING.md` | 描述 seed 后应有 7 试用账号、10 候选人、4 岗位（已与脚本对齐） |
+| 当前 `backend/seed_dev.py` 静态定义 | 7 用户、10 候选人、4 岗位 |
 | 当前本地 `backend/hireinsight.db` 快照 | 30 用户、21 候选人、14 岗位，13 active + 1 closed |
 
-这说明当前演示数据存在历史恢复与本地使用痕迹。后续若要让“新克隆仓库直接可用”，需要明确选择一种方案：
+当前 `seed_dev.py` 静态定义与 `RUNNING.md` 描述已对齐，均为 7 用户、10 候选人、4 岗位。本地 `hireinsight.db` 快照数量偏多，是历史恢复与本地使用痕迹，不是 seed 脚本的产物。后续若要让“新克隆仓库直接可用”，需要明确选择一种方案：
 
 1. 提交标准演示数据库文件。
 2. 或修正 `seed_dev.py`，让它真的生成目标数据。
@@ -831,7 +840,7 @@ AI_HUMAN_REVIEW_REQUIRED=true
 
 | 风险 | 影响 | 建议 |
 |---|---|---|
-| seed 文档、seed 脚本、当前 DB 数量不一致 | 新人部署可能拿不到预期演示数据 | 统一数据策略：提交 DB 或修正 seed |
+| seed 脚本与本地 DB 数量不一致 | 新人本地库可能是历史快照，数量多于 seed 脚本 | seed 脚本与 RUNNING 已对齐为 7 用户/10 候选人/4 岗位；本地 DB 快照仅作参考，不代表 seed 产物 |
 | 当前上传/AI 解析同步执行 | 批量简历或 LLM 慢时请求等待久 | 引入任务队列与进度接口 |
 | SQLite 用作演示库 | 并发和备份能力有限 | 生产使用 PostgreSQL |
 | JWT_SECRET 默认值弱 | 生产安全风险 | 生产必须配置强随机密钥 |
@@ -843,11 +852,11 @@ AI_HUMAN_REVIEW_REQUIRED=true
 
 ## 17. 后续文档建议
 
-建议在本 SDD 基础上继续拆出三份轻量文档：
+以下是未来可选新增文档，不是当前必读入口；当前没有这些文件也不影响开发：
 
-1. `docs/API-智聘-v1.0.md`：更细的接口请求/响应示例。
-2. `docs/CHANGE-GUIDE-智聘-v1.0.md`：按“我要改什么”写操作手册。
-3. `docs/ADR/`：把本文 ADR 摘要拆成独立决策记录。
+1. 更细的接口请求/响应示例。
+2. 按“我要改什么”组织的改动手册。
+3. 把本文 ADR 摘要拆成独立决策记录，放到现有 `docs/adr/` 目录。
 
 ## 18. 快速结论
 

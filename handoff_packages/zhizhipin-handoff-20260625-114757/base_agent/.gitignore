@@ -1,0 +1,139 @@
+# ==================== Python ====================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+/lib/
+/lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+.venv/
+ENV/
+
+# ==================== 数据文件 (大型/生成的) ====================
+# 爬取的原始数据
+crawled_jobs_raw*.json
+all_jobs*.json
+tech_giants_jobs.json
+bytedance_selenium_test.json
+baidu_test.json
+bytedance_test.json
+tencent_jobs.json
+test_crawl.json
+
+# 处理后的数据
+jobs_enriched*.csv
+jobs_enriched*.jsonl
+bytedance_jobs_enriched*.csv
+
+# 原始岗位数据（太大）
+bytedance_jobs.json
+bytedance_jobs\ copy.json
+
+# 网站数据（由 pipeline 生成）
+all_companies_jobs.json
+
+# 临时分析文件
+temp_jobs_for_analysis.json
+
+# ==================== 敏感信息 ====================
+API_key*.md
+.env
+.env.*
+ms_deploy.json
+*.key
+secrets/
+credentials/
+
+# ==================== 日志文件 ====================
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==================== Node.js ====================
+node_modules/
+dist/
+dist-ssr/
+*.local
+.npm
+.yarn-integrity
+
+# ==================== IDE/编辑器 ====================
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-*
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ==================== 系统文件 ====================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.bak
+*~
+
+# ==================== 备份和临时文件 ====================
+backup/
+*.backup
+*.tmp
+*.temp
+
+# ==================== 压缩包和二进制文件 ====================
+*.zip
+*.tar.gz
+*.rar
+*.pdf
+*.docx
+
+# ==================== 上传的用户文件 ====================
+uploads/
+
+# ==================== 课程提交相关（不需要） ====================
+code_submission/
+提交说明.md
+report.tex
+presentation*.md
+ppt_slides_content.md
+video_recording_guide.md
+AI\ interview\ example.md
+
+# ==================== 测试文件 ====================
+test.py
+test_crawler.py
+
+# ==================== 副本文件 ====================
+*\ copy.*
+
+# ==================== 标签数据文件 ====================
+all_labels.csv
+new_labels_list.csv
+
+# ==================== Bolt (前端工具) ====================
+FrontEnd/.bolt/
+
+# ==================== 报告图片（保留在docs目录） ====================
+report/

@@ -23,15 +23,17 @@ PORT=5001 python run.py
 
 密码统一：`Zhipin2026`
 
-| 角色 | 邮箱 | 姓名 |
-|------|------|------|
-| 管理员 | admin01@mvp.local | 系统管理员 |
-| 招聘经理 | manager01@mvp.local | 招聘经理01 |
-| 招聘负责人 | lead01@mvp.local | 招聘负责人01 |
-| 招聘专员 | hr01@mvp.local | 招聘专员01 |
-| 招聘专员 | hr02@mvp.local | 招聘专员02 |
-| 招聘专员 | hr03@mvp.local | 招聘专员03 |
-| 面试官 | interviewer01@mvp.local | 面试官01 |
+| 展示角色 | 技术角色 | 邮箱 | 姓名 |
+|------|------|------|------|
+| 管理员 | `admin` | admin01@mvp.local | 系统管理员 |
+| 招聘经理 | `manager` | manager01@mvp.local | 招聘经理01 |
+| 招聘负责人 | `manager` | lead01@mvp.local | 招聘负责人01 |
+| 招聘专员 | `recruiter` | hr01@mvp.local | 招聘专员01 |
+| 招聘专员 | `recruiter` | hr02@mvp.local | 招聘专员02 |
+| 招聘专员 | `recruiter` | hr03@mvp.local | 招聘专员03 |
+| 面试官 | `interviewer` | interviewer01@mvp.local | 面试官01 |
+
+> 权限口径只认 `admin` / `manager` / `recruiter` / `interviewer` 四类技术角色。“招聘负责人”是 `manager` 的业务展示名，不代表新增一类权限。
 
 推荐给招聘专员一人一个账号。原因很简单：系统会把候选人负责人、上传人、流程推进人、面试反馈人都记录到具体用户 ID 上；BI 主绩效按候选人负责人汇总面试进入量、面试通过量、Offer 和入职等指标，流程推进人则用于操作留痕和后续动作审计。
 
@@ -98,7 +100,7 @@ cd backend
 python seed_dev.py
 ```
 
-清空并重新写入试用用户、20 个候选人、14 个岗位及面试记录。不需要 LLM Key。
+清空并重新写入试用用户、候选人、岗位及面试记录：7 个试用账号、10 个候选人、4 个岗位。不需要 LLM Key。
 
 如果准备给真实 HR 小范围试点，不要用 `seed_dev.py` 重置。先 dry-run 看清理范围：
 

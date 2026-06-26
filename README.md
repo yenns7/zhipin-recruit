@@ -15,6 +15,12 @@
 
 ---
 
+## 接手先读
+
+如果你是下一任接手开发的人，先看 [docs/README.md](docs/README.md) 判断“先读哪份、信哪份”。本页只负责项目总览和快速开始；当前实现细节以 [docs/SDD-智聘招聘系统-v1.0.md](docs/SDD-智聘招聘系统-v1.0.md) 为准，本地运行以 [RUNNING.md](RUNNING.md) 为准，生产/试点部署以 [DEPLOYMENT.md](DEPLOYMENT.md) 和上线检查清单为准。
+
+本 README 里的功能介绍用于了解系统能力，不等于生产上线完成证明。涉及真实 HR 试点、服务器部署、数据清理、LLM 合规或备份恢复时，必须再看 [docs/06_试点上线检查清单.md](docs/06_试点上线检查清单.md) 和 [docs/07_上线部署前TOP10清单_给AI执行.md](docs/07_上线部署前TOP10清单_给AI执行.md)，并由负责人确认后执行。
+
 ## 📖 项目简介
 
 **智聘** 是一套面向 HR 与招聘管理者的全流程招聘管理系统，核心亮点是把 **LangGraph 智能体**深度嵌入业务：HR 用自然语言即可完成查询与操作 —— 从「系统里有多少候选人」到「帮我创建一个后端工程师岗位」，AI 自主决策、调用工具、确认执行。
@@ -25,7 +31,7 @@
 
 ### 🤖 AI 智能助手（炫技核心）
 - **LangGraph ReAct 智能体** —— 手搓决策↔工具循环，自主规划多步任务
-- **15 个工具**：7 个查询（候选人/岗位/匹配/流程/BI）+ 4 个写操作（建岗/推进/面试/匹配）+ 联网搜索 + 系统概览
+- **12 个工具**：8 个只读工具（候选人/岗位/匹配/流程/BI/系统概览/联网搜索等）+ 4 个写操作（建岗/推进/面试/匹配）
 - **写操作确认机制** —— AI 只「提议」，用户确认后才执行，服务端强制 RBAC
 - **AI 写审计** —— 每次 AI 写操作都会记录 `agent.write` 事件，包含操作者、工具名、目标 ID、成功/失败和错误原因
 - **联网搜索** —— 集成实时搜索，查询薪资行情、技能趋势等外部信息
@@ -79,15 +85,17 @@
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  前端 SPA  (React 18 + Vite 8 + TS + Tailwind + GSAP)    │
-│  12 页面 · recharts 图表 · 近黑 Cal.com 设计语言           │
+│  前端 SPA  (React 18 + Vite + TS + Tailwind + GSAP)    │
+│  工作台/招聘管理/简历库/流程/面试/BI/AI助手/人才地图等页面  │
+│  recharts 图表 · 近黑 Cal.com 设计语言                    │
 └──────────────────────────┬──────────────────────────────┘
                            │ /api (Vite 代理 / Flask 同源托管)
 ┌──────────────────────────▼──────────────────────────────┐
-│  后端  Flask 3.1 + SQLAlchemy + JWT/RBAC  (28 路由)       │
+│  后端  Flask 3.1 + SQLAlchemy + JWT/RBAC                 │
 │  ┌────────────┬────────────┬──────────────────────────┐  │
 │  │ auth       │ resume     │ jobs / match / pipeline   │  │
 │  │ interview  │ bi         │ agent (LangGraph SSE)     │  │
+│  │ demands    │ talent_maps│ notifications / admin     │  │
 │  └────────────┴────────────┴──────────────────────────┘  │
 └──────────────────────────┬──────────────────────────────┘
                            │ 复用
@@ -144,15 +152,17 @@ npm run dev                   # http://localhost:5173，代理到 :5001
 ```
 
 ### MVP 内部试用账号（统一密码 `Zhipin2026`）
-| 角色 | 邮箱 |
-|------|------|
-| 管理员 | admin01@mvp.local |
-| 招聘经理 | manager01@mvp.local |
-| 招聘负责人 | lead01@mvp.local |
-| 招聘专员 | hr01@mvp.local |
-| 招聘专员 | hr02@mvp.local |
-| 招聘专员 | hr03@mvp.local |
-| 面试官 | interviewer01@mvp.local |
+| 展示角色 | 技术角色 | 邮箱 |
+|------|------|------|
+| 管理员 | `admin` | admin01@mvp.local |
+| 招聘经理 | `manager` | manager01@mvp.local |
+| 招聘负责人 | `manager` | lead01@mvp.local |
+| 招聘专员 | `recruiter` | hr01@mvp.local |
+| 招聘专员 | `recruiter` | hr02@mvp.local |
+| 招聘专员 | `recruiter` | hr03@mvp.local |
+| 面试官 | `interviewer` | interviewer01@mvp.local |
+
+> 角色口径：权限判断只认 `admin` / `manager` / `recruiter` / `interviewer` 四类技术角色。“招聘负责人”是 `manager` 的业务展示名，不是新的 RBAC 角色。
 
 面试官账号用于查看分配给自己的面试任务、候选人详情和填写反馈；不会显示“推进 Offer/淘汰”等流程按钮，招聘流程推进仍由 HR/经理/管理员完成。
 
@@ -163,12 +173,12 @@ npm run dev                   # http://localhost:5173，代理到 :5001
 ```
 .
 ├── backend/          Flask 后端（app-factory + 蓝图）
-│   ├── app/api/      9 个 API 蓝图
+│   ├── app/api/      13 个 API 蓝图（auth/resume/jobs/demands/match/pipeline/interview/bi/agent/talent_maps/notifications/admin/candidates）
 │   ├── app/services/ 业务服务（agent / match / resume / interview）
 │   └── run.py        启动入口
 ├── frontend/         Vite + React 前端
 │   └── src/
-│       ├── pages/    12 个页面
+│       ├── pages/    工作台/招聘管理/简历库/流程/面试/BI/AI助手/人才地图/系统设置等页面（含 admin/ 子目录）
 │       ├── components/ UI 基元 + 业务组件
 │       └── lib/      api 客户端 / auth / agent 流式
 ├── base_agent/       复用的 LLM/解析/匹配模块
