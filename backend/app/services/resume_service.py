@@ -8,7 +8,7 @@ if str(BASE_AGENT_DIR) not in sys.path:
 
 from resume_parser import ResumeParser
 from .. import db
-from ..models import Candidate, CandidateTag
+from ..models import Candidate, CandidateTag, User
 
 
 class ResumeBatchService:
@@ -21,11 +21,16 @@ class ResumeBatchService:
             self._parser = ResumeParser()
         return self._parser
 
+    def _owner_org_id(self, owner_hr_id: int) -> int:
+        user = db.session.get(User, owner_hr_id) if owner_hr_id else None
+        return (user.org_id if user else None) or 1
+
     def parse_and_save(self, file_path: str, owner_hr_id: int, upload_batch_id: int = None) -> Candidate:
         """解析单份简历，存入数据库，返回 Candidate 对象"""
         result = self.parser.parse_resume(file_path)
 
         candidate = Candidate(
+            org_id=self._owner_org_id(owner_hr_id),
             owner_hr_id=owner_hr_id,
             upload_batch_id=upload_batch_id,
             raw_file_path=file_path,
@@ -47,6 +52,7 @@ class ResumeBatchService:
         upload_batch_id: int = None,
     ) -> Candidate:
         candidate = Candidate(
+            org_id=self._owner_org_id(owner_hr_id),
             owner_hr_id=owner_hr_id,
             upload_batch_id=upload_batch_id,
             name_masked=display_name[:100],
@@ -203,6 +209,7 @@ class ResumeBatchService:
             if not tag_name:
                 continue
             tag = CandidateTag(
+                org_id=candidate.org_id or 1,
                 candidate_id=candidate.id,
                 tag=tag_name[:100],
                 score=self._coerce_score(skill.get("score", 3)),

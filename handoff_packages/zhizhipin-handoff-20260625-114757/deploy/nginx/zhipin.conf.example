@@ -1,0 +1,64 @@
+# Example Nginx reverse proxy for the internal pilot deployment.
+# Replace zhipin.example.internal and certificate paths before use.
+
+limit_req_zone $binary_remote_addr zone=zhipin_login:10m rate=5r/m;
+limit_req_zone $binary_remote_addr zone=zhipin_ai:10m rate=20r/m;
+limit_req_zone $binary_remote_addr zone=zhipin_upload:10m rate=8r/m;
+
+server {
+    listen 80;
+    server_name zhipin.example.internal;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name zhipin.example.internal;
+
+    ssl_certificate /etc/nginx/certs/zhipin.crt;
+    ssl_certificate_key /etc/nginx/certs/zhipin.key;
+
+    client_max_body_size 100m;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
+
+    location = /api/auth/login {
+        limit_req zone=zhipin_login burst=5 nodelay;
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    location = /api/agent/chat {
+        limit_req zone=zhipin_ai burst=10 nodelay;
+        proxy_buffering off;
+        proxy_read_timeout 120s;
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    location = /api/resume/upload {
+        limit_req zone=zhipin_upload burst=4 nodelay;
+        proxy_request_buffering on;
+        proxy_read_timeout 120s;
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}

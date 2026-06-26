@@ -56,7 +56,7 @@ assert.match(
 
 assert.match(
   jobMatchPage,
-  /入流程状态/,
+  /入需求流程状态/,
   'Job match page should filter already-joined and not-yet-joined candidates',
 );
 
@@ -83,4 +83,3 @@ assert.match(
   /人工补找/,
   'Manual search view should explain why a low-AI-ranked candidate may still be added',
 );
-

@@ -330,7 +330,7 @@ function CandidateRow({
             onClick={() => onAddToJob(candidate.id)}
           >
             <UserPlus className="h-4 w-4" />
-            加入所选岗位流程
+            加入该需求流程
           </Button>
         </div>
       </td>
@@ -478,7 +478,7 @@ export function CandidatesPage() {
   async function handleAddToJob(candidateId: number) {
     const jobId = Number(targetJobId);
     if (!targetJobId || Number.isNaN(jobId)) {
-      setActionError('请先选择要加入的岗位');
+      setActionError('请先选择要加入的招聘需求');
       setActionMessage(null);
       return;
     }
@@ -489,15 +489,15 @@ export function CandidatesPage() {
     try {
       const result = await api.batchAddToPipeline(jobId, [candidateId]);
       if (result.added > 0) {
-        setActionMessage('已加入岗位流程，当前阶段为待筛选');
+        setActionMessage('已加入该需求流程，当前阶段为待筛选');
         reload();
       } else if (result.skipped_existing > 0) {
-        setActionMessage('这位候选人已经在该岗位流程中');
+        setActionMessage('这位候选人已经在该需求流程中');
       } else {
-        setActionMessage('未加入岗位流程，请刷新后重试');
+        setActionMessage('未加入该需求流程，请刷新后重试');
       }
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : '加入岗位失败');
+      setActionError(err instanceof Error ? err.message : '加入招聘需求失败');
     } finally {
       setAddingCandidateId(null);
     }
@@ -658,15 +658,15 @@ export function CandidatesPage() {
                   <option value="processing">解析中</option>
                 </Select>
                 <Select
-                  label="入流程状态"
+                  label="入需求流程状态"
                   value={pipelineStatusFilter}
                   onChange={(event) =>
                     setPipelineStatusFilter(event.target.value as 'all' | 'in_pipeline' | 'not_in_pipeline')
                   }
                 >
                   <option value="all">全部状态</option>
-                  <option value="not_in_pipeline">未进入流程</option>
-                  <option value="in_pipeline">已进入流程</option>
+                    <option value="not_in_pipeline">未进入需求流程</option>
+                    <option value="in_pipeline">已进入需求流程</option>
                 </Select>
                 <Select
                   label="最低技能分"
@@ -688,7 +688,7 @@ export function CandidatesPage() {
               <div className="mt-4 border-t border-hairline-soft pt-4">
                 <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.6fr)]">
                   <Select
-                    label="目标岗位"
+                    label="目标岗位 / 加入招聘需求"
                     value={targetJobId}
                     onChange={(event) => {
                       setTargetJobId(event.target.value);
@@ -712,9 +712,9 @@ export function CandidatesPage() {
                       ) : targetJobId && matchPreviewAsync.loading ? (
                         <span>正在计算当前页候选人与该岗位的命中、欠缺和建议。</span>
                       ) : targetJobId && matchPreviewAsync.error ? (
-                        <span className="text-danger-600">岗位匹配预览失败，仍可查看核心技能并加入流程。</span>
+                        <span className="text-danger-600">岗位匹配预览失败，仍可查看核心技能并加入该需求流程。</span>
                       ) : targetJobId ? (
-                        <span>列表已切换为岗位匹配摘要；点击“加入所选岗位流程”才会推进候选人。</span>
+                        <span>列表已切换为岗位匹配摘要；点击“加入该需求流程”才会推进候选人。</span>
                       ) : (
                         <span>先扫简历库；选择岗位后，再看每位候选人的命中、欠缺和推进建议。</span>
                       )}
@@ -741,7 +741,7 @@ export function CandidatesPage() {
                 <EmptyState
                   icon={Users}
                   title="没有符合条件的简历"
-                  description="调整搜索词、城市、来源、解析状态、入流程状态或技能条件后再查看"
+                  description="调整搜索词、城市、来源、解析状态、入需求流程状态或技能条件后再查看"
                 />
               </CardBody>
             ) : (

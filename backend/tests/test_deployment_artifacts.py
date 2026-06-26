@@ -1,7 +1,9 @@
 import os
+import shutil
 import sqlite3
 import subprocess
 import sys
+import tarfile
 from pathlib import Path
 
 
@@ -94,6 +96,9 @@ def test_pilot_readiness_check_passes_with_production_env(tmp_path):
             "RATE_LIMIT_RESUME_UPLOAD=8",
             "BACKUP_DIR=/var/backups/zhipin",
             "ALLOW_PUBLIC_REGISTRATION=false",
+            "AI_RECRUITMENT_COMPLIANCE_ACK=true",
+            "CANDIDATE_PRIVACY_NOTICE_URL=https://zhipin.example.com/privacy",
+            "AI_HUMAN_REVIEW_REQUIRED=true",
         ])
     )
     (tmp_path / ".gitignore").write_text("backend/.env\n*.env\n")
@@ -108,6 +113,131 @@ def test_pilot_readiness_check_passes_with_production_env(tmp_path):
 
     assert result.returncode == 0
     assert "试点部署前自检通过" in result.stdout
+
+
+def test_pilot_readiness_check_requires_ai_compliance_flags(tmp_path):
+    script = ROOT / "backend" / "scripts" / "check_pilot_readiness.py"
+    env_file = tmp_path / "backend" / ".env"
+    env_file.parent.mkdir()
+    env_file.write_text(
+        "\n".join([
+            "JWT_SECRET=" + "x" * 48,
+            "JWT_EXPIRY_HOURS=8",
+            "FLASK_DEBUG=false",
+            "DATABASE_URL=postgresql://user:pass@db:5432/zhipin",
+            "CORS_ORIGINS=https://zhipin.example.com",
+            "SECURITY_HEADERS_ENABLED=true",
+            "RATE_LIMIT_ENABLED=true",
+            "RATE_LIMIT_LOGIN=10",
+            "RATE_LIMIT_AGENT_CHAT=20",
+            "RATE_LIMIT_RESUME_UPLOAD=8",
+            "BACKUP_DIR=/var/backups/zhipin",
+            "ALLOW_PUBLIC_REGISTRATION=false",
+        ])
+    )
+    (tmp_path / ".gitignore").write_text("backend/.env\n*.env\n")
+
+    result = subprocess.run(
+        [sys.executable, str(script), "--env-file", str(env_file), "--project-root", str(tmp_path)],
+        cwd=str(ROOT),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "AI_RECRUITMENT_COMPLIANCE_ACK" in result.stdout
+    assert "CANDIDATE_PRIVACY_NOTICE_URL" in result.stdout
+    assert "AI_HUMAN_REVIEW_REQUIRED" in result.stdout
+
+
+def test_restore_script_restores_sqlite_database_and_uploads(tmp_path):
+    backup_script = ROOT / "backend" / "scripts" / "backup_pilot_data.py"
+    restore_script = ROOT / "backend" / "scripts" / "restore_pilot_data.py"
+    db_path = tmp_path / "pilot.sqlite"
+    upload_folder = tmp_path / "uploads"
+    backup_root = tmp_path / "backups"
+    upload_folder.mkdir()
+
+    connection = sqlite3.connect(db_path)
+    connection.execute("CREATE TABLE candidates (id INTEGER PRIMARY KEY, name_masked TEXT)")
+    connection.execute("INSERT INTO candidates (id, name_masked) VALUES (1, '恢复候选人')")
+    connection.commit()
+    connection.close()
+    (upload_folder / "resume.pdf").write_text("resume", encoding="utf-8")
+
+    env = os.environ.copy()
+    env.update({
+        "DATABASE_URL": "sqlite:///" + str(db_path),
+        "UPLOAD_FOLDER": str(upload_folder),
+        "BACKUP_DIR": str(backup_root),
+    })
+    backup = subprocess.run(
+        [sys.executable, str(backup_script)],
+        cwd=str(ROOT),
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert backup.returncode == 0
+    snapshot = sorted(backup_root.iterdir())[-1]
+    restore_upload_folder = tmp_path / "restored_uploads"
+
+    db_path.unlink()
+    for child in upload_folder.iterdir():
+        child.unlink()
+    upload_folder.rmdir()
+
+    restore_env = env | {"UPLOAD_FOLDER": str(restore_upload_folder)}
+    restore = subprocess.run(
+        [sys.executable, str(restore_script), "--backup-path", str(snapshot), "--confirm"],
+        cwd=str(ROOT),
+        env=restore_env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert restore.returncode == 0
+    connection = sqlite3.connect(db_path)
+    row = connection.execute("SELECT name_masked FROM candidates WHERE id=1").fetchone()
+    connection.close()
+    assert row == ("恢复候选人",)
+    assert (restore_upload_folder / "resume.pdf").read_text(encoding="utf-8") == "resume"
+
+
+def test_restore_script_rejects_upload_tar_path_traversal(tmp_path):
+    restore_script = ROOT / "backend" / "scripts" / "restore_pilot_data.py"
+    backup_path = tmp_path / "backup"
+    backup_path.mkdir()
+    db_path = tmp_path / "pilot.sqlite"
+    upload_folder = tmp_path / "uploads"
+    upload_folder.mkdir()
+    sqlite3.connect(db_path).close()
+    shutil.copy2(db_path, backup_path / db_path.name)
+    with tarfile.open(backup_path / "uploads.tar.gz", "w:gz") as archive:
+        evil = tmp_path / "evil.txt"
+        evil.write_text("evil", encoding="utf-8")
+        archive.add(evil, arcname="../evil.txt")
+
+    env = os.environ.copy()
+    env.update({
+        "DATABASE_URL": "sqlite:///" + str(db_path),
+        "UPLOAD_FOLDER": str(upload_folder),
+    })
+
+    result = subprocess.run(
+        [sys.executable, str(restore_script), "--backup-path", str(backup_path), "--confirm"],
+        cwd=str(ROOT),
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "不安全" in (result.stderr + result.stdout)
 
 
 def _seed_cleanup_database(db_path):

@@ -25,7 +25,7 @@ class MatchService:
         jd_skill_tags_raw = jd_structured.get("skill_tags_raw", "")
         jd_tags = self.matcher.parse_job_skills(jd_skill_tags_raw)
 
-        candidates = (candidate_query or Candidate.query).all()
+        candidates = (candidate_query or Candidate.query.filter(Candidate.deleted_at.is_(None))).all()
         results = []
         for c in candidates:
             resume_skills = [
@@ -64,11 +64,15 @@ class MatchService:
         results = self._compute_rankings(job_id, candidate_query=candidate_query)
         if not results:
             return []
+        job = db.session.get(Job, job_id)
+        if not job:
+            return []
 
         # 持久化 top_n 匹配结果
         db.session.query(Match).filter(Match.job_id == job_id).delete()
         for r in results[:top_n]:
             db.session.add(Match(
+                org_id=job.org_id or 1,
                 job_id=job_id,
                 candidate_id=r["candidate_id"],
                 score=r["score"],

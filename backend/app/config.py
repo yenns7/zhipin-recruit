@@ -24,6 +24,9 @@ class Config:
     LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini")
     LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
     LLM_API_URL = os.environ.get("LLM_API_URL", "")
+    AI_RECRUITMENT_COMPLIANCE_ACK = os.environ.get("AI_RECRUITMENT_COMPLIANCE_ACK", "false").lower() == "true"
+    CANDIDATE_PRIVACY_NOTICE_URL = os.environ.get("CANDIDATE_PRIVACY_NOTICE_URL", "")
+    AI_HUMAN_REVIEW_REQUIRED = os.environ.get("AI_HUMAN_REVIEW_REQUIRED", "true").lower() == "true"
 
     # JWT
     JWT_SECRET = os.environ.get("JWT_SECRET", "dev-secret-change-in-prod")

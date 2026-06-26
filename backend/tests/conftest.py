@@ -36,9 +36,10 @@ def make_user(app):
     from app.models import User
     from app.config import TestingConfig
 
-    def _make(email, role="recruiter", password="pw123456", name="T", is_active=True):
+    def _make(email, role="recruiter", password="pw123456", name="T", is_active=True, org_id=1):
         with app.app_context():
             u = User(name=name, email=email, role=role, is_active=is_active,
+                     org_id=org_id,
                      password_hash=bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode())
             db_ = __import__("app", fromlist=["db"]).db
             db_.session.add(u); db_.session.commit()

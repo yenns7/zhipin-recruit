@@ -117,6 +117,9 @@ def run_checks(values: dict[str, str], project_root: Path, env_file: Path) -> li
         CheckResult("RATE_LIMIT_RESUME_UPLOAD", _is_positive_int(values.get("RATE_LIMIT_RESUME_UPLOAD")), "必须显式配置正整数"),
         CheckResult("BACKUP_DIR", bool(values.get("BACKUP_DIR", "").strip()), "必须配置服务器备份目录"),
         CheckResult("ALLOW_PUBLIC_REGISTRATION", _is_false(values.get("ALLOW_PUBLIC_REGISTRATION")), "生产/试点必须关闭公开注册"),
+        CheckResult("AI_RECRUITMENT_COMPLIANCE_ACK", _is_true(values.get("AI_RECRUITMENT_COMPLIANCE_ACK")), "真实候选人数据进入 AI 前必须显式确认合规边界"),
+        CheckResult("CANDIDATE_PRIVACY_NOTICE_URL", bool(values.get("CANDIDATE_PRIVACY_NOTICE_URL", "").strip()), "必须配置候选人隐私告知/授权说明地址"),
+        CheckResult("AI_HUMAN_REVIEW_REQUIRED", _is_true(values.get("AI_HUMAN_REVIEW_REQUIRED")), "AI 结论必须保留人工复核"),
         CheckResult(".env gitignore", _env_is_ignored(project_root, env_file), "真实 .env 必须被 .gitignore 忽略"),
     ]
     return checks

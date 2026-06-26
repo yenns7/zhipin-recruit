@@ -4,6 +4,7 @@ export const candidatesApi = {
   listCandidates: api.listCandidates,
   searchCandidates: api.searchCandidates,
   getCandidate: api.getCandidate,
+  exportCandidate: api.exportCandidate,
   retryCandidateParse: api.retryCandidateParse,
   updateCandidateProfile: api.updateCandidateProfile,
   getCandidatePipelines: api.getCandidatePipelines,

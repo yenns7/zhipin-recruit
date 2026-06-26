@@ -19,6 +19,7 @@ from ..source_channels import normalize_resume_source_channel
 from ..time_utils import utc_now
 from sqlalchemy import func
 from sqlalchemy.orm import aliased
+from .access import can_read_job, same_org
 
 bp = Blueprint("bi", __name__)
 
@@ -107,6 +108,10 @@ def _parse_days(default=30):
     return days if days in ALLOWED_BI_DAYS else default
 
 
+def _current_org_id(org_id=None):
+    return org_id or getattr(g, "org_id", 1) or 1
+
+
 def _round_label(round_name):
     return INTERVIEW_ROUND_LABELS.get(round_name or "", round_name or "未记录轮次")
 
@@ -115,18 +120,20 @@ def _department_label(job):
     return (job.department or "").strip() or "未记录部门"
 
 
-def _funnel(hr_id=None, days=30, job_id=None):
+def _funnel(hr_id=None, days=30, job_id=None, org_id=None):
     """
     招聘漏斗：按每个 (candidate_id, job_id) 的【当前阶段】去重计数。
     PipelineStage 是 append-only 流水表，直接 group by stage 会把同一候选人的
     历史流转重复计入多个阶段，导致漏斗虚高。这里先取每对的全量最新一行再聚合。
     days 参数保留给旧调用兼容；当前阶段分布是存量口径，不受周期筛选影响。
     """
+    org_id = _current_org_id(org_id)
     latest = _latest_stage_subquery(job_id=job_id)
 
     query = (
         db.session.query(PipelineStage.stage, func.count(PipelineStage.id))
         .join(latest, PipelineStage.id == latest.c.max_id)
+        .filter(PipelineStage.org_id == org_id)
     )
     if hr_id:
         query = (
@@ -196,6 +203,7 @@ def _manager_alerts(limit=8, stale_days=7):
         .outerjoin(owner_user, owner_user.id == Candidate.owner_hr_id)
         .outerjoin(updater_user, updater_user.id == PipelineStage.updated_by)
         .filter(~PipelineStage.stage.in_(TERMINAL_STAGES))
+        .filter(PipelineStage.org_id == g.org_id)
         .filter(PipelineStage.ts <= now - timedelta(days=stale_days))
         .order_by(PipelineStage.ts.asc())
         .limit(limit)
@@ -240,6 +248,7 @@ def _manager_alerts(limit=8, stale_days=7):
         .join(Job, Job.id == InterviewAssignment.job_id)
         .outerjoin(User, User.id == InterviewAssignment.interviewer_id)
         .filter(InterviewAssignment.scheduled_at.isnot(None))
+        .filter(InterviewAssignment.org_id == g.org_id)
         .filter(InterviewAssignment.scheduled_at <= now)
         .filter(~has_feedback)
         .order_by(InterviewAssignment.scheduled_at.asc())
@@ -269,6 +278,7 @@ def _demand_health_metrics():
     today = date.today()
     open_demands = (
         RecruitmentDemand.query
+        .filter(RecruitmentDemand.org_id == g.org_id)
         .filter(RecruitmentDemand.status.in_(OPEN_DEMAND_STATUSES))
         .all()
     )
@@ -278,9 +288,10 @@ def _demand_health_metrics():
     business_job_ids = {
         row[0]
         for row in (
-            db.session.query(PipelineStage.job_id)
-            .join(latest, PipelineStage.id == latest.c.max_id)
-            .filter(PipelineStage.stage == "business_review")
+                db.session.query(PipelineStage.job_id)
+                .join(latest, PipelineStage.id == latest.c.max_id)
+                .filter(PipelineStage.org_id == g.org_id)
+                .filter(PipelineStage.stage == "business_review")
             .distinct()
             .all()
         )
@@ -293,6 +304,7 @@ def _demand_health_metrics():
             for row in (
                 db.session.query(PipelineStage.job_id)
                 .join(latest, PipelineStage.id == latest.c.max_id)
+                .filter(PipelineStage.org_id == g.org_id)
                 .filter(PipelineStage.job_id.in_(open_job_ids))
                 .filter(~PipelineStage.stage.in_(TERMINAL_STAGES))
                 .distinct()
@@ -337,6 +349,7 @@ def _resume_consumption_metrics(days=30):
         row[0]
         for row in (
             db.session.query(Candidate.id)
+            .filter(Candidate.org_id == g.org_id)
             .filter(Candidate.created_at >= cutoff)
             .all()
         )
@@ -358,6 +371,7 @@ def _resume_consumption_metrics(days=30):
         db.session.query(func.count(func.distinct(Candidate.id)))
         .join(UploadBatch, Candidate.upload_batch_id == UploadBatch.id)
         .filter(Candidate.id.in_(candidate_ids))
+        .filter(UploadBatch.org_id == g.org_id)
         .filter(UploadBatch.target_job_id.isnot(None))
         .scalar()
         or 0
@@ -365,12 +379,14 @@ def _resume_consumption_metrics(days=30):
     matched_candidates = (
         db.session.query(func.count(func.distinct(Match.candidate_id)))
         .filter(Match.candidate_id.in_(candidate_ids))
+        .filter(Match.org_id == g.org_id)
         .scalar()
         or 0
     )
     in_pipeline = (
         db.session.query(func.count(func.distinct(PipelineStage.candidate_id)))
         .filter(PipelineStage.candidate_id.in_(candidate_ids))
+        .filter(PipelineStage.org_id == g.org_id)
         .scalar()
         or 0
     )
@@ -430,7 +446,7 @@ def _staff_performance_metrics(days=30):
     now = utc_now()
     recruiters = (
         User.query
-        .filter(User.role == "recruiter", User.is_active.is_(True))
+        .filter(User.org_id == g.org_id, User.role == "recruiter", User.is_active.is_(True))
         .order_by(User.id.asc())
         .all()
     )
@@ -441,6 +457,7 @@ def _staff_performance_metrics(days=30):
 
     candidate_rows = (
         db.session.query(Candidate.id, Candidate.owner_hr_id, Candidate.parse_status)
+        .filter(Candidate.org_id == g.org_id)
         .filter(Candidate.created_at >= cutoff)
         .filter(Candidate.owner_hr_id.in_(active_hr_ids))
         .all()
@@ -466,6 +483,7 @@ def _staff_performance_metrics(days=30):
         )
         .join(Candidate, Candidate.id == PipelineStage.candidate_id)
         .filter(Candidate.created_at >= cutoff)
+        .filter(PipelineStage.org_id == g.org_id)
         .filter(Candidate.owner_hr_id.in_(active_hr_ids))
         .all()
     )
@@ -501,6 +519,7 @@ def _staff_performance_metrics(days=30):
         )
         .join(Candidate, Candidate.id == InterviewFeedback.candidate_id)
         .filter(Candidate.created_at >= cutoff)
+        .filter(InterviewFeedback.org_id == g.org_id)
         .filter(Candidate.owner_hr_id.in_(active_hr_ids))
         .all()
     )
@@ -529,6 +548,7 @@ def _staff_performance_metrics(days=30):
                 InterviewFeedback.job_id,
                 InterviewFeedback.round,
             )
+            .filter(InterviewFeedback.org_id == g.org_id)
             .all()
         )
     }
@@ -542,6 +562,7 @@ def _staff_performance_metrics(days=30):
         )
         .join(Candidate, Candidate.id == InterviewAssignment.candidate_id)
         .filter(InterviewAssignment.scheduled_at.isnot(None))
+        .filter(InterviewAssignment.org_id == g.org_id)
         .filter(InterviewAssignment.scheduled_at <= now)
         .filter(Candidate.created_at >= cutoff)
         .filter(Candidate.owner_hr_id.in_(active_hr_ids))
@@ -622,6 +643,7 @@ def _source_quality_metrics(days=30):
     candidate_rows = (
         db.session.query(Candidate.id, Candidate.parse_status, UploadBatch.source_channel)
         .outerjoin(UploadBatch, Candidate.upload_batch_id == UploadBatch.id)
+        .filter(Candidate.org_id == g.org_id)
         .filter(Candidate.created_at >= cutoff)
         .all()
     )
@@ -643,6 +665,7 @@ def _source_quality_metrics(days=30):
         )
         .join(Candidate, Candidate.id == PipelineStage.candidate_id)
         .outerjoin(UploadBatch, Candidate.upload_batch_id == UploadBatch.id)
+        .filter(PipelineStage.org_id == g.org_id)
         .filter(Candidate.created_at >= cutoff)
         .all()
     )
@@ -676,6 +699,7 @@ def _source_quality_metrics(days=30):
         )
         .join(Candidate, Candidate.id == InterviewFeedback.candidate_id)
         .outerjoin(UploadBatch, Candidate.upload_batch_id == UploadBatch.id)
+        .filter(InterviewFeedback.org_id == g.org_id)
         .filter(Candidate.created_at >= cutoff)
         .all()
     )
@@ -889,6 +913,7 @@ def _interview_accountability_metrics(days=30):
             InterviewFeedback.round,
             InterviewFeedback.interviewer_id,
         )
+        .filter(InterviewFeedback.org_id == g.org_id)
         .all()
     )
     feedback_round_keys_all = {
@@ -901,6 +926,7 @@ def _interview_accountability_metrics(days=30):
         .join(Job, Job.id == InterviewAssignment.job_id)
         .outerjoin(User, User.id == InterviewAssignment.interviewer_id)
         .filter(InterviewAssignment.scheduled_at.isnot(None))
+        .filter(InterviewAssignment.org_id == g.org_id)
         .filter(InterviewAssignment.scheduled_at >= cutoff)
         .all()
     )
@@ -944,6 +970,7 @@ def _interview_accountability_metrics(days=30):
         db.session.query(InterviewFeedback, Job, User)
         .join(Job, Job.id == InterviewFeedback.job_id)
         .outerjoin(User, User.id == InterviewFeedback.interviewer_id)
+        .filter(InterviewFeedback.org_id == g.org_id)
         .filter(InterviewFeedback.created_at >= cutoff)
         .all()
     )
@@ -1012,20 +1039,14 @@ def _interview_accountability_metrics(days=30):
 
 def _job_bi_scope(job):
     if g.role in {"manager", "admin"}:
-        return "all"
+        return "all" if same_org(job, g.org_id) else None
     if g.role != "recruiter":
+        return None
+    if not same_org(job, g.org_id):
         return None
     if job.owner_hr_id == g.user_id:
         return "all"
-    has_owned_candidate = (
-        db.session.query(PipelineStage.id)
-        .join(Candidate, Candidate.id == PipelineStage.candidate_id)
-        .filter(PipelineStage.job_id == job.id)
-        .filter(Candidate.owner_hr_id == g.user_id)
-        .first()
-        is not None
-    )
-    return "owned_candidates" if has_owned_candidate else None
+    return "all" if can_read_job(g.user_id, g.role, job) else None
 
 
 @bp.get("/bi/overview")
@@ -1061,6 +1082,8 @@ def staff_detail(hr_id):
     days = _parse_days(default=30)
     funnel = _funnel(hr_id=hr_id, days=days)
     user = db.session.get(User, hr_id)
+    if user is None or user.org_id != g.org_id:
+        return jsonify({"error": "用户不存在"}), 404
     performance = next(
         (
             row
@@ -1086,6 +1109,8 @@ def job_funnel(job_id):
     """单岗位招聘漏斗：主管/管理员可看全部；招聘专员只看自己负责范围。"""
     from ..models import Job
     job = db.get_or_404(Job, job_id)
+    if not same_org(job, g.org_id):
+        return jsonify({"error": "岗位不存在"}), 404
     scope = _job_bi_scope(job)
     if scope is None:
         return jsonify({"error": "Forbidden"}), 403

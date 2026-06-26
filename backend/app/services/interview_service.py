@@ -65,8 +65,9 @@ class PreScreenService:
             "details": evals,
         }
 
-    def save_report(self, candidate_id: int, job_id: int, qa_pairs: list, report: dict) -> Interview:
+    def save_report(self, candidate_id: int, job_id: int, qa_pairs: list, report: dict, org_id: int = 1) -> Interview:
         iv = Interview(
+            org_id=org_id or 1,
             candidate_id=candidate_id,
             job_id=job_id,
             qa_json=[{"q": q, "a": a} for q, a in qa_pairs],

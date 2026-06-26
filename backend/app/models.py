@@ -5,17 +5,20 @@ from .time_utils import utc_now
 class User(db.Model):
     __tablename__ = "users"
     id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, default=1, nullable=False)
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
     role = db.Column(db.String(20), nullable=False, default="recruiter")  # admin/manager/recruiter/interviewer
     password_hash = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=utc_now)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
+    token_version = db.Column(db.Integer, default=0, nullable=False)
 
 
 class Candidate(db.Model):
     __tablename__ = "candidates"
     id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, default=1, nullable=False)
     owner_hr_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     upload_batch_id = db.Column(db.Integer, db.ForeignKey("upload_batches.id"))
     name_masked = db.Column(db.String(100))
@@ -24,6 +27,9 @@ class Candidate(db.Model):
     resume_json = db.Column(db.JSON, nullable=False)
     raw_file_path = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=utc_now)
+    deleted_at = db.Column(db.DateTime)
+    deleted_by = db.Column(db.Integer, db.ForeignKey("users.id"))
+    anonymized_at = db.Column(db.DateTime)
     parse_status = db.Column(db.String(20), default="ok", nullable=False)
     parse_error = db.Column(db.Text)
     tags = db.relationship("CandidateTag", backref="candidate", cascade="all,delete-orphan")
@@ -33,6 +39,7 @@ class Candidate(db.Model):
 class UploadBatch(db.Model):
     __tablename__ = "upload_batches"
     id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, default=1, nullable=False)
     owner_hr_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     source_channel = db.Column(db.String(120), default="")
     source_link = db.Column(db.Text)
@@ -45,6 +52,7 @@ class UploadBatch(db.Model):
 class CandidateTag(db.Model):
     __tablename__ = "candidate_tags"
     id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, default=1, nullable=False)
     candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False)
     tag = db.Column(db.String(100), nullable=False)
     score = db.Column(db.Integer)  # 1-5
@@ -53,6 +61,7 @@ class CandidateTag(db.Model):
 class Job(db.Model):
     __tablename__ = "jobs"
     id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, default=1, nullable=False)
     title = db.Column(db.String(200), nullable=False)
     city = db.Column(db.String(80), default="")
     department = db.Column(db.String(120), default="")
@@ -67,6 +76,7 @@ class Job(db.Model):
 class RecruitmentDemand(db.Model):
     __tablename__ = "recruitment_demands"
     id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, default=1, nullable=False)
     job_id = db.Column(db.Integer, db.ForeignKey("jobs.id"), nullable=False)
     owner_hr_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     request_no = db.Column(db.String(80), default="")
@@ -90,6 +100,7 @@ class RecruitmentDemand(db.Model):
 class TalentMap(db.Model):
     __tablename__ = "talent_maps"
     id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, default=1, nullable=False)
     name = db.Column(db.String(200), nullable=False)
     job_id = db.Column(db.Integer, db.ForeignKey("jobs.id"))
     department = db.Column(db.String(120), default="")
@@ -115,6 +126,7 @@ class TalentMap(db.Model):
 class TalentMapCompany(db.Model):
     __tablename__ = "talent_map_companies"
     id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, default=1, nullable=False)
     map_id = db.Column(db.Integer, db.ForeignKey("talent_maps.id", ondelete="CASCADE"), nullable=False)
     company_name = db.Column(db.String(200), nullable=False)
     city = db.Column(db.String(80), default="")
@@ -135,6 +147,7 @@ class TalentMapCompany(db.Model):
 class TalentMapPerson(db.Model):
     __tablename__ = "talent_map_people"
     id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, default=1, nullable=False)
     map_id = db.Column(db.Integer, db.ForeignKey("talent_maps.id", ondelete="CASCADE"), nullable=False)
     company_id = db.Column(db.Integer, db.ForeignKey("talent_map_companies.id"))
     name = db.Column(db.String(120), nullable=False)
@@ -154,6 +167,7 @@ class TalentMapPerson(db.Model):
 class Match(db.Model):
     __tablename__ = "matches"
     id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, default=1, nullable=False)
     job_id = db.Column(db.Integer, db.ForeignKey("jobs.id"))
     candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id"))
     score = db.Column(db.Float, nullable=False)
@@ -164,6 +178,7 @@ class Match(db.Model):
 class Interview(db.Model):
     __tablename__ = "interviews"
     id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, default=1, nullable=False)
     candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id"))
     job_id = db.Column(db.Integer, db.ForeignKey("jobs.id"))
     qa_json = db.Column(db.JSON)
@@ -184,6 +199,7 @@ VALID_STAGES = {
 class PipelineStage(db.Model):
     __tablename__ = "pipeline_stages"
     id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, default=1, nullable=False)
     candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id"))
     job_id = db.Column(db.Integer, db.ForeignKey("jobs.id"))
     stage = db.Column(db.String(50), nullable=False)
@@ -195,6 +211,7 @@ class PipelineStage(db.Model):
 class CandidateDisposition(db.Model):
     __tablename__ = "candidate_dispositions"
     id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, default=1, nullable=False)
     candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id"), nullable=False)
     job_id = db.Column(db.Integer, db.ForeignKey("jobs.id"), nullable=False)
     reason = db.Column(db.String(240), default="")
@@ -209,6 +226,7 @@ class CandidateDisposition(db.Model):
 class OfferRecord(db.Model):
     __tablename__ = "offer_records"
     id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, default=1, nullable=False)
     candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id"), nullable=False)
     job_id = db.Column(db.Integer, db.ForeignKey("jobs.id"), nullable=False)
     salary_range = db.Column(db.String(120), default="")
@@ -223,6 +241,7 @@ class OfferRecord(db.Model):
 class InterviewAssignment(db.Model):
     __tablename__ = "interview_assignments"
     id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, default=1, nullable=False)
     candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id"), nullable=False)
     job_id = db.Column(db.Integer, db.ForeignKey("jobs.id"), nullable=False)
     round = db.Column(db.String(30), nullable=False)
@@ -238,17 +257,27 @@ class InterviewAssignment(db.Model):
 class Event(db.Model):
     __tablename__ = "events"
     id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, default=1, nullable=False)
     actor_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    actor_role = db.Column(db.String(20))
     action = db.Column(db.String(100), nullable=False)
     entity_id = db.Column(db.Integer)
     entity_type = db.Column(db.String(50))
     payload = db.Column(db.JSON)
+    request_id = db.Column(db.String(80))
+    ip = db.Column(db.String(80))
+    user_agent = db.Column(db.Text)
+    result = db.Column(db.String(20), default="success", nullable=False)
+    failure_reason = db.Column(db.String(240))
+    source = db.Column(db.String(20), default="ui", nullable=False)
+    severity = db.Column(db.String(20), default="info", nullable=False)
     ts = db.Column(db.DateTime, default=utc_now)
 
 
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
     id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, default=1, nullable=False)
     actor_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     target_table = db.Column(db.String(50))
     target_id = db.Column(db.Integer)
@@ -259,6 +288,7 @@ class AuditLog(db.Model):
 class Notification(db.Model):
     __tablename__ = "notifications"
     id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, default=1, nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     type = db.Column(db.String(50), nullable=False)
     title = db.Column(db.String(200), nullable=False)
@@ -268,9 +298,24 @@ class Notification(db.Model):
     created_at = db.Column(db.DateTime, default=utc_now)
 
 
+class IdempotencyRecord(db.Model):
+    __tablename__ = "idempotency_records"
+    id = db.Column(db.Integer, primary_key=True)
+    scope_key = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    idempotency_key = db.Column(db.String(160), nullable=False)
+    actor_scope = db.Column(db.String(120), nullable=False)
+    method = db.Column(db.String(12), nullable=False)
+    path = db.Column(db.String(500), nullable=False)
+    body_hash = db.Column(db.String(64), nullable=False)
+    status_code = db.Column(db.Integer, nullable=False)
+    response_json = db.Column(db.JSON, nullable=False)
+    created_at = db.Column(db.DateTime, default=utc_now)
+
+
 class Conversation(db.Model):
     __tablename__ = "conversations"
     id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, default=1, nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     title = db.Column(db.String(200), default="新对话")
     created_at = db.Column(db.DateTime, default=utc_now)
@@ -286,6 +331,7 @@ class Conversation(db.Model):
 class ConversationMessage(db.Model):
     __tablename__ = "conversation_messages"
     id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, default=1, nullable=False)
     conversation_id = db.Column(
         db.Integer,
         db.ForeignKey("conversations.id", ondelete="CASCADE"),
@@ -301,6 +347,7 @@ class ConversationMessage(db.Model):
 class InterviewFeedback(db.Model):
     __tablename__ = "interview_feedback"
     id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, default=1, nullable=False)
     candidate_id = db.Column(db.Integer, db.ForeignKey("candidates.id"), nullable=False)
     job_id = db.Column(db.Integer, db.ForeignKey("jobs.id"), nullable=False)
     round = db.Column(db.String(30), nullable=False)  # interview_first/second/final

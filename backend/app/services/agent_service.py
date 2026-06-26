@@ -33,13 +33,23 @@ from .. import db  # noqa: E402
 from ..models import (  # noqa: E402
     Candidate,
     CandidateTag,
+    Event,
     Job,
     Interview,
     PipelineStage,
+    User,
 )
 from .match_service import MatchService  # noqa: E402
 from ..api.bi import _funnel, _safe_rate  # 复用 BI 漏斗逻辑（模块级函数）  # noqa: E402
-from ..api.access import can_access_candidate, visible_candidate_query  # noqa: E402
+from ..api.access import (  # noqa: E402
+    actor_org_id,
+    can_access_candidate,
+    can_manage_job,
+    can_read_job,
+    job_is_active,
+    visible_candidate_query,
+    visible_job_query,
+)
 from ..time_utils import utc_now  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -119,7 +129,9 @@ def _tool_list_jobs(limit: int = 20, **_) -> Dict[str, Any]:
         limit = int(limit) if limit else 20
     except (TypeError, ValueError):
         limit = 20
-    rows = Job.query.order_by(Job.id).limit(limit).all()
+    user_id = _.get("_user_id")
+    role = _.get("_role")
+    rows = visible_job_query(user_id, role).order_by(Job.id).limit(limit).all()
     items = [{"id": j.id, "title": j.title, "status": j.status} for j in rows]
     return {"count": len(items), "jobs": items}
 
@@ -129,6 +141,8 @@ def _tool_match_candidates_for_job(job_id: int, **_) -> Dict[str, Any]:
     job = db.session.get(Job, int(job_id))
     if not job:
         return {"error": f"岗位 {job_id} 不存在"}
+    if not can_read_job(_.get("_user_id"), _.get("_role"), job):
+        return {"error": "Forbidden"}
     # 使用纯计算模式（不写入 DB），rank_for_job(..., persist=False)
     from .match_service import MatchService as MS
     ranked = MS().rank_for_job_readonly(
@@ -141,6 +155,11 @@ def _tool_match_candidates_for_job(job_id: int, **_) -> Dict[str, Any]:
 
 def _tool_get_pipeline(job_id: int, **_) -> Dict[str, Any]:
     """某岗位招聘流程看板：按 stage 分组计数。"""
+    job = db.session.get(Job, int(job_id))
+    if not job:
+        return {"error": f"岗位 {job_id} 不存在"}
+    if not can_read_job(_.get("_user_id"), _.get("_role"), job):
+        return {"error": "Forbidden"}
     by_stage = _agent_current_stage_counts(
         job_id=job_id,
         user_id=_.get("_user_id"),
@@ -165,7 +184,7 @@ def _tool_get_bi_overview(days: int = 30, **_) -> Dict[str, Any]:
     from sqlalchemy import func
     from ..models import User, Event
 
-    funnel = _funnel(days=days)
+    funnel = _funnel(days=days, org_id=actor_org_id(_.get("_user_id")))
     cutoff = utc_now() - timedelta(days=days)
     # 专员效能（与 bi.overview() 中相同逻辑）
     staff_rows = (
@@ -200,8 +219,8 @@ def _tool_count_summary(**_) -> Dict[str, Any]:
     scoped_candidates = _scoped_candidate_query(_.get("_user_id"), _.get("_role"))
     return {
         "candidate_count": scoped_candidates.count(),
-        "job_count": Job.query.count(),
-        "interview_count": Interview.query.count(),
+        "job_count": visible_job_query(_.get("_user_id"), _.get("_role")).count(),
+        "interview_count": Interview.query.filter(Interview.org_id == actor_org_id(_.get("_user_id"))).count(),
         "stage_counts": _agent_current_stage_counts(
             user_id=_.get("_user_id"),
             role=_.get("_role"),
@@ -388,7 +407,13 @@ def _write_create_job(title: str = "", jd_text: str = "", actor_id: int = None, 
         return {"error": "缺少岗位名称或 JD 描述"}
     llm = LLMClient()
     structured = _extract_jd_structured(llm, jd_text)
-    job = Job(title=title, jd_text=jd_text, jd_structured=structured, owner_hr_id=actor_id)
+    job = Job(
+        org_id=actor_org_id(actor_id),
+        title=title,
+        jd_text=jd_text,
+        jd_structured=structured,
+        owner_hr_id=actor_id,
+    )
     db.session.add(job)
     db.session.flush()  # 先 flush 确保 job.id 可用，但不 commit
     from ..middleware.events import record_event
@@ -411,11 +436,17 @@ def _write_move_pipeline(candidate_id: int = None, job_id: int = None,
     stage = normalize_pipeline_stage(stage)
     if not db.session.get(Candidate, int(candidate_id)):
         return {"error": f"候选人 {candidate_id} 不存在"}
-    if not db.session.get(Job, int(job_id)):
+    job = db.session.get(Job, int(job_id))
+    if not job:
         return {"error": f"岗位 {job_id} 不存在"}
     if not can_access_candidate(actor_id, actor_role, int(candidate_id), int(job_id)):
         return {"error": "Forbidden"}
+    if not can_manage_job(actor_id, actor_role, job):
+        return {"error": "Forbidden"}
+    if not job_is_active(job):
+        return {"error": "岗位已关闭，请先恢复在招后再推进流程"}
     ps = PipelineStage(candidate_id=int(candidate_id), job_id=int(job_id),
+                       org_id=actor_org_id(actor_id),
                        stage=stage, updated_by=actor_id)
     db.session.add(ps)
     db.session.commit()
@@ -442,6 +473,10 @@ def _write_start_interview(candidate_id: int = None, job_id: int = None,
         return {"error": f"候选人 {candidate_id} 不存在"}
     if not can_access_candidate(actor_id, actor_role, int(candidate_id), int(job_id)):
         return {"error": "Forbidden"}
+    if not can_manage_job(actor_id, actor_role, job):
+        return {"error": "Forbidden"}
+    if not job_is_active(job):
+        return {"error": "岗位已关闭，请先恢复在招后再发起 AI 面试"}
     try:
         count = int(count) if count else 5
     except (TypeError, ValueError):
@@ -461,6 +496,10 @@ def _write_run_match(job_id: int = None, actor_id: int = None,
     job = db.session.get(Job, int(job_id))
     if not job:
         return {"error": f"岗位 {job_id} 不存在"}
+    if not can_manage_job(actor_id, actor_role, job):
+        return {"error": "Forbidden"}
+    if not job_is_active(job):
+        return {"error": "岗位已关闭，请先恢复在招后再运行匹配"}
     ranked = MatchService().rank_for_job(
         int(job_id),
         top_n=10,
@@ -485,7 +524,7 @@ _WRITE_TOOL_DEFS: List[Dict[str, Any]] = [
         "name": "move_pipeline",
         "description": "把候选人推进到指定招聘流程阶段（pending/ai_screen/interview/offer/onboarded/rejected）。",
         "params": {"candidate_id": "int，必填", "job_id": "int，必填", "stage": "str，必填，目标阶段"},
-        "rbac": ("recruiter", "manager", "admin", "interviewer"),
+        "rbac": ("recruiter", "manager", "admin"),
         "execute": _write_move_pipeline,
         "summary": lambda a: f"将候选人 #{a.get('candidate_id', '?')} 在岗位 #{a.get('job_id', '?')} 推进到「{a.get('stage', '?')}」阶段",
     },
@@ -586,21 +625,59 @@ def get_agent_architecture_dashboard() -> Dict[str, Any]:
 def execute_write_tool(name: str, args: Dict[str, Any], user_id: int, role: str) -> Dict[str, Any]:
     """在请求上下文内执行写工具（供 /api/agent/execute 调用）。做 RBAC 校验。"""
     tool = _WRITE_TOOL_MAP.get(name)
+    clean_args = dict(args or {})
     if not tool:
-        return {"ok": False, "error": f"未知写工具：{name}"}
+        result = {"ok": False, "error": f"未知写工具：{name}"}
+        _record_agent_write_event(user_id, name, clean_args, result)
+        return result
     if role not in tool["rbac"]:
-        return {"ok": False, "error": f"当前角色「{role}」无权执行此操作"}
+        result = {"ok": False, "error": f"当前角色「{role}」无权执行此操作"}
+        _record_agent_write_event(user_id, name, clean_args, result)
+        return result
     try:
-        clean_args = dict(args or {})
         clean_args["actor_id"] = user_id
         clean_args["actor_role"] = role
         result = tool["execute"](**clean_args)
         if isinstance(result, dict) and result.get("error"):
-            return {"ok": False, "error": result["error"]}
-        return {"ok": True, "result": result}
+            wrapped = {"ok": False, "error": result["error"]}
+            _record_agent_write_event(user_id, name, args or {}, wrapped)
+            return wrapped
+        wrapped = {"ok": True, "result": result}
+        _record_agent_write_event(user_id, name, args or {}, wrapped)
+        return wrapped
     except Exception as e:
         logger.exception("写工具 %s 执行失败", name)
-        return {"ok": False, "error": f"执行失败：{e}"}
+        db.session.rollback()
+        wrapped = {"ok": False, "error": f"执行失败：{e}"}
+        _record_agent_write_event(user_id, name, args or {}, wrapped)
+        return wrapped
+
+
+def _record_agent_write_event(user_id: int, tool_name: str, args: Dict[str, Any], result: Dict[str, Any]) -> None:
+    from ..middleware.events import record_event
+
+    target_ids = {
+        key: args.get(key)
+        for key in ("candidate_id", "job_id", "interview_id", "feedback_id", "user_id", "owner_id", "org_id")
+        if isinstance(args, dict) and args.get(key) is not None
+    }
+    error = result.get("error")
+    ok = bool(result.get("ok"))
+    record_event(
+        action="agent.write",
+        entity_type="agent_tool",
+        entity_id=target_ids.get("candidate_id") or target_ids.get("job_id"),
+        payload={
+            "tool": tool_name,
+            "target_ids": target_ids,
+            "ok": ok,
+            "error": str(error)[:240] if error else None,
+        },
+        result="success" if ok else "failure",
+        failure_reason=str(error)[:240] if error else None,
+        source="ai",
+        severity="info" if ok else "warning",
+    )
 
 
 # =============================================================================

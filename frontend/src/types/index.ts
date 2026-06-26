@@ -70,6 +70,7 @@ export interface ResumeUploadResponse {
   batch_id?: number;
   total: number;
   results: ResumeUploadResultItem[];
+  deduplicated?: boolean;
 }
 
 export interface CandidateTag {
@@ -276,7 +277,12 @@ export interface RecruitmentDemand {
 }
 
 export interface RecruitmentDemandInput {
-  job_id: number;
+  job_id?: number;
+  job_title?: string;
+  jd_text?: string;
+  job_city?: string;
+  job_department?: string;
+  job_code?: string;
   request_no?: string;
   requester_name?: string;
   requester_department?: string;
@@ -483,6 +489,24 @@ export interface PipelineMoveResponse {
   from: PipelineStage | null;
   candidate_id: number;
   name_masked: string;
+  deduplicated?: boolean;
+}
+
+export interface PipelineTransferRequest {
+  candidate_id: number;
+  from_job_id: number;
+  to_job_id: number;
+  reason: string;
+}
+
+export interface PipelineTransferResponse {
+  status: string;
+  candidate_id: number;
+  name_masked: string;
+  from_job_id: number;
+  to_job_id: number;
+  from_stage: PipelineStage;
+  to_stage: PipelineStage;
 }
 
 export interface CandidateDispositionInput {
@@ -770,10 +794,18 @@ export interface AuditLogItem {
   source: 'event';
   actor_id: number | null;
   actor_name: string | null;
+  actor_role: Role | null;
   action: string;
   entity_type: string | null;
   entity_id: number | null;
   payload: Record<string, unknown>;
+  request_id: string | null;
+  ip: string | null;
+  user_agent: string | null;
+  result: 'success' | 'failure' | 'denied' | string;
+  failure_reason: string | null;
+  event_source: 'ui' | 'ai' | 'security' | string;
+  severity: 'info' | 'warning' | string;
   ts: string | null;
 }
 
@@ -837,6 +869,7 @@ export interface InterviewAssignment {
   is_overdue: boolean;
   created_by_name: string | null;
   created_at: string | null;
+  deduplicated?: boolean;
 }
 
 export interface InterviewAssignmentInput {

@@ -51,3 +51,48 @@ def test_role_change_takes_effect_without_waiting_for_token_expiry(client, make_
     r = client.get("/api/admin/users", headers={"Authorization": f"Bearer {token}"})
 
     assert r.status_code == 403
+
+
+def test_change_password_revokes_existing_token(client, make_user):
+    _, token = make_user("self-reset@x.com", role="recruiter", password="oldpw123")
+
+    before = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert before.status_code == 200
+
+    changed = client.post(
+        "/api/auth/change-password",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"old_password": "oldpw123", "new_password": "newpw123"},
+    )
+    assert changed.status_code == 200
+
+    after = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert after.status_code == 401
+
+    new_login = client.post("/api/auth/login", json={
+        "email": "self-reset@x.com",
+        "password": "newpw123",
+    })
+    assert new_login.status_code == 200
+
+
+def test_token_with_invalid_version_is_rejected(client, make_user):
+    import jwt
+    from datetime import UTC, datetime, timedelta
+    from app.config import TestingConfig
+
+    user_id, _ = make_user("bad-version@x.com", role="recruiter")
+    token = jwt.encode(
+        {
+            "user_id": user_id,
+            "role": "recruiter",
+            "token_version": "bad",
+            "exp": datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=1),
+        },
+        TestingConfig.JWT_SECRET,
+        algorithm="HS256",
+    )
+
+    response = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 401

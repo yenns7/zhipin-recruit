@@ -1,4 +1,6 @@
+import hashlib
 import os, uuid, zipfile
+from datetime import timedelta
 from pathlib import Path, PurePosixPath
 from flask import current_app
 from flask import Blueprint, request, jsonify, g
@@ -9,13 +11,17 @@ from ..middleware.events import record_event
 from ..services.resume_service import ResumeBatchService
 from ..source_channels import normalize_resume_source_channel
 from .. import db
+from ..models import Candidate, Event, UploadBatch
+from ..time_utils import utc_now
+from .access import can_access_candidate, can_manage_job, job_is_active, same_org
 
 bp = Blueprint("resume", __name__)
 
-# 简历文件白名单
-RESUME_EXTS = {"pdf", "doc", "docx"}
+# 简历文件白名单。旧版 .doc 是 OLE 容器，存在宏风险，本轮只允许作为显式跳过项给出原因。
+RESUME_EXTS = {"pdf", "docx"}
+BLOCKED_RESUME_EXTS = {"doc"}
 # 上传白名单：简历文件 + zip 压缩包
-ALLOWED = RESUME_EXTS | {"zip"}
+ALLOWED = RESUME_EXTS | BLOCKED_RESUME_EXTS | {"zip"}
 RESUME_MAX_FILE_SIZE = 20 * 1024 * 1024
 FILE_SIGNATURES = {
     "pdf": (b"%PDF-",),
@@ -28,6 +34,7 @@ FILE_SIGNATURES = {
 ZIP_MAX_ENTRIES = 100              # zip 内最多处理的文件条目数
 ZIP_MAX_FILE_SIZE = 20 * 1024 * 1024     # 单个解压文件上限 20MB
 ZIP_MAX_TOTAL_SIZE = 200 * 1024 * 1024   # 解压总大小上限 200MB
+UPLOAD_DEDUP_WINDOW = timedelta(minutes=10)
 
 
 def _ext(filename):
@@ -40,7 +47,7 @@ def _allowed(filename):
 
 
 def _is_resume(filename):
-    return _ext(filename) in RESUME_EXTS
+    return _ext(filename) in RESUME_EXTS | BLOCKED_RESUME_EXTS
 
 
 def _stream_size(file_storage):
@@ -68,10 +75,76 @@ def _validate_upload_file(file_storage):
     size = _stream_size(file_storage)
     if size <= 0:
         return "文件为空"
+    if ext in BLOCKED_RESUME_EXTS:
+        return "旧版 DOC 存在宏风险，请转换为 PDF 或 DOCX 后上传"
     if ext in RESUME_EXTS and size > RESUME_MAX_FILE_SIZE:
         return f"文件大小超过上限（{RESUME_MAX_FILE_SIZE // (1024 * 1024)}MB）"
     if not _content_matches_extension(file_storage, ext):
         return "文件内容与扩展名不匹配"
+    return None
+
+
+def _file_fingerprints(files):
+    fingerprints = []
+    for file_storage in files:
+        if not file_storage.filename:
+            continue
+        stream = file_storage.stream
+        current = stream.tell()
+        digest = hashlib.sha256()
+        size = 0
+        while True:
+            chunk = stream.read(1024 * 1024)
+            if not chunk:
+                break
+            size += len(chunk)
+            digest.update(chunk)
+        stream.seek(current)
+        fingerprints.append({
+            "filename": file_storage.filename,
+            "size": size,
+            "sha256": digest.hexdigest(),
+        })
+    return sorted(fingerprints, key=lambda item: (item["filename"], item["sha256"]))
+
+
+def _upload_dedup_key(files, target_job_id):
+    source_channel = normalize_resume_source_channel(request.form.get("source_channel"))
+    source_link = (request.form.get("source_link") or "").strip()
+    referrer = (request.form.get("referrer") or "").strip()[:120]
+    note = (request.form.get("source_note") or request.form.get("note") or "").strip()
+    raw = {
+        "org_id": g.org_id,
+        "actor_id": g.user_id,
+        "target_job_id": target_job_id,
+        "source_channel": source_channel,
+        "source_link": source_link,
+        "referrer": referrer,
+        "note": note,
+        "files": _file_fingerprints(files),
+    }
+    digest = hashlib.sha256(repr(raw).encode("utf-8")).hexdigest()
+    return digest
+
+
+def _recent_completed_upload(upload_key):
+    cutoff = utc_now() - UPLOAD_DEDUP_WINDOW
+    events = (
+        Event.query
+        .filter(
+            Event.org_id == g.org_id,
+            Event.actor_id == g.user_id,
+            Event.action == "resume.upload.completed",
+            Event.ts >= cutoff,
+        )
+        .order_by(Event.id.desc())
+        .limit(20)
+        .all()
+    )
+    for event in events:
+        payload = event.payload if isinstance(event.payload, dict) else {}
+        if payload.get("upload_fingerprint") == upload_key:
+            return payload
     return None
 
 
@@ -89,6 +162,7 @@ def _add_to_target_pipeline(candidate, target_job_id):
         return False
 
     db.session.add(PipelineStage(
+        org_id=g.org_id,
         candidate_id=candidate.id,
         job_id=target_job_id,
         stage="pending",
@@ -128,7 +202,7 @@ def _related_jobs_for_candidate(candidate):
 
     return (
         db.session.query(Job)
-        .filter(Job.id.in_(job_ids), Job.status == "active")
+        .filter(Job.org_id == (candidate.org_id or 1), Job.id.in_(job_ids), Job.status == "active")
         .order_by(Job.id.asc())
         .all()
     )
@@ -162,6 +236,10 @@ def _process_resume(svc, fpath, display_name, results, upload_batch_id=None, tar
     display_name 用于结果展示（zip 内文件会带 "xxx.zip → 文件名" 前缀）。"""
     try:
         candidate = svc.parse_and_save(fpath, owner_hr_id=g.user_id, upload_batch_id=upload_batch_id)
+        candidate.org_id = g.org_id
+        from ..models import CandidateTag
+        CandidateTag.query.filter_by(candidate_id=candidate.id).update({"org_id": g.org_id})
+        db.session.commit()
         record_event("resume.uploaded", entity_id=candidate.id, entity_type="candidate")
         auto_joined = _add_to_target_pipeline(candidate, target_job_id)
         result = {"file": display_name, "status": "ok", "candidate_id": candidate.id}
@@ -176,6 +254,8 @@ def _process_resume(svc, fpath, display_name, results, upload_batch_id=None, tar
             error=e,
             upload_batch_id=upload_batch_id,
         )
+        candidate.org_id = g.org_id
+        db.session.commit()
         record_event(
             "resume.parse_failed",
             entity_id=candidate.id,
@@ -247,6 +327,13 @@ def _process_zip(svc, zip_path, zip_display_name, folder, results, upload_batch_
                 if base.startswith(".") or "__MACOSX" in name:
                     continue
                 if not _is_resume(base):
+                    continue
+                if _ext(base) in BLOCKED_RESUME_EXTS:
+                    results.append({
+                        "file": f"{zip_display_name} → {base}",
+                        "status": "skipped",
+                        "reason": "旧版 DOC 存在宏风险，请转换为 PDF 或 DOCX 后上传",
+                    })
                     continue
 
                 # 单文件大小防护
@@ -330,16 +417,28 @@ def upload():
     Path(folder).mkdir(parents=True, exist_ok=True)
 
     from ..models import UploadBatch, Job
-    from .access import can_manage_job
 
     target_job_id = request.form.get("target_job_id", type=int)
     target_job = db.session.get(Job, target_job_id) if target_job_id else None
-    if target_job_id and target_job is None:
+    if target_job_id and (target_job is None or not same_org(target_job, g.org_id)):
         return jsonify({"error": "目标岗位不存在"}), 400
     if target_job is not None and not can_manage_job(g.user_id, g.role, target_job):
         return jsonify({"error": "Forbidden"}), 403
+    if target_job is not None and not job_is_active(target_job):
+        return jsonify({"error": "岗位已关闭，请先恢复在招后再上传候选人"}), 400
+
+    upload_key = _upload_dedup_key(files, target_job_id)
+    previous_upload = _recent_completed_upload(upload_key)
+    if previous_upload is not None:
+        return jsonify({
+            "batch_id": previous_upload.get("batch_id"),
+            "total": previous_upload.get("total", 0),
+            "results": previous_upload.get("results", []),
+            "deduplicated": True,
+        }), 200
 
     batch = UploadBatch(
+        org_id=g.org_id,
         owner_hr_id=g.user_id,
         source_channel=normalize_resume_source_channel(request.form.get("source_channel")),
         source_link=(request.form.get("source_link") or "").strip(),
@@ -397,21 +496,101 @@ def upload():
             )
 
     # total 改为实际产生的简历结果条数（zip 会展开成多条）
+    record_event(
+        "resume.upload.completed",
+        entity_id=batch.id,
+        entity_type="upload_batch",
+        payload={
+            "upload_fingerprint": upload_key,
+            "batch_id": batch.id,
+            "total": len(results),
+            "results": results,
+        },
+    )
     return jsonify({"batch_id": batch.id, "total": len(results), "results": results}), 202
+
+
+@bp.post("/resume/batches/<int:batch_id>/rollback")
+@require_auth
+@require_role("recruiter", "manager", "admin")
+def rollback_upload_batch(batch_id):
+    data = request.get_json(silent=True) or {}
+    reason = str(data.get("reason") or "").strip()[:240]
+    if not reason:
+        return jsonify({"error": "撤回原因必填"}), 400
+
+    batch = db.session.get(UploadBatch, batch_id)
+    if batch is None or not same_org(batch, g.org_id):
+        return jsonify({"error": "上传批次不存在"}), 404
+    if g.role == "recruiter" and batch.owner_hr_id != g.user_id:
+        return jsonify({"error": "Forbidden"}), 403
+
+    candidates = (
+        Candidate.query
+        .filter_by(org_id=g.org_id, upload_batch_id=batch.id)
+        .filter(Candidate.deleted_at.is_(None))
+        .all()
+    )
+    removed_files = 0
+    now = utc_now()
+    for candidate in candidates:
+        raw_path = candidate.raw_file_path
+        if raw_path:
+            try:
+                path = Path(raw_path)
+                if path.is_file():
+                    path.unlink()
+                    removed_files += 1
+            except OSError:
+                pass
+
+        candidate.name_masked = "已撤回导入候选人"
+        candidate.email_masked = ""
+        candidate.phone_masked = ""
+        candidate.resume_json = {}
+        candidate.raw_file_path = None
+        candidate.parse_error = None
+        candidate.deleted_at = now
+        candidate.deleted_by = g.user_id
+        candidate.anonymized_at = now
+        for tag in candidate.tags:
+            tag.tag = "已撤回"
+            tag.score = None
+            tag.org_id = g.org_id
+
+    db.session.commit()
+    record_event(
+        "resume.upload_batch.rolled_back",
+        entity_id=batch.id,
+        entity_type="upload_batch",
+        payload={
+            "reason": reason,
+            "rolled_back_candidates": len(candidates),
+            "raw_files_removed": removed_files,
+        },
+        severity="warning",
+    )
+    return jsonify({
+        "batch_id": batch.id,
+        "rolled_back_candidates": len(candidates),
+        "raw_files_removed": removed_files,
+    })
 
 
 @bp.get("/resume/<int:candidate_id>")
 @require_auth
 def get_resume(candidate_id):
-    from ..models import Candidate
     c = db.get_or_404(Candidate, candidate_id)
-    # 专员只能看自己负责的
-    if g.role == "recruiter" and c.owner_hr_id != g.user_id:
+    if not same_org(c, g.org_id) or c.deleted_at is not None:
+        return jsonify({"error": "候选人不存在"}), 404
+    if not can_access_candidate(g.user_id, g.role, candidate_id):
         return jsonify({"error": "Forbidden"}), 403
-    if g.role == "interviewer":
-        from .access import interviewer_has_assignment
-        if not interviewer_has_assignment(g.user_id, candidate_id):
-            return jsonify({"error": "Forbidden"}), 403
+    record_event(
+        "candidate.viewed",
+        entity_id=c.id,
+        entity_type="candidate",
+        payload={"view": "resume_detail"},
+    )
     return jsonify({
         "id": c.id,
         "name_masked": c.name_masked,
@@ -433,7 +612,9 @@ def update_resume_profile(candidate_id):
     candidate = db.get_or_404(Candidate, candidate_id)
     if g.role == "interviewer":
         return jsonify({"error": "Forbidden"}), 403
-    if g.role == "recruiter" and candidate.owner_hr_id != g.user_id:
+    if not same_org(candidate, g.org_id) or candidate.deleted_at is not None:
+        return jsonify({"error": "候选人不存在"}), 404
+    if not can_access_candidate(g.user_id, g.role, candidate_id):
         return jsonify({"error": "Forbidden"}), 403
 
     data = request.get_json(silent=True) or {}
@@ -479,7 +660,9 @@ def retry_parse(candidate_id):
     candidate = db.get_or_404(Candidate, candidate_id)
     if g.role == "interviewer":
         return jsonify({"error": "Forbidden"}), 403
-    if g.role == "recruiter" and candidate.owner_hr_id != g.user_id:
+    if not same_org(candidate, g.org_id) or candidate.deleted_at is not None:
+        return jsonify({"error": "候选人不存在"}), 404
+    if not can_access_candidate(g.user_id, g.role, candidate_id):
         return jsonify({"error": "Forbidden"}), 403
     if candidate.parse_status != "failed":
         return jsonify({"error": "只有解析失败的简历才能重试"}), 400

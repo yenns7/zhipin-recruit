@@ -1,8 +1,8 @@
-// 岗位画像页 — 新建岗位 + 岗位列表。
+// 招聘岗位页 — 新建岗位 + 岗位列表。
 
 import { useState, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Briefcase, Plus, X } from 'lucide-react';
+import { Briefcase, Plus, Target, X } from 'lucide-react';
 import { api } from '../lib/api';
 import { formatDate } from '../lib/formatDate';
 import { useAsync } from '../lib/useAsync';
@@ -362,7 +362,7 @@ function CreateJobForm({ onCreated, onCancel }: CreateJobFormProps) {
           <div className="space-y-5">
             <div className="rounded-lg border border-hairline-soft bg-surface-soft px-4 py-3">
               <p className="text-xs text-muted">
-                AI 发现以下信息可能缺失或模糊，补充后岗位画像与匹配会更准确。
+                AI 发现以下信息可能缺失或模糊，补充后岗位要求与匹配会更准确。
                 可逐项填写，也可留空直接保存。
               </p>
             </div>
@@ -542,8 +542,8 @@ export function JobsPage() {
     <div className="space-y-6">
       {/* Page header */}
       <PageHeader
-        title="岗位画像"
-        description="维护在招岗位画像、运行候选人匹配，必要时再新增岗位"
+        title="招聘岗位"
+        description="管理在招岗位、运行候选人匹配，必要时再新增岗位"
         actions={
           <Button
             type="button"
@@ -806,15 +806,16 @@ export function JobsPage() {
                               <>
                                 <Link
                                   to={`/jobs/${job.id}/match`}
-                                  className="text-xs font-medium text-ink hover:text-body hover:underline"
+                                  className="inline-flex h-8 items-center gap-1.5 rounded-md bg-ink px-3 text-xs font-semibold text-canvas transition-colors hover:bg-body"
                                 >
+                                  <Target className="h-3.5 w-3.5" />
                                   匹配候选人
                                 </Link>
                                 <Link
                                   to={`/pipeline?job=${job.id}`}
                                   className="text-xs font-medium text-muted hover:text-ink hover:underline"
                                 >
-                                  查看候选人流程
+                                  查看需求流程
                                 </Link>
                                 <button
                                   onClick={() => startEditJobAttribution(job)}

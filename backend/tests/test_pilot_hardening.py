@@ -51,8 +51,50 @@ def test_prod_requires_cors_whitelist():
         _enforce_production_security(app)
 
 
+def test_prod_requires_ai_compliance_acknowledgement():
+    app = _mk(
+        JWT_SECRET="x" * 40,
+        CORS_ORIGINS=["https://x.com"],
+        AI_RECRUITMENT_COMPLIANCE_ACK=False,
+        CANDIDATE_PRIVACY_NOTICE_URL="https://x.com/privacy",
+        AI_HUMAN_REVIEW_REQUIRED=True,
+    )
+    with pytest.raises(RuntimeError, match="AI_RECRUITMENT_COMPLIANCE_ACK"):
+        _enforce_production_security(app)
+
+
+def test_prod_requires_candidate_privacy_notice_url():
+    app = _mk(
+        JWT_SECRET="x" * 40,
+        CORS_ORIGINS=["https://x.com"],
+        AI_RECRUITMENT_COMPLIANCE_ACK=True,
+        CANDIDATE_PRIVACY_NOTICE_URL="",
+        AI_HUMAN_REVIEW_REQUIRED=True,
+    )
+    with pytest.raises(RuntimeError, match="CANDIDATE_PRIVACY_NOTICE_URL"):
+        _enforce_production_security(app)
+
+
+def test_prod_requires_ai_human_review():
+    app = _mk(
+        JWT_SECRET="x" * 40,
+        CORS_ORIGINS=["https://x.com"],
+        AI_RECRUITMENT_COMPLIANCE_ACK=True,
+        CANDIDATE_PRIVACY_NOTICE_URL="https://x.com/privacy",
+        AI_HUMAN_REVIEW_REQUIRED=False,
+    )
+    with pytest.raises(RuntimeError, match="AI_HUMAN_REVIEW_REQUIRED"):
+        _enforce_production_security(app)
+
+
 def test_prod_passes_with_strong_config():
-    app = _mk(JWT_SECRET="x" * 40, CORS_ORIGINS=["https://x.com"])
+    app = _mk(
+        JWT_SECRET="x" * 40,
+        CORS_ORIGINS=["https://x.com"],
+        AI_RECRUITMENT_COMPLIANCE_ACK=True,
+        CANDIDATE_PRIVACY_NOTICE_URL="https://x.com/privacy",
+        AI_HUMAN_REVIEW_REQUIRED=True,
+    )
     _enforce_production_security(app)  # 不抛即通过
 
 

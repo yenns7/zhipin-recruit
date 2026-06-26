@@ -50,6 +50,8 @@ import type {
   PipelineCounts,
   PipelineMoveRequest,
   PipelineMoveResponse,
+  PipelineTransferRequest,
+  PipelineTransferResponse,
   RegisterRequest,
   RegisterResponse,
   RecruitmentDemand,
@@ -167,6 +169,38 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   return data as T;
 }
 
+async function requestBlob(path: string, opts: RequestOptions = {}): Promise<Blob> {
+  const { method = 'GET' } = opts;
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { method, headers });
+  } catch (err) {
+    throw new ApiError(0, `Network error: ${(err as Error).message}`);
+  }
+
+  if (!res.ok) {
+    const text = await res.text();
+    let message = `Request failed with status ${res.status}`;
+    if (text) {
+      try {
+        const data = JSON.parse(text) as Record<string, unknown>;
+        message = String(data.error || data.message || message);
+      } catch {
+        message = text;
+      }
+    }
+    throw new ApiError(res.status, message);
+  }
+
+  return res.blob();
+}
+
 export const api = {
   // ---- Auth ----
   register(payload: RegisterRequest): Promise<RegisterResponse> {
@@ -200,6 +234,9 @@ export const api = {
   },
   getCandidate(candidateId: number): Promise<CandidateDetail> {
     return request(`/resume/${candidateId}`);
+  },
+  exportCandidate(candidateId: number): Promise<Blob> {
+    return requestBlob(`/candidates/${candidateId}/export`);
   },
   retryCandidateParse(candidateId: number): Promise<RetryParseResponse> {
     return request(`/resume/${candidateId}/retry-parse`, { method: 'POST' });
@@ -387,6 +424,9 @@ export const api = {
   // ---- Pipeline ----
   movePipeline(payload: PipelineMoveRequest): Promise<PipelineMoveResponse> {
     return request('/pipeline/move', { method: 'POST', body: payload });
+  },
+  transferPipeline(payload: PipelineTransferRequest): Promise<PipelineTransferResponse> {
+    return request('/pipeline/transfer', { method: 'POST', body: payload });
   },
   getPipeline(jobId: number): Promise<PipelineCounts> {
     return request(`/pipeline/${jobId}`);

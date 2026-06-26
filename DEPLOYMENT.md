@@ -47,9 +47,9 @@
 
 | 角色 | 权限范围 |
 |------|---------|
-| admin | 全量管理 + BI 看板 |
-| manager | BI 看板 + 团队漏斗 |
-| recruiter | 候选人 + 岗位 + 匹配 + AI 面试 + 自己负责范围内 BI；协作岗位只看自己负责候选人的漏斗 |
+| admin | 当前组织内账号、候选人、岗位、流程、BI、审计和 AI 边界管理 |
+| manager | 当前组织内团队 BI、岗位/候选人/流程管理 |
+| recruiter | 当前组织内自己负责的候选人、岗位、匹配、AI 面试和个人数据；不能查看或操作别人负责的岗位 |
 | interviewer | 分配给自己的候选人查看 + 面试反馈 |
 
 ---
@@ -189,7 +189,7 @@ OPENAI_API_KEY=sk-your-openai-key
 
 | 功能 | 离线可用 |
 |------|---------|
-| 简历 AI 解析 (PDF/Word) | ❌ 需要 LLM |
+| 简历 AI 解析 (PDF/DOCX) | ❌ 需要 LLM |
 | JD 结构化 + 澄清追问 | ❌ 需要 LLM |
 | AI 面试题生成 + 评估 | ❌ 需要 LLM |
 | LangGraph AI 助手对话 | ❌ 需要 LLM |
@@ -207,13 +207,20 @@ cd frontend
 npm run build    # 生成 frontend/dist/
 ```
 
-2. 修改 `.env`：
+2. 修改 `.env`。可以从轻量试点模板开始：
+```bash
+cp backend/lightweight-pilot.env.example backend/.env
+```
+然后把 `change-me`、域名、数据库地址、LLM Key 和备份目录替换成真实值：
 ```env
 FLASK_DEBUG=false
 JWT_SECRET=your-strong-random-secret-here
 JWT_EXPIRY_HOURS=8
 DATABASE_URL=postgresql://user:pass@host:5432/zhipin
 CORS_ORIGINS=https://zhipin.内网域名
+AI_RECRUITMENT_COMPLIANCE_ACK=true
+CANDIDATE_PRIVACY_NOTICE_URL=https://zhipin.内网域名/privacy
+AI_HUMAN_REVIEW_REQUIRED=true
 SECURITY_HEADERS_ENABLED=true
 RATE_LIMIT_ENABLED=true
 RATE_LIMIT_LOGIN=10
@@ -238,6 +245,54 @@ python run.py
 ```
 
 访问 `http://your-server:5000` 即为完整系统。
+
+### 轻量试点后台兜底
+
+轻量试点不增加导出审批、水印或邀请制，HR 正常上传、推进、安排面试和导出。后台做低打扰保护：
+
+- 重复上传同一批简历会复用第一次结果，不再重复创建候选人。
+- 重复推进同一候选人到同一阶段、重复安排同一面试、重复提交同一轮反馈，会返回已有记录。
+- 普通 JSON/表单写接口支持 `Idempotency-Key`：同一用户、同一路径、同一请求体和同一个 key 的重试会返回第一次结果；同 key 不同请求体返回 409。
+- 同一面试官同一时间不能被安排两场不同面试；完全相同的重复安排仍返回已有记录。
+- 上传只支持 PDF、DOCX 和 ZIP；旧版 `.doc` 因宏风险会被跳过，需转换后再上传。
+- 误导入可按上传批次撤回：候选人会软删除、匿名化并删除原文件，保留审计事件。
+- 候选人导出继续开放，但同一账号 10 分钟内第 6 次起会在审计日志标为 `warning`，管理员页标红。
+- AI 写操作继续可用，仍写入 `agent.write` 审计；试点说明中应写清 AI 只做辅助，最终决定由人确认。
+- 管理员重置密码、用户自己修改密码后，旧登录 token 会立刻失效。
+
+### 备份与恢复演练
+
+上线前至少演练一次“能备份，也能恢复到临时库”。轻量试点不做复杂恢复后台，但必须留出可执行命令。
+
+备份：
+
+```bash
+cd backend
+python scripts/backup_pilot_data.py --dry-run
+python scripts/backup_pilot_data.py
+```
+
+恢复演练建议恢复到临时库或临时上传目录，不直接覆盖生产环境。脚本支持 PostgreSQL `pg_restore` 与 SQLite 文件恢复，并会校验 `uploads.tar.gz` 路径穿越：
+
+```bash
+cd backend
+createdb zhipin_restore_check
+
+DATABASE_URL=postgresql://user:pass@host:5432/zhipin_restore_check \
+UPLOAD_FOLDER=/tmp/zhipin-upload-restore-check \
+python scripts/restore_pilot_data.py --backup-path /var/backups/zhipin/<backup-dir> --dry-run
+
+DATABASE_URL=postgresql://user:pass@host:5432/zhipin_restore_check \
+UPLOAD_FOLDER=/tmp/zhipin-upload-restore-check \
+python scripts/restore_pilot_data.py --backup-path /var/backups/zhipin/<backup-dir> --confirm
+```
+
+验收：临时库能查到用户、候选人、岗位和审计事件；临时 `UPLOAD_FOLDER` 里能看到原简历文件。确认无误后删除临时库和临时目录：
+
+```bash
+dropdb zhipin_restore_check
+rm -rf /tmp/zhipin-upload-restore-check
+```
 
 ### 方案 B：gunicorn（多 worker，Linux 生产）
 
@@ -315,7 +370,9 @@ https://ward-mounted-concerning-fans.trycloudflare.com
 | 招聘专员 | hr03@mvp.local | 候选人 / 岗位 / 管道 / 个人数据 |
 | 面试官 | interviewer01@mvp.local | 面试任务 / 候选人查看 |
 
-MVP 试用阶段建议一人一个账号。系统会按用户 ID 记录候选人负责人、流程推进人和面试反馈人；BI 主绩效按候选人负责人归属，流程推进人用于操作留痕和后续动作审计，多人共用账号会导致贡献归属不清。
+MVP 试用阶段建议一人一个账号。系统会按用户 ID 记录候选人负责人、流程推进人和面试反馈人；BI 主绩效按候选人负责人归属，流程推进人用于操作留痕和后续动作审计，多人共用账号会导致贡献归属不清。试点审计日志还会记录候选人详情查看、候选人 CSV 导出、越权 403 和 AI 写操作，并附带 request_id、角色、IP、来源、结果和失败原因；同一账号短时间高频导出候选人会在管理员审计页标红。
+
+生产多组织隔离依赖 `org_id`：部署初始化时必须为每个组织创建独立管理员，并确认历史用户、岗位、候选人、流程、面试、BI 和 AI 对话均归入正确组织。当前一期没有前端组织管理页面，跨组织开通和迁移由部署脚本或数据库初始化处理。
 
 ---
 
@@ -325,13 +382,13 @@ MVP 试用阶段建议一人一个账号。系统会按用户 ID 记录候选人
 |------|------|------|
 | 工作台 | `/` | 角色化欢迎页 + KPI 看板 + 快速入口 |
 | AI 助手 | `/agent` | LangGraph ReAct 智能体，自然语言查询系统数据 |
-| 候选人 | `/candidates` | 简历库 + 技能标签 + 档案详情 |
-| 简历上传 | `/upload` | 拖拽上传 PDF/Word，AI 自动解析技能标签 |
+| 候选人 | `/candidates` | 简历库 + 技能标签 + 档案详情 + 受控 CSV 导出 |
+| 简历上传 | `/upload` | 拖拽上传 PDF/DOCX/ZIP，AI 自动解析技能标签；旧版 DOC 跳过 |
 | 岗位管理 | `/jobs` | 创建岗位，AI 追问补全 JD，智能解析技能要求 |
 | 候选人匹配 | `/jobs/:id/match` | 按岗位 AI 匹配并排名候选人 |
 | 候选人管道 | `/pipeline` | 阶段管理（待筛选→AI初筛→业务待反馈→面试中→Offer→已入职/淘汰），支持误推进后的“修正阶段”并保留历史流水 |
 | AI 面试 | `/interviews` | 生成定制题目，录入作答，AI 评估报告 |
-| 数据看板 | `/bi` | 团队当前阶段分布 + 专员效能 + 渠道质量 + 数据质量提醒（经理/管理员）+ 责任口径解释；当前流程人数不含已入职/已淘汰，招聘专员仅自己负责范围，面试官不开放 BI |
+| 数据看板 | `/bi` | 团队当前阶段分布 + 专员效能 + 渠道质量 + 数据质量提醒（经理/管理员）+ 责任口径解释；当前流程人数不含已入职/已淘汰，招聘专员不能查看别人岗位 BI，面试官不开放 BI |
 
 ---
 

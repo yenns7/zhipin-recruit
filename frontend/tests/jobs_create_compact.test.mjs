@@ -24,8 +24,14 @@ assert.match(
 
 assert.match(
   source,
+  /title="招聘岗位"/,
+  'JobsPage should be presented as the recruiting jobs page inside recruitment management',
+);
+
+assert.doesNotMatch(
+  source,
   /title="岗位画像"/,
-  'JobsPage should be presented as the job portrait page inside recruitment management',
+  'JobsPage should not use the internal job-portrait wording as the page title',
 );
 
 assert.match(

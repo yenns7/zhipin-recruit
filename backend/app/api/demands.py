@@ -7,7 +7,8 @@ from .. import db
 from ..middleware.auth import require_auth, require_role
 from ..middleware.events import record_event
 from ..models import Job, PipelineStage, RecruitmentDemand
-from .access import can_manage_job
+from .access import can_manage_job, job_is_active, same_org
+from .jobs import _extract_jd_structured
 from .pipeline import _latest_stage_subquery
 
 bp = Blueprint("demands", __name__)
@@ -58,6 +59,8 @@ def _clean_headcount(value):
 
 
 def _can_manage_demand(demand):
+    if not same_org(demand, g.org_id):
+        return False
     if g.role in ("manager", "admin"):
         return True
     if demand.owner_hr_id == g.user_id:
@@ -66,7 +69,7 @@ def _can_manage_demand(demand):
 
 
 def _demand_query_for_current_user():
-    query = RecruitmentDemand.query.join(Job)
+    query = RecruitmentDemand.query.filter(RecruitmentDemand.org_id == g.org_id).join(Job)
     if g.role == "recruiter":
         query = query.filter(
             db.or_(
@@ -81,6 +84,7 @@ def _demand_query_for_current_user():
 def _distinct_stage_count(job_id, stages):
     return (
         db.session.query(func.count(func.distinct(PipelineStage.candidate_id)))
+        .filter(PipelineStage.org_id == g.org_id)
         .filter(PipelineStage.job_id == job_id)
         .filter(PipelineStage.stage.in_(stages))
         .scalar()
@@ -91,6 +95,7 @@ def _distinct_stage_count(job_id, stages):
 def _demand_metrics(job_id):
     recommended_count = (
         db.session.query(func.count(func.distinct(PipelineStage.candidate_id)))
+        .filter(PipelineStage.org_id == g.org_id)
         .filter(PipelineStage.job_id == job_id)
         .scalar()
         or 0
@@ -195,6 +200,31 @@ def _apply_demand_fields(demand, data):
         demand.note = _clean(data.get("note"), 2000)
 
 
+def _create_job_profile_from_demand(data):
+    title = _clean(data.get("job_title") or data.get("title"), 200)
+    jd_text = str(data.get("jd_text") or data.get("job_description") or "").strip()
+    if not title or not jd_text:
+        return None, jsonify({"error": "job_title and jd_text required when job_id is omitted"}), 400
+
+    job = Job(
+        org_id=g.org_id,
+        title=title,
+        city=_clean(data.get("job_city") or data.get("city"), 80),
+        department=_clean(
+            data.get("job_department") or data.get("department") or data.get("requester_department"),
+            120,
+        ),
+        job_code=_clean(data.get("job_code") or data.get("request_no"), 80),
+        jd_text=jd_text,
+        jd_structured=_extract_jd_structured(None, jd_text),
+        owner_hr_id=g.user_id,
+        status="active",
+    )
+    db.session.add(job)
+    db.session.flush()
+    return job, None, None
+
+
 @bp.get("/demands")
 @require_auth
 @require_role("recruiter", "manager", "admin")
@@ -213,15 +243,25 @@ def list_demands():
 def create_demand():
     data = request.get_json() or {}
     job_id = data.get("job_id")
-    if not job_id:
-        return jsonify({"error": "job_id required"}), 400
-    job = db.session.get(Job, job_id)
-    if job is None:
-        return jsonify({"error": "岗位不存在"}), 404
-    if not can_manage_job(g.user_id, g.role, job):
-        return jsonify({"error": "Forbidden"}), 403
+    created_job_profile = False
+    if job_id:
+        job = db.session.get(Job, job_id)
+        if job is None:
+            return jsonify({"error": "岗位不存在"}), 404
+        if not same_org(job, g.org_id):
+            return jsonify({"error": "岗位不存在"}), 404
+        if not can_manage_job(g.user_id, g.role, job):
+            return jsonify({"error": "Forbidden"}), 403
+        if not job_is_active(job):
+            return jsonify({"error": "岗位已关闭，请先恢复在招后再创建需求"}), 400
+    else:
+        job, error_response, status_code = _create_job_profile_from_demand(data)
+        if error_response is not None:
+            return error_response, status_code
+        created_job_profile = True
 
     demand = RecruitmentDemand(
+        org_id=g.org_id,
         job_id=job.id,
         owner_hr_id=g.user_id,
         priority=_clean_priority(data.get("priority")),
@@ -231,6 +271,8 @@ def create_demand():
     _apply_demand_fields(demand, data)
     db.session.add(demand)
     db.session.commit()
+    if created_job_profile:
+        record_event("job.created", entity_id=job.id, entity_type="job", payload={"source": "demand"})
     record_event("demand.created", entity_id=demand.id, entity_type="demand", payload={"job_id": job.id})
     return jsonify(_demand_payload(demand)), 201
 
@@ -240,6 +282,8 @@ def create_demand():
 @require_role("recruiter", "manager", "admin")
 def get_demand(demand_id):
     demand = db.get_or_404(RecruitmentDemand, demand_id)
+    if not same_org(demand, g.org_id):
+        return jsonify({"error": "需求不存在"}), 404
     if not _can_manage_demand(demand):
         return jsonify({"error": "Forbidden"}), 403
     return jsonify(_demand_payload(demand))
@@ -250,6 +294,8 @@ def get_demand(demand_id):
 @require_role("recruiter", "manager", "admin")
 def update_demand(demand_id):
     demand = db.get_or_404(RecruitmentDemand, demand_id)
+    if not same_org(demand, g.org_id):
+        return jsonify({"error": "需求不存在"}), 404
     if not _can_manage_demand(demand):
         return jsonify({"error": "无权编辑该需求"}), 403
     _apply_demand_fields(demand, request.get_json() or {})
@@ -263,6 +309,8 @@ def update_demand(demand_id):
 @require_role("recruiter", "manager", "admin")
 def close_demand(demand_id):
     demand = db.get_or_404(RecruitmentDemand, demand_id)
+    if not same_org(demand, g.org_id):
+        return jsonify({"error": "需求不存在"}), 404
     if not _can_manage_demand(demand):
         return jsonify({"error": "无权关闭该需求"}), 403
     data = request.get_json() or {}
@@ -283,6 +331,8 @@ def close_demand(demand_id):
 @require_role("recruiter", "manager", "admin")
 def restore_demand(demand_id):
     demand = db.get_or_404(RecruitmentDemand, demand_id)
+    if not same_org(demand, g.org_id):
+        return jsonify({"error": "需求不存在"}), 404
     if not _can_manage_demand(demand):
         return jsonify({"error": "无权恢复该需求"}), 403
     data = request.get_json() or {}
@@ -306,6 +356,8 @@ def restore_demand(demand_id):
 @require_role("recruiter", "manager", "admin")
 def downgrade_demand(demand_id):
     demand = db.get_or_404(RecruitmentDemand, demand_id)
+    if not same_org(demand, g.org_id):
+        return jsonify({"error": "需求不存在"}), 404
     if not _can_manage_demand(demand):
         return jsonify({"error": "无权降级该需求"}), 403
     data = request.get_json() or {}

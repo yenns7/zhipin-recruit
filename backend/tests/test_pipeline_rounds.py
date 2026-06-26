@@ -43,3 +43,46 @@ def test_invalid_stage_rejected(client, make_user, app):
     r = client.post("/api/pipeline/move", headers=_auth(token),
                     json={"candidate_id": cid, "job_id": jid, "stage": "screened"})
     assert r.status_code == 400
+
+
+def test_transfer_candidate_to_another_demand_keeps_history(client, make_user, app):
+    hr_id, token = make_user("hr-transfer@x.com", role="recruiter")
+    with app.app_context():
+        from app import db
+        from app.models import Candidate, Job, PipelineStage
+
+        source = Job(title="销售经理", jd_text="负责华东销售", owner_hr_id=hr_id)
+        target = Job(title="渠道经理", jd_text="负责渠道拓展", owner_hr_id=hr_id)
+        candidate = Candidate(name_masked="候选人转需", resume_json={}, owner_hr_id=hr_id)
+        db.session.add_all([source, target, candidate])
+        db.session.flush()
+        db.session.add(PipelineStage(
+            candidate_id=candidate.id,
+            job_id=source.id,
+            stage="business_review",
+            updated_by=hr_id,
+            note="业务初筛",
+        ))
+        db.session.commit()
+        source_id = source.id
+        target_id = target.id
+        candidate_id = candidate.id
+
+    r = client.post("/api/pipeline/transfer", headers=_auth(token), json={
+        "candidate_id": candidate_id,
+        "from_job_id": source_id,
+        "to_job_id": target_id,
+        "reason": "更适合渠道岗位",
+    })
+
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body["from_stage"] == "business_review"
+    assert body["to_stage"] == "pending"
+
+    source_board = client.get(f"/api/pipeline/{source_id}/board", headers=_auth(token)).get_json()
+    target_board = client.get(f"/api/pipeline/{target_id}/board", headers=_auth(token)).get_json()
+    assert source_board["candidates"][0]["stage"] == "rejected"
+    assert "转入其他招聘需求" in source_board["candidates"][0]["note"]
+    assert target_board["candidates"][0]["stage"] == "pending"
+    assert "更适合渠道岗位" in target_board["candidates"][0]["note"]

@@ -6,7 +6,7 @@ from .. import db
 from ..middleware.auth import require_auth, require_role
 from ..middleware.events import record_event
 from ..models import Job, TalentMap, TalentMapCompany, TalentMapPerson
-from .access import can_manage_job
+from .access import can_manage_job, same_org
 
 bp = Blueprint("talent_maps", __name__)
 
@@ -35,13 +35,15 @@ def _clean_tags(value):
 
 
 def _can_manage_map(talent_map):
+    if not same_org(talent_map, g.org_id):
+        return False
     if g.role in ("manager", "admin"):
         return True
     return talent_map.owner_hr_id == g.user_id
 
 
 def _map_query_for_current_user():
-    query = TalentMap.query
+    query = TalentMap.query.filter(TalentMap.org_id == g.org_id)
     if g.role == "recruiter":
         query = query.filter(TalentMap.owner_hr_id == g.user_id)
     return query
@@ -129,7 +131,7 @@ def _apply_map_fields(talent_map, data):
             talent_map.job_id = None
         else:
             job = db.session.get(Job, job_id)
-            if job is None:
+            if job is None or not same_org(job, g.org_id):
                 return "岗位不存在"
             if not can_manage_job(g.user_id, g.role, job):
                 return "无权关联该岗位"
@@ -158,7 +160,11 @@ def _apply_person_fields(person, data):
         if company_id in ("", None):
             person.company_id = None
         else:
-            company = TalentMapCompany.query.filter_by(id=company_id, map_id=person.map_id).first()
+            company = TalentMapCompany.query.filter_by(
+                id=company_id,
+                map_id=person.map_id,
+                org_id=g.org_id,
+            ).first()
             if company is None:
                 return "目标公司不存在"
             person.company_id = company.id
@@ -186,7 +192,7 @@ def _apply_person_fields(person, data):
 
 
 def _filtered_people_query(talent_map):
-    query = TalentMapPerson.query.filter_by(map_id=talent_map.id).outerjoin(TalentMapCompany)
+    query = TalentMapPerson.query.filter_by(map_id=talent_map.id, org_id=g.org_id).outerjoin(TalentMapCompany)
     company = _clean(request.args.get("company"), 200)
     city = _clean(request.args.get("city"), 80)
     status = _clean(request.args.get("status"), 80)
@@ -224,7 +230,7 @@ def create_talent_map():
     name = _clean(data.get("name"), 200)
     if not name:
         return jsonify({"error": "name required"}), 400
-    talent_map = TalentMap(name=name, owner_hr_id=g.user_id, board_json={})
+    talent_map = TalentMap(org_id=g.org_id, name=name, owner_hr_id=g.user_id, board_json={})
     error = _apply_map_fields(talent_map, data)
     if error:
         return jsonify({"error": error}), 403 if "无权" in error else 404
@@ -239,6 +245,8 @@ def create_talent_map():
 @require_role("recruiter", "manager", "admin")
 def get_talent_map(map_id):
     talent_map = db.get_or_404(TalentMap, map_id)
+    if not same_org(talent_map, g.org_id):
+        return jsonify({"error": "人才地图不存在"}), 404
     if not _can_manage_map(talent_map):
         return jsonify({"error": "Forbidden"}), 403
     people = _filtered_people_query(talent_map).all()
@@ -250,6 +258,8 @@ def get_talent_map(map_id):
 @require_role("recruiter", "manager", "admin")
 def update_talent_map(map_id):
     talent_map = db.get_or_404(TalentMap, map_id)
+    if not same_org(talent_map, g.org_id):
+        return jsonify({"error": "人才地图不存在"}), 404
     if not _can_manage_map(talent_map):
         return jsonify({"error": "Forbidden"}), 403
     error = _apply_map_fields(talent_map, request.get_json() or {})
@@ -265,13 +275,15 @@ def update_talent_map(map_id):
 @require_role("recruiter", "manager", "admin")
 def create_talent_map_company(map_id):
     talent_map = db.get_or_404(TalentMap, map_id)
+    if not same_org(talent_map, g.org_id):
+        return jsonify({"error": "人才地图不存在"}), 404
     if not _can_manage_map(talent_map):
         return jsonify({"error": "Forbidden"}), 403
     data = request.get_json() or {}
     company_name = _clean(data.get("company_name"), 200)
     if not company_name:
         return jsonify({"error": "company_name required"}), 400
-    company = TalentMapCompany(map_id=talent_map.id, company_name=company_name)
+    company = TalentMapCompany(org_id=g.org_id, map_id=talent_map.id, company_name=company_name)
     _apply_company_fields(company, data)
     db.session.add(company)
     db.session.commit()
@@ -284,6 +296,8 @@ def create_talent_map_company(map_id):
 @require_role("recruiter", "manager", "admin")
 def update_talent_map_company(company_id):
     company = db.get_or_404(TalentMapCompany, company_id)
+    if not same_org(company, g.org_id):
+        return jsonify({"error": "目标公司不存在"}), 404
     if not _can_manage_map(company.talent_map):
         return jsonify({"error": "Forbidden"}), 403
     _apply_company_fields(company, request.get_json() or {})
@@ -297,13 +311,15 @@ def update_talent_map_company(company_id):
 @require_role("recruiter", "manager", "admin")
 def create_talent_map_person(map_id):
     talent_map = db.get_or_404(TalentMap, map_id)
+    if not same_org(talent_map, g.org_id):
+        return jsonify({"error": "人才地图不存在"}), 404
     if not _can_manage_map(talent_map):
         return jsonify({"error": "Forbidden"}), 403
     data = request.get_json() or {}
     name = _clean(data.get("name"), 120)
     if not name:
         return jsonify({"error": "name required"}), 400
-    person = TalentMapPerson(map_id=talent_map.id, name=name, tags=[])
+    person = TalentMapPerson(org_id=g.org_id, map_id=talent_map.id, name=name, tags=[])
     error = _apply_person_fields(person, data)
     if error:
         return jsonify({"error": error}), 404
@@ -318,6 +334,8 @@ def create_talent_map_person(map_id):
 @require_role("recruiter", "manager", "admin")
 def update_talent_map_person(person_id):
     person = db.get_or_404(TalentMapPerson, person_id)
+    if not same_org(person, g.org_id):
+        return jsonify({"error": "目标人才不存在"}), 404
     if not _can_manage_map(person.talent_map):
         return jsonify({"error": "Forbidden"}), 403
     error = _apply_person_fields(person, request.get_json() or {})
