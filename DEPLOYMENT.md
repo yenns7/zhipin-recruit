@@ -154,6 +154,15 @@ python seed_dev.py
 
 **无需 LLM API Key**，所有 AI 生成字段已预填。
 
+### 数据库迁移（AI 助手高可用增强）
+
+应用启动时 `create_app()` 会自动 `db.create_all()` 建新表，并对已存在的旧表幂等补列（`_ensure_conversation_columns` 等）。新增内容：
+
+- 新表 `agent_call_logs`：AI 调用日志，记录每次对话/写操作的输入输出/工具链/模型/token/耗时/状态。新库由 `create_all` 自动建。
+- `conversations` 表新增列 `archived`（软删标记）、`title_source`（标题来源）。旧库启动时自动 ALTER 补列（幂等，列已存在则跳过）；也可手动跑 `python migrate_stages.py`。
+
+无需额外迁移步骤，重启后端即可生效。
+
 正式试点前不要把演示数据带到真实环境。清理时先预览：
 
 ```bash
