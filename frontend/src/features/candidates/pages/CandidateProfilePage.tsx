@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { AlertTriangle, Download, Edit3, Plus, RefreshCw, Save, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Edit3, Plus, RefreshCw, Save, Trash2, X } from 'lucide-react';
 import {
   Radar,
   RadarChart,
@@ -993,7 +993,6 @@ export function CandidateProfilePage() {
   const [retryingParse, setRetryingParse] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
-  const [exportingCandidate, setExportingCandidate] = useState(false);
   const [profileDraft, setProfileDraft] = useState<ProfileDraft | null>(null);
 
   // useAsync 无条件调用，fetch 函数在 id 无效时短路，不发送请求
@@ -1055,26 +1054,6 @@ export function CandidateProfilePage() {
       toast.error(err instanceof Error ? err.message : '保存候选人档案失败');
     } finally {
       setSavingProfile(false);
-    }
-  };
-
-  const handleExportCandidate = async () => {
-    setExportingCandidate(true);
-    try {
-      const blob = await api.exportCandidate(candidateId);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `candidate-${candidateId}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-      toast.success('简历已导出');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : '导出简历失败');
-    } finally {
-      setExportingCandidate(false);
     }
   };
 
@@ -1151,23 +1130,9 @@ export function CandidateProfilePage() {
             录入时间：{formatDate(created_at)}
           </p>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {hasTags && (
-            <Badge tone="neutral">核心 {coreTags.length} / 共 {tags.length} 个技能</Badge>
-          )}
-          {canEditProfile && (
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              loading={exportingCandidate}
-              onClick={handleExportCandidate}
-            >
-              <Download className="h-4 w-4" aria-hidden="true" />
-              导出简历
-            </Button>
-          )}
-        </div>
+        {hasTags && (
+          <Badge tone="neutral">核心 {coreTags.length} / 共 {tags.length} 个技能</Badge>
+        )}
       </div>
 
 	      <Reveal as="div" className="grid grid-cols-1 gap-6 lg:grid-cols-3" stagger={0.1} y={20}>

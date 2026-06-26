@@ -41,10 +41,10 @@ assert.match(
 );
 assert.match(candidatesPage, /解析状态/, 'Candidate page should offer a parse status filter');
 assert.match(candidatesPage, /来源渠道/, 'Candidate page should offer a source channel filter');
-assert.match(candidatesPage, /入需求流程状态/, 'Candidate page should offer a clear assignment status filter');
+assert.match(candidatesPage, /入流程状态/, 'Candidate page should offer a clear assignment status filter');
 assert.match(candidatesPage, /全部状态/, 'Assignment status filter should use status wording instead of resume wording');
-assert.match(candidatesPage, /未进入需求流程/, 'Assignment status filter should use concise status options');
-assert.match(candidatesPage, /已进入需求流程/, 'Assignment status filter should use concise status options');
+assert.match(candidatesPage, /未进入流程/, 'Assignment status filter should use concise status options');
+assert.match(candidatesPage, /已进入流程/, 'Assignment status filter should use concise status options');
 assert.doesNotMatch(candidatesPage, /label="岗位流程"/, 'Candidate page should avoid ambiguous job-process filter wording');
 assert.doesNotMatch(candidatesPage, /<option value="all">全部简历<\/option>/, 'Assignment status filter should not sound like the whole library filter');
 assert.match(
@@ -54,4 +54,4 @@ assert.match(
 );
 assert.match(candidatesPage, /listJobs/, 'Candidate page should load active jobs for downstream assignment');
 assert.match(candidatesPage, /batchAddToPipeline/, 'Candidate page should add selected resumes to a job safely');
-assert.match(candidatesPage, /加入该需求流程/, 'Candidate page should expose the action to add library resumes to a demand');
+assert.match(candidatesPage, /加入岗位/, 'Candidate page should expose the action to add library resumes to a job');

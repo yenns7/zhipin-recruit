@@ -45,16 +45,6 @@ assert.match(
   /to="\/interviews\?focus=pending"[\s\S]*label="待补反馈"/,
   'Recruiter dashboard should keep pending feedback as a concrete todo deep link',
 );
-assert.match(
-  dashboardPage,
-  /kpiLinksByRole/,
-  'Dashboard KPI totals should be configured as click-through entry points',
-);
-assert.match(
-  dashboardPage,
-  /interview:\s*'\/pipeline\?stage=interview'/,
-  'Dashboard interview KPI should deep-link to the filtered pipeline',
-);
 
 assert.match(
   pipelinePage,

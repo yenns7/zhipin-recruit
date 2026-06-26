@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>采集 BOSS Cookie</title>
+  <style>
+    :root { color-scheme: light; }
+    body {
+      width: 340px;
+      margin: 0;
+      font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 13px;
+      color: #1f2937;
+      background: #fff;
+    }
+    .wrap { padding: 16px; }
+    h1 { font-size: 15px; margin: 0 0 4px; }
+    p.sub { margin: 0 0 12px; color: #6b7280; font-size: 12px; line-height: 1.5; }
+    button {
+      width: 100%;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      background: #10b981;
+      color: #fff;
+      transition: background .15s;
+    }
+    button:hover { background: #059669; }
+    button:disabled { background: #9ca3af; cursor: not-allowed; }
+    .status {
+      margin-top: 12px;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      line-height: 1.5;
+      display: none;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .status.ok { display: block; background: #ecfdf5; color: #065f46; }
+    .status.warn { display: block; background: #fffbeb; color: #92400e; }
+    .status.err { display: block; background: #fef2f2; color: #991b1b; }
+    ol { margin: 12px 0 0; padding-left: 18px; color: #6b7280; font-size: 12px; line-height: 1.6; }
+    code { background: #f3f4f6; padding: 1px 4px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>采集 BOSS 招聘端 Cookie</h1>
+    <p class="sub">请先在本浏览器登录 <b>BOSS 直聘招聘端</b>（zhipin.com）。点击下方按钮一键采集完整 Cookie 并复制到剪贴板。</p>
+    <button id="grab">一键采集并复制</button>
+    <div id="status" class="status"></div>
+    <ol>
+      <li>点击「一键采集并复制」</li>
+      <li>回到智聘平台「从浏览器导入账号」对话框</li>
+      <li>在输入框 <code>粘贴</code>（Ctrl/Cmd+V）后提交</li>
+    </ol>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

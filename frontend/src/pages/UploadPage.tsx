@@ -1,4 +1,4 @@
-// 简历上传页面（HR 操作视角）— 拖拽或点击选择 PDF/DOCX 文件或 ZIP 压缩包，支持批量上传。
+// 简历上传页面（HR 操作视角）— 拖拽或点击选择 PDF/Word 文件或 ZIP 压缩包，支持批量上传。
 // 调用 api.uploadResumes(files) → 一次性 POST 多文件，后端同步解析（zip 自动解压逐份解析）。
 // 展示已选文件列表、上传/解析进度、以及每条结果（含 zip 展开的多条）。
 
@@ -21,11 +21,11 @@ import {
 import { RESUME_SOURCE_CHANNEL_OPTIONS } from '../lib/sourceChannels';
 import type { ResumeUploadResultItem } from '../types';
 
-const ACCEPTED = ['.pdf', '.docx', '.zip'];
+const ACCEPTED = ['.pdf', '.doc', '.docx', '.zip'];
 const ACCEPT_MIME =
-  'application/pdf,' +
+  'application/pdf,application/msword,' +
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document,' +
-  'application/zip,application/x-zip-compressed,.zip,.pdf,.docx';
+  'application/zip,application/x-zip-compressed,.zip,.pdf,.doc,.docx';
 
 function isAccepted(file: File): boolean {
   return ACCEPTED.some((ext) => file.name.toLowerCase().endsWith(ext));
@@ -43,7 +43,7 @@ function formatSize(bytes: number): string {
   return `${(kb / 1024).toFixed(1)} MB`;
 }
 
-// 文档图标（pdf/docx）
+// 文档图标（pdf/doc/docx）
 function DocIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
@@ -172,7 +172,7 @@ export function UploadPage() {
       <div className="mb-6">
         <h1 className="mb-1 text-2xl font-display text-ink">简历上传</h1>
         <p className="text-sm text-muted">
-          拖拽或选择 PDF / DOCX 简历，或上传 ZIP 压缩包批量导入，AI 自动解析并提取技能标签。
+          拖拽或选择 PDF / Word 简历，或上传 ZIP 压缩包批量导入，AI 自动解析并提取技能标签。
         </p>
       </div>
 
@@ -183,7 +183,7 @@ export function UploadPage() {
             <div>
               <CardTitle>上传后会保存到简历库</CardTitle>
               <p className="mt-1 text-xs text-muted-soft">
-                后续可在简历库筛选后再加入招聘需求流程
+                后续可在简历库筛选后再加入岗位流程
               </p>
             </div>
             <Button
@@ -289,7 +289,7 @@ export function UploadPage() {
               <span className="underline decoration-dotted underline-offset-2">点击选择</span>
             </p>
             <p className="mt-1 text-xs text-muted">
-              支持 PDF / DOCX 简历，或上传 ZIP 压缩包批量导入，可一次选择多个文件
+              支持 PDF / Word 简历，或上传 ZIP 压缩包批量导入，可一次选择多个文件
             </p>
           </button>
           <input
@@ -308,8 +308,8 @@ export function UploadPage() {
       {/* 提示信息 */}
       <div className="mb-6 rounded-lg border border-hairline bg-surface-soft px-4 py-3 text-xs text-muted">
         <ul className="space-y-1">
-          <li>· 上传成功后先进入简历库，后续可按城市、技能、来源筛选后再加入招聘需求流程。</li>
-          <li>· 支持格式：PDF、Word（.docx）以及 ZIP 压缩包；旧版 .doc 存在宏风险，请先转换。</li>
+          <li>· 上传成功后先进入简历库，后续可按城市、技能、来源筛选后再加入岗位流程。</li>
+          <li>· 支持格式：PDF、Word（.doc / .docx）以及 ZIP 压缩包。</li>
           <li>· ZIP 压缩包会自动解压，逐份解析其中的简历（自动跳过非简历文件）。</li>
           <li>· 简历解析由 AI 完成，文件较多或较大时可能需要一些时间，请耐心等待。</li>
           <li>· 个别文件解析失败不影响其他文件，可针对失败项重新上传。</li>

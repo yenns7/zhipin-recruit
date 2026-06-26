@@ -4,7 +4,7 @@ import { cn } from '../../lib/cn';
 
 const TABS = [
   { to: '/demands', label: '用人需求', icon: ClipboardList },
-  { to: '/jobs', label: '招聘岗位', icon: Briefcase },
+  { to: '/jobs', label: '岗位画像', icon: Briefcase },
   { to: '/talent-map', label: '人才地图', icon: Map },
 ] as const;
 

@@ -20,6 +20,8 @@ def _ensure_columns():
     stmts = [
         "ALTER TABLE pipeline_stages ADD COLUMN note TEXT",
         "ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT 1 NOT NULL",
+        "ALTER TABLE conversations ADD COLUMN archived BOOLEAN DEFAULT 0 NOT NULL",
+        "ALTER TABLE conversations ADD COLUMN title_source VARCHAR(20) DEFAULT 'auto_first' NOT NULL",
     ]
     for s in stmts:
         try:

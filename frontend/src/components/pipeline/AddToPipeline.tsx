@@ -1,4 +1,4 @@
-// "加入需求流程"面板：把简历库里尚未进入本需求流程的候选人加入到「待筛选」阶段。
+// "加入流程"面板：把简历库里尚未进入本岗位流程的候选人加入到「待筛选」阶段。
 // 解决候选人无法进入招聘流程的缺口。
 
 import { useMemo, useState } from 'react';
@@ -11,7 +11,7 @@ import type { PipelineStage } from '../../types';
 
 interface AddToPipelineProps {
   jobId: number;
-  // 已在本需求流程中的候选人 id，用于从可选列表里排除。
+  // 已在本岗位流程中的候选人 id，用于从可选列表里排除。
   existingIds: Set<number>;
   onAdded: () => void;
   onClose?: () => void;
@@ -23,7 +23,7 @@ export function AddToPipeline({ jobId, existingIds, onAdded, onClose }: AddToPip
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 仅展示尚未进入本需求流程的候选人。
+  // 仅展示尚未进入本岗位流程的候选人。
   const available = useMemo(
     () => (candidatesAsync.data ?? []).filter((c) => !existingIds.has(c.id)),
     [candidatesAsync.data, existingIds],
@@ -58,7 +58,7 @@ export function AddToPipeline({ jobId, existingIds, onAdded, onClose }: AddToPip
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 text-sm font-semibold text-ink">
           <UserPlus className="h-4 w-4 text-muted" />
-          加入候选人到该需求流程
+          加入候选人到流程
         </div>
         {onClose && (
           <button
@@ -83,7 +83,7 @@ export function AddToPipeline({ jobId, existingIds, onAdded, onClose }: AddToPip
         <div className="space-y-2">
           <p className="text-sm text-muted-soft">
             {hasCandidatesInLibrary
-              ? '简历库中的候选人都已在本需求流程中。'
+              ? '简历库中的候选人都已在本岗位流程中。'
               : '暂无可加入候选人，请先上传简历。'}
           </p>
           {!hasCandidatesInLibrary && (
@@ -122,7 +122,7 @@ export function AddToPipeline({ jobId, existingIds, onAdded, onClose }: AddToPip
             disabled={!candidateId || adding}
             size="sm"
           >
-            加入该需求流程
+            加入流程
           </Button>
         </div>
       )}

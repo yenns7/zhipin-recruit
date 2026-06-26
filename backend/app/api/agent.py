@@ -3,7 +3,7 @@ from flask import Blueprint, request, Response, jsonify, g, current_app, stream_
 from ..middleware.auth import require_auth, require_role
 from ..middleware.rate_limit import rate_limit
 from .. import db
-from ..models import Conversation, ConversationMessage
+from ..models import Conversation, ConversationMessage, AgentCallLog
 from ..time_utils import utc_now
 from ..services.agent_service import (
     RecruitingAgent,
@@ -16,6 +16,17 @@ bp = Blueprint("agent", __name__)
 
 # 单例：编译一次 LangGraph，复用
 _agent_instance = None
+
+# log 文本字段截断阈值，避免单条记录过大
+_LOG_TEXT_MAX = 8000
+
+
+def _truncate(text, limit=_LOG_TEXT_MAX):
+    """截断超长文本，超出部分用 …(truncated) 标记。"""
+    if not text:
+        return text
+    s = str(text)
+    return s if len(s) <= limit else s[:limit] + "…(truncated)"
 
 
 def _get_agent() -> RecruitingAgent:
@@ -37,19 +48,55 @@ def list_tools():
 @require_auth
 @require_role("recruiter", "manager", "admin")
 def list_conversations():
-    conversations = (
+    """列出当前用户的会话。支持 archived 过滤与分页（默认只看未归档）。"""
+    archived = request.args.get("archived", "false").lower() in ("1", "true", "yes")
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+        per_page = min(100, max(1, int(request.args.get("per_page", 50))))
+    except (TypeError, ValueError):
+        page, per_page = 1, 50
+
+    query = (
         Conversation.query
-        .filter_by(user_id=g.user_id)
+        .filter_by(user_id=g.user_id, archived=archived)
         .order_by(Conversation.updated_at.desc())
-        .all()
     )
-    return jsonify([{
+    paginated = query.paginate(page=page, per_page=per_page, error_out=False)
+    return jsonify({
+        "items": [{
+            "id": conversation.id,
+            "title": conversation.title,
+            "title_source": conversation.title_source,
+            "archived": conversation.archived,
+            "created_at": conversation.created_at.isoformat() if conversation.created_at else None,
+            "updated_at": conversation.updated_at.isoformat() if conversation.updated_at else None,
+            "message_count": len(conversation.messages),
+        } for conversation in paginated.items],
+        "page": paginated.page,
+        "per_page": paginated.per_page,
+        "total": paginated.total,
+    })
+
+
+@bp.post("/agent/conversations")
+@require_auth
+@require_role("recruiter", "manager", "admin")
+def create_conversation():
+    """新建空会话，返回 {id, title, archived, title_source}。"""
+    data = request.get_json(silent=True) or {}
+    title = (data.get("title") or "新对话").strip()[:200] or "新对话"
+    conversation = Conversation(
+        user_id=g.user_id, title=title, title_source="manual",
+    )
+    db.session.add(conversation)
+    db.session.commit()
+    return jsonify({
         "id": conversation.id,
         "title": conversation.title,
+        "archived": conversation.archived,
+        "title_source": conversation.title_source,
         "created_at": conversation.created_at.isoformat() if conversation.created_at else None,
-        "updated_at": conversation.updated_at.isoformat() if conversation.updated_at else None,
-        "message_count": len(conversation.messages),
-    } for conversation in conversations])
+    }), 201
 
 
 @bp.get("/agent/conversations/<int:conversation_id>")
@@ -62,6 +109,8 @@ def get_conversation(conversation_id):
     return jsonify({
         "id": conversation.id,
         "title": conversation.title,
+        "title_source": conversation.title_source,
+        "archived": conversation.archived,
         "messages": [{
             "id": message.id,
             "role": message.role,
@@ -71,6 +120,131 @@ def get_conversation(conversation_id):
             "created_at": message.created_at.isoformat() if message.created_at else None,
         } for message in conversation.messages],
     })
+
+
+@bp.patch("/agent/conversations/<int:conversation_id>")
+@require_auth
+@require_role("recruiter", "manager", "admin")
+def update_conversation(conversation_id):
+    """重命名 / 归档 / 取消归档。请求体：{"title": "...", "archived": bool}（均可选）。"""
+    conversation = db.get_or_404(Conversation, conversation_id)
+    if conversation.user_id != g.user_id:
+        return jsonify({"error": "Forbidden"}), 403
+    data = request.get_json(silent=True) or {}
+    if "title" in data:
+        new_title = (str(data["title"]).strip())[:200]
+        if new_title:
+            conversation.title = new_title
+            conversation.title_source = "manual"
+    if "archived" in data:
+        conversation.archived = bool(data["archived"])
+    db.session.commit()
+    return jsonify({
+        "id": conversation.id,
+        "title": conversation.title,
+        "title_source": conversation.title_source,
+        "archived": conversation.archived,
+        "updated_at": conversation.updated_at.isoformat() if conversation.updated_at else None,
+    })
+
+
+@bp.delete("/agent/conversations/<int:conversation_id>")
+@require_auth
+@require_role("recruiter", "manager", "admin")
+def delete_conversation(conversation_id):
+    """软删会话（置 archived=True）。按 user_id 鉴权。"""
+    conversation = db.get_or_404(Conversation, conversation_id)
+    if conversation.user_id != g.user_id:
+        return jsonify({"error": "Forbidden"}), 403
+    conversation.archived = True
+    db.session.commit()
+    return jsonify({"id": conversation.id, "archived": True})
+
+
+# --- AI 调用日志查询（审计）-------------------------------------------------
+def _call_log_to_dict(log):
+    return {
+        "id": log.id,
+        "conversation_id": log.conversation_id,
+        "message_id": log.message_id,
+        "user_id": log.user_id,
+        "role": log.role,
+        "kind": log.kind,
+        "model": log.model,
+        "prompt_tokens": log.prompt_tokens,
+        "completion_tokens": log.completion_tokens,
+        "duration_ms": log.duration_ms,
+        "status": log.status,
+        "error_msg": log.error_msg,
+        "tool_calls": log.tool_calls,
+        "thoughts": log.thoughts,
+        "input_text": log.input_text,
+        "output_text": log.output_text,
+        "created_at": log.created_at.isoformat() if log.created_at else None,
+    }
+
+
+@bp.get("/agent/call-logs")
+@require_auth
+@require_role("recruiter", "manager", "admin")
+def list_call_logs():
+    """列出 AI 调用日志。管理员看全部，非管理员只看自己。
+    支持 conversation_id / status / kind 筛选 + 分页。
+    """
+    # 非管理员强制只看自己；管理员可看全部，也可用 user_id 筛选
+    if g.role != "admin":
+        query = AgentCallLog.query.filter_by(user_id=g.user_id)
+    else:
+        query = AgentCallLog.query
+        user_id = request.args.get("user_id")
+        if user_id:
+            try:
+                query = query.filter_by(user_id=int(user_id))
+            except (TypeError, ValueError):
+                pass
+
+    conversation_id = request.args.get("conversation_id")
+    if conversation_id:
+        try:
+            query = query.filter_by(conversation_id=int(conversation_id))
+        except (TypeError, ValueError):
+            pass
+
+    status = request.args.get("status")
+    if status:
+        query = query.filter_by(status=status)
+
+    kind = request.args.get("kind")
+    if kind:
+        query = query.filter_by(kind=kind)
+
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+        per_page = min(100, max(1, int(request.args.get("per_page", 50))))
+    except (TypeError, ValueError):
+        page, per_page = 1, 50
+
+    paginated = query.order_by(AgentCallLog.created_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False,
+    )
+    return jsonify({
+        "items": [_call_log_to_dict(log) for log in paginated.items],
+        "page": paginated.page,
+        "per_page": paginated.per_page,
+        "total": paginated.total,
+    })
+
+
+@bp.get("/agent/call-logs/<int:log_id>")
+@require_auth
+@require_role("recruiter", "manager", "admin")
+def get_call_log(log_id):
+    """单条调用日志详情（含完整 input/output/tool_calls/thoughts）。
+    非管理员只能看自己的。"""
+    log = db.get_or_404(AgentCallLog, log_id)
+    if g.role != "admin" and log.user_id != g.user_id:
+        return jsonify({"error": "Forbidden"}), 403
+    return jsonify(_call_log_to_dict(log))
 
 
 @bp.post("/agent/execute")
@@ -84,9 +258,12 @@ def execute():
     data = request.get_json(silent=True) or {}
     tool = (data.get("tool") or "").strip()
     args = data.get("args") or {}
+    conversation_id = data.get("conversation_id")
     if not tool:
         return jsonify({"ok": False, "error": "tool required"}), 400
-    result = execute_write_tool(tool, args, user_id=g.user_id, role=g.role)
+    result = execute_write_tool(
+        tool, args, user_id=g.user_id, role=g.role, conversation_id=conversation_id,
+    )
     status = 200 if result.get("ok") else 400
     return jsonify(result), status
 
@@ -141,6 +318,7 @@ def chat():
             answer_parts = []
             final_answer = ""
             success = False
+            call_log_snapshot = None  # 从 done 事件取的最终答案步日志快照（避免读单例 client 串号）
             yield f"data: {json.dumps({'type': 'conversation_started', 'id': store_conversation_id}, ensure_ascii=False)}\n\n"
             try:
                 for ev in agent.run_stream(message, history, user_id=user_id, role=role):
@@ -162,6 +340,8 @@ def chat():
                     elif ev_type == "done":
                         final_answer = ev.get("answer") or "".join(answer_parts)
                         success = True
+                        # 取最终答案步的调用日志快照（run_stream 已在 done 事件里附带）
+                        call_log_snapshot = ev.get("_call_log")
                     yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
             except Exception as e:
                 err = {"type": "error", "message": f"智能体执行出错：{e}"}
@@ -175,15 +355,43 @@ def chat():
                         role="user",
                         content=message,
                     ))
-                    db.session.add(ConversationMessage(
+                    assistant_msg = ConversationMessage(
                         conversation_id=conversation.id,
                         role="assistant",
                         content=final_answer or "".join(answer_parts),
                         tool_calls=tool_calls or None,
                         thoughts=thoughts or None,
-                    ))
+                    )
+                    db.session.add(assistant_msg)
                     conversation.updated_at = utc_now()
                     db.session.commit()
+                    # 写 AI 调用日志（chat 级）：用 done 事件里的快照，避免单例 client 并发串号
+                    _write_chat_call_log(
+                        conversation_id=conversation.id,
+                        message_id=assistant_msg.id,
+                        user_id=user_id,
+                        role=role,
+                        input_text=message,
+                        output_text=final_answer or "".join(answer_parts),
+                        tool_calls=tool_calls,
+                        thoughts=thoughts,
+                        call_log_snapshot=call_log_snapshot,
+                    )
+            else:
+                # 异常或未成功：补一条 error 日志，便于排障
+                _write_chat_call_log(
+                    conversation_id=store_conversation_id,
+                    message_id=None,
+                    user_id=user_id,
+                    role=role,
+                    input_text=message,
+                    output_text="".join(answer_parts) or None,
+                    tool_calls=tool_calls,
+                    thoughts=thoughts,
+                    call_log_snapshot=call_log_snapshot,
+                    status="error",
+                    error_msg="agent stream ended without success",
+                )
 
     return Response(
         generate(),
@@ -199,3 +407,49 @@ def chat():
 def _conversation_title(first_message: str) -> str:
     clean = first_message.strip().replace("\n", " ")
     return clean[:30] + ("…" if len(clean) > 30 else "")
+
+
+def _write_chat_call_log(
+    conversation_id,
+    user_id,
+    role,
+    input_text,
+    output_text,
+    tool_calls,
+    thoughts,
+    call_log_snapshot,
+    message_id=None,
+    status=None,
+    error_msg=None,
+):
+    """写一条 chat 级 AI 调用日志。
+    call_log_snapshot 是 run_stream 在 done 事件里附带的最终答案步日志快照（dict），
+    用快照而非读单例 agent.client.last_call_log，避免并发请求下共享状态串号。
+    log 写入失败只记 logging.error，不阻断主流程（事务与主业务隔离）。
+    """
+    try:
+        llm_log = call_log_snapshot or {}
+        final_status = status or llm_log.get("status") or "ok"
+        final_error = error_msg or llm_log.get("error_msg")
+        db.session.add(AgentCallLog(
+            conversation_id=conversation_id,
+            message_id=message_id,
+            user_id=user_id,
+            role=role,
+            kind="chat",
+            input_text=_truncate(input_text),
+            output_text=_truncate(output_text),
+            tool_calls=tool_calls or None,
+            thoughts=thoughts or None,
+            model=llm_log.get("model"),
+            prompt_tokens=llm_log.get("prompt_tokens"),
+            completion_tokens=llm_log.get("completion_tokens"),
+            duration_ms=llm_log.get("duration_ms"),
+            status=final_status,
+            error_msg=final_error,
+        ))
+        db.session.commit()
+    except Exception as log_err:
+        # log 写入失败不能影响已成功的对话返回
+        db.session.rollback()
+        current_app.logger.error(f"写入 AgentCallLog 失败: {log_err}")

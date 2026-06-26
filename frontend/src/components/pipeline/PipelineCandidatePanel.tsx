@@ -1,12 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Lightbulb, MoreHorizontal, User } from 'lucide-react';
-import type {
-  CandidateDispositionInput,
-  JobListItem,
-  PipelineBoardCandidate,
-  PipelineStage,
-} from '../../types';
+import type { CandidateDispositionInput, PipelineBoardCandidate, PipelineStage } from '../../types';
 import { STAGES, STAGE_BY_KEY, stageLabel } from '../../lib/pipelineStages';
 import {
   buildPipelineInsight,
@@ -23,7 +18,6 @@ import { cn } from '../../lib/cn';
 interface PipelineCandidatePanelProps {
   candidate: PipelineBoardCandidate | null;
   jobId: number;
-  transferTargets: JobListItem[];
   busy: boolean;
   onMove: (
     candidateId: number,
@@ -31,7 +25,6 @@ interface PipelineCandidatePanelProps {
     note?: string,
     disposition?: CandidateDispositionInput,
   ) => void | Promise<void>;
-  onTransfer: (candidateId: number, toJobId: number, reason: string) => void | Promise<void>;
 }
 
 function insightToneClass(tone: 'neutral' | 'warning' | 'success') {
@@ -43,17 +36,12 @@ function insightToneClass(tone: 'neutral' | 'warning' | 'success') {
 export function PipelineCandidatePanel({
   candidate,
   jobId,
-  transferTargets,
   busy,
   onMove,
-  onTransfer,
 }: PipelineCandidatePanelProps) {
   const [showDisposition, setShowDisposition] = useState(false);
   const [showOffer, setShowOffer] = useState(false);
   const [showCorrection, setShowCorrection] = useState(false);
-  const [transferTargetId, setTransferTargetId] = useState('');
-  const [transferReason, setTransferReason] = useState('');
-  const [transferError, setTransferError] = useState<string | null>(null);
   const [targetStage, setTargetStage] = useState<PipelineStage | ''>('');
   const [moveNote, setMoveNote] = useState('');
   const [correctionReason, setCorrectionReason] = useState('');
@@ -66,9 +54,6 @@ export function PipelineCandidatePanel({
     setShowOffer(false);
     setShowCorrection(false);
     setMoveNote('');
-    setTransferTargetId('');
-    setTransferReason('');
-    setTransferError(null);
     setTargetStage('');
     setCorrectionReason('');
     setCorrectionError(null);
@@ -120,26 +105,6 @@ export function PipelineCandidatePanel({
     await onMove(currentCandidate.candidate_id, targetStage, `阶段修正：${reason}`);
     setTargetStage('');
     setCorrectionReason('');
-  }
-
-  async function transferDemand() {
-    const targetId = Number(transferTargetId);
-    const reason = transferReason.trim();
-    if (!targetId) {
-      setTransferError('请选择目标招聘需求');
-      return;
-    }
-    if (!reason) {
-      setTransferError('请填写转入原因');
-      return;
-    }
-    const target = transferTargets.find((item) => item.id === targetId);
-    const message = `确认把 ${currentCandidate.name_masked} 转入「${target?.title ?? '目标需求'}」？当前需求历史会保留。`;
-    if (!window.confirm(message)) return;
-    setTransferError(null);
-    await onTransfer(currentCandidate.candidate_id, targetId, reason);
-    setTransferTargetId('');
-    setTransferReason('');
   }
 
   return (
@@ -237,73 +202,6 @@ export function PipelineCandidatePanel({
         </section>
 
         <section className="border-t border-hairline-soft pt-3">
-          <div className="mb-3 rounded-md border border-hairline bg-surface-soft px-3 py-3">
-            <div className="space-y-3">
-              <div>
-                <p className="text-sm font-semibold text-ink">转入其他招聘需求</p>
-                <p className="mt-1 text-xs text-muted">
-                  适合候选人更匹配其他需求的场景；保留当前需求历史，并要求记录转入原因。
-                </p>
-              </div>
-              {transferTargets.length > 0 ? (
-                <>
-                  <label htmlFor="pipeline-transfer-target" className="text-xs font-semibold text-muted">
-                    目标招聘需求
-                  </label>
-                  <select
-                    id="pipeline-transfer-target"
-                    value={transferTargetId}
-                    onChange={(event) => {
-                      setTransferTargetId(event.target.value);
-                      setTransferError(null);
-                    }}
-                    disabled={busy}
-                    className="h-9 w-full rounded-md border border-hairline bg-canvas px-2 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink disabled:opacity-60"
-                  >
-                    <option value="">选择目标需求</option>
-                    {transferTargets.map((job) => (
-                      <option key={job.id} value={job.id}>
-                        {[job.job_code || `JOB-${job.id}`, job.title, job.department]
-                          .filter(Boolean)
-                          .join(' · ')}
-                      </option>
-                    ))}
-                  </select>
-                  <label htmlFor="pipeline-transfer-reason" className="text-xs font-semibold text-muted">
-                    转入原因
-                  </label>
-                  <textarea
-                    id="pipeline-transfer-reason"
-                    rows={2}
-                    maxLength={240}
-                    value={transferReason}
-                    onChange={(event) => {
-                      setTransferReason(event.target.value);
-                      setTransferError(null);
-                    }}
-                    disabled={busy}
-                    className="w-full resize-none rounded-md border border-hairline bg-canvas px-3 py-2 text-sm text-ink placeholder:text-muted-soft focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink disabled:opacity-60"
-                    placeholder="例如：候选人更适合渠道方向，转入渠道经理需求"
-                  />
-                  {transferError && <p className="text-xs text-danger-700">{transferError}</p>}
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    onClick={transferDemand}
-                    disabled={busy}
-                  >
-                    确认转入
-                  </Button>
-                </>
-              ) : (
-                <p className="text-xs text-muted-soft">
-                  暂无其他可转入的招聘需求，请先创建或恢复目标需求。
-                </p>
-              )}
-            </div>
-          </div>
-
           <Button
             type="button"
             size="sm"

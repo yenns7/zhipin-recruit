@@ -94,16 +94,19 @@ export interface ExecuteWriteResult {
 // Hits POST /api/agent/execute which enforces RBAC server-side.
 export async function executeWriteTool(
   tool: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  conversationId?: number | null,
 ): Promise<ExecuteWriteResult> {
   const token = getToken();
+  const body: Record<string, unknown> = { tool, args };
+  if (conversationId) body.conversation_id = conversationId;
   const resp = await fetch('/api/agent/execute', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ tool, args }),
+    body: JSON.stringify(body),
   });
   const data = (await resp.json().catch(() => ({}))) as ExecuteWriteResult;
   if (!resp.ok) {

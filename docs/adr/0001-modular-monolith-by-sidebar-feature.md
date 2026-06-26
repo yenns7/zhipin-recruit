@@ -91,5 +91,5 @@ and workflow APIs.
 
 ## References
 - `README.md`
-- `docs/README.md`
-- `docs/SDD-智聘招聘系统-v1.0.md`
+- `REFACTOR_PLAN.md`
+- `docs/superpowers/specs/2026-06-15-recruitment-flow-gap-prd.md`

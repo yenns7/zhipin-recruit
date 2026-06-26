@@ -1,11 +1,7 @@
-import csv
-import io
 import json
 import re
-from datetime import timedelta
-from pathlib import Path
 
-from flask import Blueprint, Response, jsonify, request, g
+from flask import Blueprint, jsonify, request, g
 from sqlalchemy import func, select
 from ..middleware.auth import require_auth, require_role
 from ..middleware.events import record_event
@@ -13,7 +9,6 @@ from .. import db
 from ..models import (
     Candidate,
     CandidateDisposition,
-    Event,
     Job,
     PipelineStage,
     Interview,
@@ -22,17 +17,9 @@ from ..models import (
     User,
     VALID_STAGES,
 )
-from ..time_utils import utc_now
 from ..source_channels import normalize_resume_source_channel, resume_source_channel_filter_values
 from .pipeline import LEGACY_INTERVIEW_STAGES, STAGE_ORDER, _latest_stage_subquery, normalize_pipeline_stage
-from .access import (
-    can_access_candidate,
-    can_manage_job,
-    can_read_job,
-    same_org,
-    visible_candidate_query,
-    visible_job_query,
-)
+from .access import assigned_candidate_ids_for_interviewer, interviewer_has_assignment
 
 bp = Blueprint("candidates", __name__)
 
@@ -194,16 +181,6 @@ def _candidate_library_item(candidate):
     }
 
 
-def _export_count_for_actor(window=timedelta(minutes=10)):
-    cutoff = utc_now() - window
-    return Event.query.filter(
-        Event.org_id == g.org_id,
-        Event.actor_id == g.user_id,
-        Event.action == "candidate.exported",
-        Event.ts >= cutoff,
-    ).count()
-
-
 def _candidate_source_payload(candidate):
     if not candidate.upload_batch_id:
         return None
@@ -295,7 +272,13 @@ def list_candidates():
         )
     )
 
-    query = visible_candidate_query(g.user_id, g.role)
+    if g.role == "recruiter":
+        query = Candidate.query.filter_by(owner_hr_id=g.user_id)
+    elif g.role == "interviewer":
+        assigned_ids = assigned_candidate_ids_for_interviewer(g.user_id)
+        query = Candidate.query.filter(Candidate.id.in_(assigned_ids or [-1]))
+    else:
+        query = Candidate.query
 
     if not wants_paginated:
         return jsonify([_candidate_library_item(c) for c in query.all()])
@@ -330,11 +313,6 @@ def list_candidates():
         query = query.filter(Candidate.id.in_(stage_subquery))
 
     if job_id:
-        job = db.session.get(Job, job_id)
-        if job is None or not same_org(job, g.org_id):
-            return jsonify({"error": "岗位不存在"}), 404
-        if not can_read_job(g.user_id, g.role, job):
-            return jsonify({"error": "Forbidden"}), 403
         job_subquery = select(PipelineStage.candidate_id).where(PipelineStage.job_id == job_id)
         query = query.filter(Candidate.id.in_(job_subquery))
 
@@ -382,7 +360,7 @@ def list_candidates():
 def candidate_owner_options():
     recruiters = (
         User.query
-        .filter(User.org_id == g.org_id, User.role == "recruiter", User.is_active.is_(True))
+        .filter(User.role == "recruiter", User.is_active.is_(True))
         .order_by(User.name.asc(), User.id.asc())
         .all()
     )
@@ -400,9 +378,11 @@ def candidate_owner_options():
 @require_auth
 def candidate_pipelines(candidate_id):
     cand = db.session.get(Candidate, candidate_id)
-    if cand is None or not same_org(cand, g.org_id) or cand.deleted_at is not None:
+    if cand is None:
         return jsonify({"error": "候选人不存在"}), 404
-    if not can_access_candidate(g.user_id, g.role, candidate_id):
+    if g.role == "recruiter" and cand.owner_hr_id != g.user_id:
+        return jsonify({"error": "Forbidden"}), 403
+    if g.role == "interviewer" and not interviewer_has_assignment(g.user_id, candidate_id):
         return jsonify({"error": "Forbidden"}), 403
     latest = _latest_stage_subquery()
     rows = (
@@ -410,7 +390,6 @@ def candidate_pipelines(candidate_id):
         .join(latest, PipelineStage.id == latest.c.max_id)
         .join(Job, Job.id == PipelineStage.job_id)
         .filter(PipelineStage.candidate_id == candidate_id)
-        .filter(Job.id.in_(visible_job_query(g.user_id, g.role).with_entities(Job.id)))
         .all()
     )
     items = [{
@@ -430,18 +409,16 @@ def candidate_pipelines(candidate_id):
 @require_auth
 def candidate_journey(candidate_id):
     cand = db.session.get(Candidate, candidate_id)
-    if cand is None or not same_org(cand, g.org_id) or cand.deleted_at is not None:
+    if cand is None:
         return jsonify({"error": "候选人不存在"}), 404
-    if not can_access_candidate(g.user_id, g.role, candidate_id):
+    if g.role == "recruiter" and cand.owner_hr_id != g.user_id:
         return jsonify({"error": "Forbidden"}), 403
     job_id = request.args.get("job_id", type=int)
     if not job_id:
         return jsonify({"error": "job_id required"}), 400
-    if not can_access_candidate(g.user_id, g.role, candidate_id, job_id):
+    if g.role == "interviewer" and not interviewer_has_assignment(g.user_id, candidate_id, job_id):
         return jsonify({"error": "Forbidden"}), 403
     job = db.session.get(Job, job_id)
-    if job is not None and not same_org(job, g.org_id):
-        return jsonify({"error": "岗位不存在"}), 404
 
     # 阶段时间线（含操作人、备注）
     stage_rows = (
@@ -524,10 +501,10 @@ def reassign_owner(candidate_id):
     if not reason:
         return jsonify({"error": "转派原因必填"}), 400
     cand = db.session.get(Candidate, candidate_id)
-    if cand is None or not same_org(cand, g.org_id) or cand.deleted_at is not None:
+    if cand is None:
         return jsonify({"error": "候选人不存在"}), 404
     target = db.session.get(User, new_owner)
-    if target is None or not same_org(target, g.org_id):
+    if target is None:
         return jsonify({"error": "目标用户不存在"}), 404
     if target.role != "recruiter" or not target.is_active:
         return jsonify({"error": "候选人负责人必须是启用中的招聘专员"}), 400
@@ -537,97 +514,3 @@ def reassign_owner(candidate_id):
     record_event("candidate.reassigned", entity_id=candidate_id, entity_type="candidate",
                  payload={"from": old_owner, "to": new_owner, "reason": reason})
     return jsonify({"candidate_id": candidate_id, "owner_hr_id": new_owner, "reason": reason})
-
-
-@bp.get("/candidates/<int:candidate_id>/export")
-@require_auth
-@require_role("recruiter", "manager", "admin")
-def export_candidate(candidate_id):
-    candidate = db.session.get(Candidate, candidate_id)
-    if candidate is None or not same_org(candidate, g.org_id) or candidate.deleted_at is not None:
-        return jsonify({"error": "候选人不存在"}), 404
-    if not can_access_candidate(g.user_id, g.role, candidate_id):
-        return jsonify({"error": "Forbidden"}), 403
-
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow([
-        "candidate_id",
-        "name",
-        "email",
-        "phone",
-        "owner_hr_id",
-        "created_at",
-        "resume_json",
-    ])
-    writer.writerow([
-        candidate.id,
-        candidate.name_masked or "",
-        candidate.email_masked or "",
-        candidate.phone_masked or "",
-        candidate.owner_hr_id or "",
-        candidate.created_at.isoformat() if candidate.created_at else "",
-        json.dumps(candidate.resume_json or {}, ensure_ascii=False),
-    ])
-
-    export_count_10m = _export_count_for_actor() + 1
-    record_event(
-        "candidate.exported",
-        entity_id=candidate.id,
-        entity_type="candidate",
-        payload={"format": "csv", "export_count_10m": export_count_10m},
-        severity="warning" if export_count_10m >= 6 else "info",
-    )
-    return Response(
-        output.getvalue(),
-        mimetype="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=candidate-{candidate.id}.csv"},
-    )
-
-
-@bp.delete("/candidates/<int:candidate_id>")
-@require_auth
-@require_role("recruiter", "manager", "admin")
-def delete_candidate(candidate_id):
-    data = request.get_json(silent=True) or {}
-    reason = str(data.get("reason") or "").strip()[:240]
-    if not reason:
-        return jsonify({"error": "删除原因必填"}), 400
-    candidate = db.session.get(Candidate, candidate_id)
-    if candidate is None or not same_org(candidate, g.org_id) or candidate.deleted_at is not None:
-        return jsonify({"error": "候选人不存在"}), 404
-    if not can_access_candidate(g.user_id, g.role, candidate_id):
-        return jsonify({"error": "Forbidden"}), 403
-
-    raw_file_removed = False
-    raw_path = candidate.raw_file_path
-    if raw_path:
-        try:
-            path = Path(raw_path)
-            if path.is_file():
-                path.unlink()
-                raw_file_removed = True
-        except OSError:
-            raw_file_removed = False
-
-    candidate.name_masked = "已删除候选人"
-    candidate.email_masked = ""
-    candidate.phone_masked = ""
-    candidate.resume_json = {}
-    candidate.raw_file_path = None
-    candidate.parse_error = None
-    candidate.deleted_at = utc_now()
-    candidate.deleted_by = g.user_id
-    candidate.anonymized_at = utc_now()
-    for tag in candidate.tags:
-        tag.tag = "已删除"
-        tag.score = None
-        tag.org_id = g.org_id
-    db.session.commit()
-    record_event(
-        "candidate.deleted",
-        entity_id=candidate_id,
-        entity_type="candidate",
-        payload={"reason": reason, "anonymized": True, "raw_file_removed": raw_file_removed},
-    )
-    return jsonify({"candidate_id": candidate_id, "deleted": True, "anonymized": True})

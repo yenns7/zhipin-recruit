@@ -23,14 +23,8 @@ assert.match(
 
 assert.match(
   jobMatchPage,
-  /查看候选人需求流程/,
+  /查看候选人流程/,
   'After joining a candidate, the match page should expose a visible next-step CTA',
-);
-
-assert.match(
-  jobMatchPage,
-  /加入该需求流程/,
-  'Match page should describe the add action as joining the current recruitment demand workflow',
 );
 
 assert.match(

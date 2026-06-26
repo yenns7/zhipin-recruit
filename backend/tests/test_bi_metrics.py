@@ -683,7 +683,7 @@ def test_bi_overview_invalid_days_falls_back_to_default(client, make_user, app):
     assert response.get_json()["resumes"]["total_candidates"] == 1
 
 
-def test_bi_job_funnel_rejects_recruiter_for_unowned_job(client, make_user, app):
+def test_bi_job_funnel_scopes_recruiter_collaborator_to_owned_candidates(client, make_user, app):
     owner_hr_id, owner_token = make_user("job-bi-owner@example.com", role="recruiter", name="负责HR")
     collaborator_hr_id, collaborator_token = make_user("job-bi-collaborator@example.com", role="recruiter", name="协作HR")
     _, unrelated_hr_token = make_user("job-bi-other@example.com", role="recruiter", name="其他HR")
@@ -732,7 +732,10 @@ def test_bi_job_funnel_rejects_recruiter_for_unowned_job(client, make_user, app)
     assert owner_response.get_json()["scope"] == "all"
     assert owner_response.get_json()["funnel"]["offer"] == 1
     assert owner_response.get_json()["funnel"]["interview"] == 1
-    assert collaborator_response.status_code == 403
+    assert collaborator_response.status_code == 200
+    assert collaborator_response.get_json()["scope"] == "owned_candidates"
+    assert collaborator_response.get_json()["funnel"]["interview"] == 1
+    assert collaborator_response.get_json()["funnel"].get("offer", 0) == 0
     assert unrelated_response.status_code == 403
     assert interviewer_response.status_code == 403
 

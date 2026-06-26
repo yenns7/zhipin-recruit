@@ -1,4 +1,4 @@
-// 候选人流程页 — 按招聘需求管理每位候选人的当前阶段，
+// 候选人流程页 — 按岗位管理每位候选人的当前阶段，
 // 并支持在右侧详情中推进、淘汰、跳转阶段与加入新候选人。
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -105,7 +105,7 @@ export function PipelinePage() {
     setShowAddToPipeline(false);
   }, [highlightedCandidateId, requestedJobId, requestedStage]);
 
-  // 已在本需求流程中的候选人 id 集合（供"加入需求流程"排除）。
+  // 已在本岗位流程中的候选人 id 集合（供"加入流程"排除）。
   const existingIds = useMemo(
     () => new Set(candidates.map((c) => c.candidate_id)),
     [candidates],
@@ -136,10 +136,6 @@ export function PipelinePage() {
   );
   const selectedCandidate =
     candidates.find((candidate) => candidate.candidate_id === selectedCandidateId) ?? null;
-  const transferTargets = useMemo(
-    () => (jobsAsync.data ?? []).filter((job) => effectiveJobId !== null && job.id !== effectiveJobId),
-    [effectiveJobId, jobsAsync.data],
-  );
 
   useEffect(() => {
     if (highlightedCandidate) {
@@ -272,34 +268,6 @@ export function PipelinePage() {
     [effectiveJobId, boardAsync, toast],
   );
 
-  const handleTransfer = useCallback(
-    async (candidateId: number, toJobId: number, reason: string) => {
-      if (effectiveJobId === null) return;
-      setBusyId(candidateId);
-      setPendingMove(null);
-      setRecentlyMovedCandidateId(null);
-      try {
-        const res = await api.transferPipeline({
-          candidate_id: candidateId,
-          from_job_id: effectiveJobId,
-          to_job_id: toJobId,
-          reason,
-        });
-        setSelectedJobId(toJobId);
-        setActiveStage('pending');
-        setSelectedCandidateId(candidateId);
-        setRecentlyMovedCandidateId(candidateId);
-        setSearchParams({ job: String(toJobId), stage: 'pending', candidate: String(candidateId) });
-        toast.success(`${res.name_masked || '候选人'} 已转入目标招聘需求`);
-        setBusyId(null);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : '转入失败');
-        setBusyId(null);
-      }
-    },
-    [effectiveJobId, setSearchParams, toast],
-  );
-
   const handleJobChange = useCallback(
     (jobId: number) => {
       setSelectedJobId(jobId);
@@ -329,7 +297,7 @@ export function PipelinePage() {
     <div className="space-y-6">
       <PageHeader
         title="候选人流程"
-        description="以招聘需求为单位查看每位候选人所处阶段，并就地推进、淘汰或调整其状态"
+        description="以看板查看每位候选人所处阶段，并就地推进、淘汰或调整其状态"
       />
 
       <details className="group rounded-md border border-hairline bg-canvas px-4 py-3 text-sm text-muted">
@@ -361,14 +329,14 @@ export function PipelinePage() {
           <EmptyState
             icon={KanbanSquare}
             title="暂无岗位"
-            description="请先创建招聘需求或岗位画像，再查看需求流程"
-              action={
-                <Link to="/demands">
-                  <Button variant="secondary" size="sm">
-                    新建招聘需求
-                  </Button>
-                </Link>
-              }
+            description="请先创建岗位画像，再查看候选人流程"
+            action={
+              <Link to="/jobs">
+                <Button variant="secondary" size="sm">
+                  新建岗位
+                </Button>
+              </Link>
+            }
           />
         </Card>
       )}
@@ -379,7 +347,7 @@ export function PipelinePage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
               <label htmlFor="job-select" className="text-sm font-medium text-ink">
-                当前招聘需求
+                当前岗位
               </label>
               <select
                 id="job-select"
@@ -406,18 +374,18 @@ export function PipelinePage() {
                   aria-expanded={showAddToPipeline}
                 >
                   <UserPlus className="h-4 w-4" />
-                  添加候选人到需求
+                  添加候选人
                 </Button>
                 <Link to={`/jobs/${effectiveJobId}/match`}>
                   <Button type="button" variant="ghost" size="sm">
-                    去匹配该需求候选人 →
+                    去匹配更多候选人 →
                   </Button>
                 </Link>
               </div>
             )}
           </div>
 
-          {/* 加入候选人到需求流程 */}
+          {/* 加入候选人到流程 */}
           {effectiveJobId !== null && showAddToPipeline && (
             <AddToPipeline
               jobId={effectiveJobId}
@@ -463,19 +431,17 @@ export function PipelinePage() {
                   onSelect={(candidate) => setSelectedCandidateId(candidate.candidate_id)}
                 />
                 {effectiveJobId !== null && (
-	                  <PipelineCandidatePanel
-	                    candidate={selectedCandidate}
-	                    jobId={effectiveJobId}
-	                    transferTargets={transferTargets}
-	                    busy={
-	                      selectedCandidate
-	                        ? busyId === selectedCandidate.candidate_id ||
-	                          pendingMove?.candidateId === selectedCandidate.candidate_id
-	                        : false
-	                    }
-	                    onMove={handleMove}
-	                    onTransfer={handleTransfer}
-	                  />
+                  <PipelineCandidatePanel
+                    candidate={selectedCandidate}
+                    jobId={effectiveJobId}
+                    busy={
+                      selectedCandidate
+                        ? busyId === selectedCandidate.candidate_id ||
+                          pendingMove?.candidateId === selectedCandidate.candidate_id
+                        : false
+                    }
+                    onMove={handleMove}
+                  />
                 )}
               </div>
             </div>
@@ -484,7 +450,7 @@ export function PipelinePage() {
           {/* 空流程提示 */}
           {!boardAsync.loading && !boardAsync.error && candidates.length === 0 && (
             <p className="text-center text-sm text-muted-soft">
-              该需求流程中暂无候选人，可先点击「添加候选人到需求」或去匹配更多候选人。
+              本岗位流程中暂无候选人，可先点击「添加候选人」或去匹配更多候选人。
             </p>
           )}
         </>

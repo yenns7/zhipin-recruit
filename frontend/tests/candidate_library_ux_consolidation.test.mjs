@@ -17,8 +17,6 @@ assert.doesNotMatch(page, /按岗位找候选人/, 'Top-right action should not 
 
 assert.match(page, /目标岗位/, 'Job filter should be labeled as the target job');
 assert.match(page, /不限制岗位/, 'Job filter should default to not restricting by job');
-assert.match(page, /加入招聘需求/, 'Candidate library should frame adding a candidate as selecting a recruitment demand');
-assert.match(page, /加入该需求流程/, 'Candidate library row action should use demand workflow language');
 assert.doesNotMatch(page, /按岗位查看/, 'Job filter should not sound like a second page entry');
 assert.doesNotMatch(page, /不按岗位筛选/, 'Job filter placeholder should use plainer wording');
 
@@ -30,6 +28,6 @@ assert.doesNotMatch(page, /简历库列表/, 'Candidate table title should not r
 
 assert.match(
   page,
-  /调整搜索词、城市、来源、解析状态、入需求流程状态或技能条件后再查看/,
+  /调整搜索词、城市、来源、解析状态、入流程状态或技能条件后再查看/,
   'Empty state should mention the renamed filter',
 );

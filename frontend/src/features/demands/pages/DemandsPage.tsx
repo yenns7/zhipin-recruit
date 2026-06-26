@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, ClipboardList } from 'lucide-react';
 import { api } from '../../../lib/api';
@@ -55,8 +55,6 @@ type DemandActionMode = 'close' | 'restore' | 'priority';
 
 interface DemandFormState {
   job_id: string;
-  job_title: string;
-  jd_text: string;
   request_no: string;
   requester_name: string;
   requester_department: string;
@@ -71,8 +69,6 @@ interface DemandFormState {
 
 const EMPTY_FORM: DemandFormState = {
   job_id: '',
-  job_title: '',
-  jd_text: '',
   request_no: '',
   requester_name: '',
   requester_department: '',
@@ -160,14 +156,14 @@ function demandInsight(demand: RecruitmentDemand): {
   if (demand.metrics.recommended_count > 0) {
     return {
       title: '流程推进中',
-      description: `已有 ${demand.metrics.recommended_count} 位候选人进入该需求流程`,
+      description: `已有 ${demand.metrics.recommended_count} 位候选人进入该岗位流程`,
       tone: 'success',
     };
   }
 
   return {
     title: '待启动',
-    description: '还没有候选人进入该需求流程',
+    description: '还没有候选人进入该需求对应的岗位流程',
     tone: 'neutral',
   };
 }
@@ -207,16 +203,10 @@ function DemandCard({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Link
-              to={`/jobs/${demand.job_id}/match`}
-              className="inline-flex h-8 items-center rounded-md bg-ink px-3 text-sm font-semibold text-canvas hover:bg-ink-soft"
-            >
-              匹配候选人
-            </Link>
-            <Link
               to={`/pipeline?job=${demand.job_id}`}
               className="inline-flex h-8 items-center rounded-md border border-hairline px-3 text-sm font-semibold text-ink hover:bg-surface-soft"
             >
-              查看该需求流程
+              查看流程
             </Link>
             <Button
               type="button"
@@ -347,7 +337,7 @@ function DemandActionDialog({
     mode === 'close'
       ? '需求会从活跃列表中移出，历史流程和 BI 留痕仍会保留。'
       : mode === 'restore'
-        ? '需求会回到活跃列表，岗位画像也会恢复为在招。'
+        ? '需求会回到活跃列表，关联岗位也会恢复为在招。'
         : '新的优先级会写入需求备注，后续复盘能看到调整原因。';
   const reasonPlaceholder =
     mode === 'close'
@@ -438,7 +428,6 @@ export function DemandsPage() {
   const demandsAsync = useAsync(() => demandsApi.listDemands(), []);
   const jobsAsync = useAsync(() => api.listJobs(), []);
   const [form, setForm] = useState<DemandFormState>(EMPTY_FORM);
-  const [reuseProfile, setReuseProfile] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -448,26 +437,21 @@ export function DemandsPage() {
 
   const jobs = useMemo(() => jobsAsync.data ?? [], [jobsAsync.data]);
   const demands = useMemo(() => demandsAsync.data ?? [], [demandsAsync.data]);
-  const canCreate =
-    !submitting &&
-    (reuseProfile
-      ? Boolean(form.job_id)
-      : Boolean(form.job_title.trim() && form.jd_text.trim()));
+  const canCreate = jobs.length > 0 && form.job_id && !submitting;
 
   const activeDemands = useMemo(
     () => demands.filter((item) => item.status !== 'filled' && item.status !== 'cancelled'),
     [demands],
   );
 
-  function updateField<K extends keyof DemandFormState>(key: K, value: DemandFormState[K]) {
-    setForm((current) => ({ ...current, [key]: value }));
-  }
-
-  function handleReuseProfileChange(checked: boolean) {
-    setReuseProfile(checked);
-    if (checked && !form.job_id && jobs.length > 0) {
+  useEffect(() => {
+    if (!form.job_id && jobs.length > 0) {
       setForm((current) => ({ ...current, job_id: String(jobs[0].id) }));
     }
+  }, [form.job_id, jobs]);
+
+  function updateField<K extends keyof DemandFormState>(key: K, value: DemandFormState[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
   }
 
   async function handleCreate() {
@@ -476,13 +460,7 @@ export function DemandsPage() {
     setMessage(null);
     try {
       await demandsApi.createDemand({
-        ...(reuseProfile
-          ? { job_id: Number(form.job_id) }
-          : {
-              job_title: form.job_title.trim(),
-              jd_text: form.jd_text.trim(),
-              job_department: form.requester_department.trim(),
-            }),
+        job_id: Number(form.job_id),
         request_no: form.request_no.trim(),
         requester_name: form.requester_name.trim(),
         requester_department: form.requester_department.trim(),
@@ -496,10 +474,7 @@ export function DemandsPage() {
         note: form.note.trim(),
       });
       setMessage('需求已创建');
-      setForm((current) => ({
-        ...EMPTY_FORM,
-        job_id: reuseProfile ? current.job_id : '',
-      }));
+      setForm((current) => ({ ...EMPTY_FORM, job_id: current.job_id }));
       demandsAsync.reload();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : '创建需求失败');
@@ -543,7 +518,7 @@ export function DemandsPage() {
         setMessage('需求已关闭');
       } else if (mode === 'restore') {
         await demandsApi.restoreDemand(demand.id, { note: reason });
-        setMessage('需求已恢复，岗位画像也会恢复为在招');
+        setMessage('需求已恢复，关联岗位也会恢复为在招');
       } else {
         const nextNote = [
           demand.note,
@@ -571,7 +546,7 @@ export function DemandsPage() {
     <div className="space-y-6">
       <PageHeader
         title="招聘管理"
-        description="招聘需求是主线，岗位画像用于匹配候选人和沉淀流程数据"
+        description="先确认用人需求，再维护岗位画像，并用流程数据判断招聘卡点"
       />
 
       <RecruitmentManagementTabs />
@@ -581,29 +556,43 @@ export function DemandsPage() {
           <CardTitle>新建招聘需求</CardTitle>
         </CardHeader>
         <CardBody className="space-y-4">
-          <>
-            <div className="grid gap-4 lg:grid-cols-3">
-              {!reuseProfile && (
-                <>
-                  <Input
-                    label="招聘岗位"
-                    placeholder="例：Java 后端工程师"
-                    value={form.job_title}
-                    onChange={(event) => updateField('job_title', event.target.value)}
-                  />
-                  <label className="block lg:col-span-2">
-                    <span className="mb-1.5 block text-sm font-medium text-ink">
-                      岗位职责/任职要求
-                    </span>
-                    <textarea
-                      value={form.jd_text}
-                      onChange={(event) => updateField('jd_text', event.target.value)}
-                      placeholder="写清职责、核心技能、经验要求和加分项，系统会把它作为候选人匹配画像。"
-                      className="min-h-[96px] w-full rounded-md border border-hairline bg-canvas px-3 py-2 text-sm text-ink placeholder:text-muted-soft focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
-                    />
-                  </label>
-                </>
-              )}
+          {jobsAsync.loading ? (
+            <div className="flex items-center gap-2 text-sm text-muted">
+              <Spinner size="sm" />
+              加载岗位列表…
+            </div>
+          ) : jobsAsync.error ? (
+            <ErrorState message={jobsAsync.error.message} onRetry={jobsAsync.reload} />
+          ) : jobs.length === 0 ? (
+            <EmptyState
+              icon={ClipboardList}
+              title="暂无可关联岗位"
+              description="没有目标岗位时，请先新建岗位画像，再登记招聘需求。"
+              action={
+                <Link to="/jobs">
+                  <Button variant="secondary" size="sm">
+                    新建岗位
+                  </Button>
+                </Link>
+              }
+            />
+          ) : (
+            <>
+              <div className="grid gap-4 lg:grid-cols-3">
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-ink">关联岗位</span>
+                  <select
+                    value={form.job_id}
+                    onChange={(event) => updateField('job_id', event.target.value)}
+                    className="h-10 w-full rounded-md border border-hairline bg-canvas px-3 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+                  >
+                    {jobs.map((job) => (
+                      <option key={job.id} value={job.id}>
+                        {formatJobOption(job)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <Input
                   label="需求编号"
                   placeholder="例：REQ-2026-001"
@@ -666,60 +655,6 @@ export function DemandsPage() {
                   onChange={(event) => updateField('headcount', event.target.value)}
                 />
               </div>
-
-              <details className="rounded-md border border-hairline bg-surface-soft px-4 py-3">
-                <summary className="cursor-pointer text-sm font-semibold text-ink">
-                  复用已有岗位画像
-                </summary>
-                <div className="mt-3 space-y-3">
-                  <label className="flex items-start gap-2 text-sm text-body">
-                    <input
-                      type="checkbox"
-                      checked={reuseProfile}
-                      onChange={(event) => handleReuseProfileChange(event.target.checked)}
-                      className="mt-1 h-4 w-4 rounded border-hairline"
-                    />
-                    <span>这次需求和已有岗位要求基本一致，直接复用该画像做候选人匹配。</span>
-                  </label>
-                  {reuseProfile && (
-                    jobsAsync.loading ? (
-                      <div className="flex items-center gap-2 text-sm text-muted">
-                        <Spinner size="sm" />
-                        加载岗位画像…
-                      </div>
-                    ) : jobsAsync.error ? (
-                      <ErrorState message={jobsAsync.error.message} onRetry={jobsAsync.reload} />
-                    ) : jobs.length === 0 ? (
-                      <div className="flex items-center justify-between gap-3 rounded-md border border-hairline bg-canvas px-3 py-2 text-sm text-muted">
-                        <span>暂无可复用画像，请直接填写招聘岗位和任职要求。</span>
-                        <Link to="/jobs">
-                          <Button variant="secondary" size="sm">
-                            查看岗位库
-                          </Button>
-                        </Link>
-                      </div>
-                    ) : (
-                      <label className="block">
-                        <span className="mb-1.5 block text-sm font-medium text-ink">
-                          选择岗位画像
-                        </span>
-                        <select
-                          value={form.job_id}
-                          onChange={(event) => updateField('job_id', event.target.value)}
-                          className="h-10 w-full rounded-md border border-hairline bg-canvas px-3 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
-                        >
-                          {jobs.map((job) => (
-                            <option key={job.id} value={job.id}>
-                              {formatJobOption(job)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    )
-                  )}
-                </div>
-              </details>
-
               <label className="block">
                 <span className="mb-1.5 block text-sm font-medium text-ink">备注</span>
                 <textarea
@@ -734,10 +669,11 @@ export function DemandsPage() {
                   创建需求
                 </Button>
                 <span className="text-xs text-muted-soft">
-                  创建后会生成或复用岗位画像，用来匹配候选人并判断 HR 和业务侧卡点。
+                  创建后会自动读取该岗位的流程数据，用来判断 HR 和业务侧卡点。
                 </span>
               </div>
             </>
+          )}
         </CardBody>
       </Card>
 

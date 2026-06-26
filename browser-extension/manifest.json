@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "智聘 · BOSS Cookie 采集器",
+  "version": "1.0.0",
+  "description": "在本机浏览器一键采集已登录的 BOSS 直聘招聘端完整 Cookie（含 __zp_stoken__），复制后粘贴到智聘平台导入账号。",
+  "permissions": ["cookies", "activeTab", "scripting"],
+  "host_permissions": [
+    "https://*.zhipin.com/"
+  ],
+  "action": {
+    "default_title": "采集 BOSS Cookie",
+    "default_popup": "popup.html"
+  },
+  "icons": {
+    "128": "icon128.jpg"
+  }
+}

@@ -62,30 +62,6 @@ def test_admin_resets_user_password(client, make_user):
     })
     assert new_login.status_code == 200
 
-
-def test_admin_reset_password_revokes_existing_token(client, make_user):
-    _, admin_token = make_user("a@x.com", role="admin")
-    target_id, target_token = make_user("reset-token@x.com", role="recruiter", password="oldpw123")
-
-    before = client.get("/api/auth/me", headers=_auth(target_token))
-    assert before.status_code == 200
-
-    r = client.post(
-        f"/api/admin/users/{target_id}/reset-password",
-        headers=_auth(admin_token),
-        json={"password": "newpw123"},
-    )
-    assert r.status_code == 200
-
-    after = client.get("/api/auth/me", headers=_auth(target_token))
-    assert after.status_code == 401
-
-    new_login = client.post("/api/auth/login", json={
-        "email": "reset-token@x.com",
-        "password": "newpw123",
-    })
-    assert new_login.status_code == 200
-
 def test_admin_deactivates_user(client, make_user):
     _, admin_token = make_user("a@x.com", role="admin")
     target_id, _ = make_user("r@x.com", role="recruiter")

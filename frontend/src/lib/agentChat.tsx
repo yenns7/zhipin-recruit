@@ -14,8 +14,11 @@ import {
   type MutableRefObject,
 } from 'react';
 import { getToken } from './api';
+import { api } from './api';
+import type { ConversationSummary } from '../types';
 
 const STORAGE_KEY_CONV = 'zhipin:agent:conversation_id';
+const STORAGE_KEY_CONV_LIST = 'zhipin:agent:recent_conversations';
 
 export interface ConversationMessageItem {
   id: number;
@@ -80,6 +83,15 @@ interface AgentChatValue {
   setConversationId: (id: number | null) => void;
   loadConversationMessages: (id: number) => Promise<ConversationMessageItem[]>;
   hydrateMessagesFromDb: (dbMessages: ConversationMessageItem[]) => void;
+  // 会话列表与管理（跨路由保留）
+  conversations: ConversationSummary[];
+  reloadConversations: () => Promise<void>;
+  switchConversation: (id: number) => Promise<void>;
+  createNewConversation: (title?: string) => Promise<number>;
+  renameConversation: (id: number, title: string) => Promise<void>;
+  archiveConversation: (id: number, archived: boolean) => Promise<void>;
+  // 会话级内存缓存：id -> messages，切换时先读缓存避免闪烁
+  conversationCache: MutableRefObject<Map<number, Message[]>>;
 }
 
 const AgentChatContext = createContext<AgentChatValue | undefined>(undefined);
@@ -107,6 +119,14 @@ function writeStoredConversationId(id: number | null) {
   }
 }
 
+function writeStoredRecentConversations(ids: number[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY_CONV_LIST, JSON.stringify(ids.slice(0, 20)));
+  } catch {
+    // ignore
+  }
+}
+
 async function authFetch<T>(url: string): Promise<T> {
   const token = getToken();
   const response = await fetch(url, {
@@ -125,8 +145,11 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   const [conversationId, setConversationIdState] = useState<number | null>(
     () => readStoredConversationId(),
   );
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const toolSeqRef = useRef(0);
+  // 会话级内存缓存：切回某会话时先读缓存，避免后端往返闪烁
+  const conversationCache = useRef<Map<number, Message[]>>(new Map());
 
   const setConversationId = useCallback((id: number | null) => {
     setConversationIdState(id);
@@ -165,8 +188,79 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
     setMessages(restored);
   }, []);
 
+  const reloadConversations = useCallback(async () => {
+    try {
+      const data = await api.listConversations({ archived: false, per_page: 100 });
+      setConversations(data.items ?? []);
+      // 记录最近会话 id 列表到 localStorage，便于刷新后恢复
+      const ids = (data.items ?? []).map((c) => c.id);
+      writeStoredRecentConversations(ids);
+    } catch {
+      // 列表加载失败不阻断对话
+    }
+  }, []);
+
+  const switchConversation = useCallback(
+    async (id: number) => {
+      // 流式生成中不允许切换（避免状态错乱）
+      if (streaming) return;
+      // 先读内存缓存，避免闪烁
+      const cached = conversationCache.current.get(id);
+      if (cached) {
+        setMessages(cached);
+      } else {
+        setMessages([]);
+      }
+      setConversationId(id);
+      try {
+        const dbMessages = await loadConversationMessages(id);
+        hydrateMessagesFromDb(dbMessages);
+      } catch {
+        // 加载失败保留缓存或空状态
+      }
+    },
+    [streaming, setConversationId, loadConversationMessages, hydrateMessagesFromDb],
+  );
+
+  const createNewConversation = useCallback(
+    async (title?: string): Promise<number> => {
+      const created = await api.createConversation(title);
+      await reloadConversations();
+      setMessages([]);
+      conversationCache.current.delete(created.id);
+      setConversationId(created.id);
+      return created.id;
+    },
+    [reloadConversations, setConversationId],
+  );
+
+  const renameConversation = useCallback(
+    async (id: number, title: string) => {
+      await api.updateConversation(id, { title });
+      await reloadConversations();
+    },
+    [reloadConversations],
+  );
+
+  const archiveConversation = useCallback(
+    async (id: number, archived: boolean) => {
+      await api.updateConversation(id, { archived });
+      await reloadConversations();
+    },
+    [reloadConversations],
+  );
+
+  // 切换会话前，把当前会话消息缓存起来（供切回时快速恢复）
+  useEffect(() => {
+    if (conversationId !== null) {
+      conversationCache.current.set(conversationId, messages);
+    }
+  }, [messages, conversationId]);
+
+  // 挂载时：恢复最近会话（修复 A2 —— 不再清空，而是尝试恢复或引导新建）
   useEffect(() => {
     let cancelled = false;
+    reloadConversations();
     const stored = readStoredConversationId();
     if (!stored) return;
     loadConversationMessages(stored)
@@ -177,15 +271,15 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         }
       })
       .catch(() => {
+        // 读不到不再清空 messages —— 保留当前（空）状态，引导用户新建或选历史
         if (!cancelled) {
           setConversationId(null);
-          setMessages([]);
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [hydrateMessagesFromDb, loadConversationMessages, setConversationId]);
+  }, [hydrateMessagesFromDb, loadConversationMessages, reloadConversations, setConversationId]);
 
   return (
     <AgentChatContext.Provider
@@ -202,6 +296,13 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         setConversationId,
         loadConversationMessages,
         hydrateMessagesFromDb,
+        conversations,
+        reloadConversations,
+        switchConversation,
+        createNewConversation,
+        renameConversation,
+        archiveConversation,
+        conversationCache,
       }}
     >
       {children}

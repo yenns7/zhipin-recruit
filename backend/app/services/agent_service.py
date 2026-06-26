@@ -16,6 +16,7 @@ import sys
 import json
 import logging
 import re
+import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, TypedDict
 
@@ -33,23 +34,14 @@ from .. import db  # noqa: E402
 from ..models import (  # noqa: E402
     Candidate,
     CandidateTag,
-    Event,
     Job,
     Interview,
     PipelineStage,
-    User,
+    AgentCallLog,
 )
 from .match_service import MatchService  # noqa: E402
 from ..api.bi import _funnel, _safe_rate  # 复用 BI 漏斗逻辑（模块级函数）  # noqa: E402
-from ..api.access import (  # noqa: E402
-    actor_org_id,
-    can_access_candidate,
-    can_manage_job,
-    can_read_job,
-    job_is_active,
-    visible_candidate_query,
-    visible_job_query,
-)
+from ..api.access import can_access_candidate, visible_candidate_query  # noqa: E402
 from ..time_utils import utc_now  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -129,9 +121,7 @@ def _tool_list_jobs(limit: int = 20, **_) -> Dict[str, Any]:
         limit = int(limit) if limit else 20
     except (TypeError, ValueError):
         limit = 20
-    user_id = _.get("_user_id")
-    role = _.get("_role")
-    rows = visible_job_query(user_id, role).order_by(Job.id).limit(limit).all()
+    rows = Job.query.order_by(Job.id).limit(limit).all()
     items = [{"id": j.id, "title": j.title, "status": j.status} for j in rows]
     return {"count": len(items), "jobs": items}
 
@@ -141,8 +131,6 @@ def _tool_match_candidates_for_job(job_id: int, **_) -> Dict[str, Any]:
     job = db.session.get(Job, int(job_id))
     if not job:
         return {"error": f"岗位 {job_id} 不存在"}
-    if not can_read_job(_.get("_user_id"), _.get("_role"), job):
-        return {"error": "Forbidden"}
     # 使用纯计算模式（不写入 DB），rank_for_job(..., persist=False)
     from .match_service import MatchService as MS
     ranked = MS().rank_for_job_readonly(
@@ -155,11 +143,6 @@ def _tool_match_candidates_for_job(job_id: int, **_) -> Dict[str, Any]:
 
 def _tool_get_pipeline(job_id: int, **_) -> Dict[str, Any]:
     """某岗位招聘流程看板：按 stage 分组计数。"""
-    job = db.session.get(Job, int(job_id))
-    if not job:
-        return {"error": f"岗位 {job_id} 不存在"}
-    if not can_read_job(_.get("_user_id"), _.get("_role"), job):
-        return {"error": "Forbidden"}
     by_stage = _agent_current_stage_counts(
         job_id=job_id,
         user_id=_.get("_user_id"),
@@ -184,7 +167,7 @@ def _tool_get_bi_overview(days: int = 30, **_) -> Dict[str, Any]:
     from sqlalchemy import func
     from ..models import User, Event
 
-    funnel = _funnel(days=days, org_id=actor_org_id(_.get("_user_id")))
+    funnel = _funnel(days=days)
     cutoff = utc_now() - timedelta(days=days)
     # 专员效能（与 bi.overview() 中相同逻辑）
     staff_rows = (
@@ -219,8 +202,8 @@ def _tool_count_summary(**_) -> Dict[str, Any]:
     scoped_candidates = _scoped_candidate_query(_.get("_user_id"), _.get("_role"))
     return {
         "candidate_count": scoped_candidates.count(),
-        "job_count": visible_job_query(_.get("_user_id"), _.get("_role")).count(),
-        "interview_count": Interview.query.filter(Interview.org_id == actor_org_id(_.get("_user_id"))).count(),
+        "job_count": Job.query.count(),
+        "interview_count": Interview.query.count(),
         "stage_counts": _agent_current_stage_counts(
             user_id=_.get("_user_id"),
             role=_.get("_role"),
@@ -407,13 +390,7 @@ def _write_create_job(title: str = "", jd_text: str = "", actor_id: int = None, 
         return {"error": "缺少岗位名称或 JD 描述"}
     llm = LLMClient()
     structured = _extract_jd_structured(llm, jd_text)
-    job = Job(
-        org_id=actor_org_id(actor_id),
-        title=title,
-        jd_text=jd_text,
-        jd_structured=structured,
-        owner_hr_id=actor_id,
-    )
+    job = Job(title=title, jd_text=jd_text, jd_structured=structured, owner_hr_id=actor_id)
     db.session.add(job)
     db.session.flush()  # 先 flush 确保 job.id 可用，但不 commit
     from ..middleware.events import record_event
@@ -436,17 +413,11 @@ def _write_move_pipeline(candidate_id: int = None, job_id: int = None,
     stage = normalize_pipeline_stage(stage)
     if not db.session.get(Candidate, int(candidate_id)):
         return {"error": f"候选人 {candidate_id} 不存在"}
-    job = db.session.get(Job, int(job_id))
-    if not job:
+    if not db.session.get(Job, int(job_id)):
         return {"error": f"岗位 {job_id} 不存在"}
     if not can_access_candidate(actor_id, actor_role, int(candidate_id), int(job_id)):
         return {"error": "Forbidden"}
-    if not can_manage_job(actor_id, actor_role, job):
-        return {"error": "Forbidden"}
-    if not job_is_active(job):
-        return {"error": "岗位已关闭，请先恢复在招后再推进流程"}
     ps = PipelineStage(candidate_id=int(candidate_id), job_id=int(job_id),
-                       org_id=actor_org_id(actor_id),
                        stage=stage, updated_by=actor_id)
     db.session.add(ps)
     db.session.commit()
@@ -473,10 +444,6 @@ def _write_start_interview(candidate_id: int = None, job_id: int = None,
         return {"error": f"候选人 {candidate_id} 不存在"}
     if not can_access_candidate(actor_id, actor_role, int(candidate_id), int(job_id)):
         return {"error": "Forbidden"}
-    if not can_manage_job(actor_id, actor_role, job):
-        return {"error": "Forbidden"}
-    if not job_is_active(job):
-        return {"error": "岗位已关闭，请先恢复在招后再发起 AI 面试"}
     try:
         count = int(count) if count else 5
     except (TypeError, ValueError):
@@ -496,10 +463,6 @@ def _write_run_match(job_id: int = None, actor_id: int = None,
     job = db.session.get(Job, int(job_id))
     if not job:
         return {"error": f"岗位 {job_id} 不存在"}
-    if not can_manage_job(actor_id, actor_role, job):
-        return {"error": "Forbidden"}
-    if not job_is_active(job):
-        return {"error": "岗位已关闭，请先恢复在招后再运行匹配"}
     ranked = MatchService().rank_for_job(
         int(job_id),
         top_n=10,
@@ -524,7 +487,7 @@ _WRITE_TOOL_DEFS: List[Dict[str, Any]] = [
         "name": "move_pipeline",
         "description": "把候选人推进到指定招聘流程阶段（pending/ai_screen/interview/offer/onboarded/rejected）。",
         "params": {"candidate_id": "int，必填", "job_id": "int，必填", "stage": "str，必填，目标阶段"},
-        "rbac": ("recruiter", "manager", "admin"),
+        "rbac": ("recruiter", "manager", "admin", "interviewer"),
         "execute": _write_move_pipeline,
         "summary": lambda a: f"将候选人 #{a.get('candidate_id', '?')} 在岗位 #{a.get('job_id', '?')} 推进到「{a.get('stage', '?')}」阶段",
     },
@@ -622,62 +585,76 @@ def get_agent_architecture_dashboard() -> Dict[str, Any]:
     }
 
 
-def execute_write_tool(name: str, args: Dict[str, Any], user_id: int, role: str) -> Dict[str, Any]:
-    """在请求上下文内执行写工具（供 /api/agent/execute 调用）。做 RBAC 校验。"""
+def execute_write_tool(
+    name: str,
+    args: Dict[str, Any],
+    user_id: int,
+    role: str,
+    conversation_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    """在请求上下文内执行写工具（供 /api/agent/execute 调用）。做 RBAC 校验。
+    执行后写一条 AgentCallLog(kind=tool_write) 用于审计。"""
+    t0 = time.time()
     tool = _WRITE_TOOL_MAP.get(name)
-    clean_args = dict(args or {})
     if not tool:
-        result = {"ok": False, "error": f"未知写工具：{name}"}
-        _record_agent_write_event(user_id, name, clean_args, result)
-        return result
+        _log_tool_write(conversation_id, user_id, role, name, args, None,
+                        t0, status="error", error_msg=f"未知写工具：{name}")
+        return {"ok": False, "error": f"未知写工具：{name}"}
     if role not in tool["rbac"]:
-        result = {"ok": False, "error": f"当前角色「{role}」无权执行此操作"}
-        _record_agent_write_event(user_id, name, clean_args, result)
-        return result
+        _log_tool_write(conversation_id, user_id, role, name, args, None,
+                        t0, status="error",
+                        error_msg=f"当前角色「{role}」无权执行此操作")
+        return {"ok": False, "error": f"当前角色「{role}」无权执行此操作"}
     try:
+        clean_args = dict(args or {})
         clean_args["actor_id"] = user_id
         clean_args["actor_role"] = role
         result = tool["execute"](**clean_args)
         if isinstance(result, dict) and result.get("error"):
-            wrapped = {"ok": False, "error": result["error"]}
-            _record_agent_write_event(user_id, name, args or {}, wrapped)
-            return wrapped
-        wrapped = {"ok": True, "result": result}
-        _record_agent_write_event(user_id, name, args or {}, wrapped)
-        return wrapped
+            _log_tool_write(conversation_id, user_id, role, name, args, result,
+                            t0, status="error", error_msg=result["error"])
+            return {"ok": False, "error": result["error"]}
+        _log_tool_write(conversation_id, user_id, role, name, args, result, t0, status="ok")
+        return {"ok": True, "result": result}
     except Exception as e:
         logger.exception("写工具 %s 执行失败", name)
+        _log_tool_write(conversation_id, user_id, role, name, args, None,
+                        t0, status="error", error_msg=f"执行失败：{e}")
+        return {"ok": False, "error": f"执行失败：{e}"}
+
+
+def _log_tool_write(
+    conversation_id: Optional[int],
+    user_id: int,
+    role: str,
+    tool_name: str,
+    args: Dict[str, Any],
+    result: Any,
+    t0: float,
+    status: str,
+    error_msg: Optional[str] = None,
+) -> None:
+    """写一条 tool_write 级 AI 调用日志。失败只记日志，不阻断主流程。"""
+    try:
+        # 入参/结果序列化为可读文本（截断防过大）
+        input_text = json.dumps({"tool": tool_name, "args": args}, ensure_ascii=False, default=str)
+        output_text = json.dumps(result, ensure_ascii=False, default=str) if result is not None else None
+        db.session.add(AgentCallLog(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            role=role,
+            kind="tool_write",
+            input_text=input_text[:8000],
+            output_text=output_text[:8000] if output_text else None,
+            tool_calls=[{"name": tool_name, "args": args}],
+            duration_ms=int((time.time() - t0) * 1000),
+            status=status,
+            error_msg=error_msg,
+        ))
+        db.session.commit()
+    except Exception as log_err:
         db.session.rollback()
-        wrapped = {"ok": False, "error": f"执行失败：{e}"}
-        _record_agent_write_event(user_id, name, args or {}, wrapped)
-        return wrapped
-
-
-def _record_agent_write_event(user_id: int, tool_name: str, args: Dict[str, Any], result: Dict[str, Any]) -> None:
-    from ..middleware.events import record_event
-
-    target_ids = {
-        key: args.get(key)
-        for key in ("candidate_id", "job_id", "interview_id", "feedback_id", "user_id", "owner_id", "org_id")
-        if isinstance(args, dict) and args.get(key) is not None
-    }
-    error = result.get("error")
-    ok = bool(result.get("ok"))
-    record_event(
-        action="agent.write",
-        entity_type="agent_tool",
-        entity_id=target_ids.get("candidate_id") or target_ids.get("job_id"),
-        payload={
-            "tool": tool_name,
-            "target_ids": target_ids,
-            "ok": ok,
-            "error": str(error)[:240] if error else None,
-        },
-        result="success" if ok else "failure",
-        failure_reason=str(error)[:240] if error else None,
-        source="ai",
-        severity="info" if ok else "warning",
-    )
+        logger.error("写入 tool_write AgentCallLog 失败: %s", log_err)
 
 
 # =============================================================================
@@ -974,4 +951,12 @@ class RecruitingAgent:
         tool_results = final_state.get("tool_results", [])
         answer_text = yield from self._stream_final_answer(messages, tool_results)
 
-        yield {"type": "done", "answer": answer_text}
+        # 把本次最终答案步的调用日志快照进 done 事件，供 agent.py 落库。
+        # 用快照而非后续读 self.client.last_call_log，避免单例 client 在并发请求下被覆盖串号。
+        done_event: Dict[str, Any] = {"type": "done", "answer": answer_text}
+        try:
+            if getattr(self.client, "last_call_log", None):
+                done_event["_call_log"] = dict(self.client.last_call_log)
+        except Exception:
+            pass
+        yield done_event

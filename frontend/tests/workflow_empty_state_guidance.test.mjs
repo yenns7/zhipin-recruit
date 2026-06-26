@@ -63,21 +63,17 @@ assert.match(
   'Jobs page should offer a clear restore action for closed jobs',
 );
 
-assert.match(
-  demandsPage,
-  /招聘岗位[\s\S]*岗位职责\/任职要求/,
-  'Demands page should let users create a recruitment demand directly with a job profile instead of forcing an existing job first',
-);
-assert.match(
-  pipelinePage,
-  /创建招聘需求或岗位画像/,
-  'Pipeline page should guide users to create a recruitment demand or job profile when no flow target exists',
-);
-assert.match(
-  interviewAssignment,
-  /新建岗位/,
-  'Interview assignment panel should still guide users to create a job profile when the target job is missing',
-);
+for (const [name, source] of [
+  ['demands page', demandsPage],
+  ['pipeline page', pipelinePage],
+  ['interview assignment panel', interviewAssignment],
+]) {
+  assert.match(
+    source,
+    /新建岗位/,
+    `${name} should guide users to create a job when the target job is missing`,
+  );
+}
 
 assert.doesNotMatch(
   uploadPage,

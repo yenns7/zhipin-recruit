@@ -269,7 +269,7 @@ AI 判断意图
   </thead>
   <tbody>
     <tr><td>核心指标</td><td>候选人总数、岗位总数、面试中、转化率</td><td>已完成</td><td>按角色展示关键数字。</td></tr>
-    <tr><td>快捷入口</td><td>上传简历、匹配候选人、跟进招聘流程、待补反馈待办、查看团队看板、问 AI 助手</td><td>已完成</td><td>匹配候选人从工作台快捷进入招聘岗位，由岗位行直接开始匹配，避免新增重复选岗页。</td></tr>
+    <tr><td>快捷入口</td><td>上传简历、选择岗位匹配、跟进招聘流程、待补反馈待办、查看团队看板、问 AI 助手</td><td>已完成</td><td>帮助进入具体任务，避免重复生成一个泛化面试入口。</td></tr>
     <tr><td>角色化提示</td><td>角色说明卡片</td><td>已完成</td><td>根据 HR、经理、管理员、面试官展示不同职责说明。</td></tr>
   </tbody>
 </table>
@@ -321,7 +321,6 @@ AI 判断意图
     <tr><th background-color="light-gray">功能点</th><th background-color="light-gray">按钮 / 字段</th><th background-color="light-gray">状态</th><th background-color="light-gray">说明</th></tr>
   </thead>
   <tbody>
-    <tr><td>匹配入口</td><td>工作台、招聘岗位行“匹配候选人”</td><td>已完成</td><td>不保留重复选岗页；招聘岗位既负责维护岗位，也负责从具体岗位开始匹配。</td></tr>
     <tr><td>匹配列表</td><td>刷新、AI 推荐、全部候选人、搜索候选人、查看流程、选择候选人</td><td>已完成</td><td>展示匹配分、命中技能、缺失技能；AI 没推荐到的人也可以从全库人工补找。</td></tr>
     <tr><td>筛选</td><td>匹配度、入流程状态、匹配技能、缺失技能、重置筛选</td><td>已完成</td><td>帮助 HR 缩小当前结果，批量加入只作用于当前筛选后已勾选的人。</td></tr>
     <tr><td>加入流程</td><td>加入流程按钮</td><td>已完成</td><td>将单个候选人加入岗位招聘流程。</td></tr>

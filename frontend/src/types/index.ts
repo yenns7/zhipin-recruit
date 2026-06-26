@@ -70,7 +70,6 @@ export interface ResumeUploadResponse {
   batch_id?: number;
   total: number;
   results: ResumeUploadResultItem[];
-  deduplicated?: boolean;
 }
 
 export interface CandidateTag {
@@ -277,12 +276,7 @@ export interface RecruitmentDemand {
 }
 
 export interface RecruitmentDemandInput {
-  job_id?: number;
-  job_title?: string;
-  jd_text?: string;
-  job_city?: string;
-  job_department?: string;
-  job_code?: string;
+  job_id: number;
   request_no?: string;
   requester_name?: string;
   requester_department?: string;
@@ -489,24 +483,6 @@ export interface PipelineMoveResponse {
   from: PipelineStage | null;
   candidate_id: number;
   name_masked: string;
-  deduplicated?: boolean;
-}
-
-export interface PipelineTransferRequest {
-  candidate_id: number;
-  from_job_id: number;
-  to_job_id: number;
-  reason: string;
-}
-
-export interface PipelineTransferResponse {
-  status: string;
-  candidate_id: number;
-  name_masked: string;
-  from_job_id: number;
-  to_job_id: number;
-  from_stage: PipelineStage;
-  to_stage: PipelineStage;
 }
 
 export interface CandidateDispositionInput {
@@ -794,18 +770,10 @@ export interface AuditLogItem {
   source: 'event';
   actor_id: number | null;
   actor_name: string | null;
-  actor_role: Role | null;
   action: string;
   entity_type: string | null;
   entity_id: number | null;
   payload: Record<string, unknown>;
-  request_id: string | null;
-  ip: string | null;
-  user_agent: string | null;
-  result: 'success' | 'failure' | 'denied' | string;
-  failure_reason: string | null;
-  event_source: 'ui' | 'ai' | 'security' | string;
-  severity: 'info' | 'warning' | string;
   ts: string | null;
 }
 
@@ -869,7 +837,6 @@ export interface InterviewAssignment {
   is_overdue: boolean;
   created_by_name: string | null;
   created_at: string | null;
-  deduplicated?: boolean;
 }
 
 export interface InterviewAssignmentInput {
@@ -1004,3 +971,278 @@ export interface CandidateJourney {
   dispositions: JourneyDisposition[];
   decision_summary: DecisionSummary;
 }
+
+// ── BOSS 直聘集成（boss-cli 招聘端）──────────────────────────────
+// 后端统一返回 {ok, data, error?}；此处 data 的形态依接口而定，统一用宽松类型。
+// boss status --json 的裸 dict
+export interface BossStatus {
+  authenticated: boolean;
+  credential_present?: boolean;
+  cookie_count?: number;
+  cookies?: string[];
+  search_authenticated?: boolean;
+  recommend_authenticated?: boolean;
+  reason?: string | null;
+}
+
+export interface BossLoginGuide {
+  installed: boolean;
+  bin: string | null;
+  interactive: boolean;
+  instructions: string[];
+}
+
+// 招聘端在招职位条目（字段来自 boss-cli recruiter jobs）
+export interface BossJob {
+  jobName?: string;
+  salaryDesc?: string;
+  address?: string;
+  encryptJobId?: string;
+  [k: string]: unknown;
+}
+
+// 搜索/推荐候选人条目（字段名随 boss-cli 返回，统一宽松）
+export interface BossCandidate {
+  name?: string;
+  geekName?: string;
+  expectPositionName?: string;
+  jobName?: string;
+  workYearDesc?: string;
+  workYear?: string | number;
+  degreeDesc?: string;
+  degree?: string | number;
+  encryptGeekId?: string;
+  encryptUid?: string;
+  encryptFriendId?: string;
+  friendId?: number;
+  securityId?: string;
+  salaryDesc?: string;
+  lastTime?: string;
+  newGeek?: boolean;
+  sourceType?: number;
+  [k: string]: unknown;
+}
+
+export interface BossSearchParams {
+  keyword: string;
+  city?: string;
+  exp?: string;
+  degree?: string;
+  salary?: string;
+  job?: string;
+  page?: number;
+}
+
+export interface BossRecommendParams {
+  job?: string;
+  limit?: number;
+  page?: number;
+}
+
+export interface BossInboxParams {
+  job?: string;
+  label?: number;
+  limit?: number;
+  page?: number;
+}
+
+// BOSS 账号（多账号，不含 cookies 明文）
+export interface BossAccount {
+  id: number;
+  label: string;
+  cookie_count: number;
+  has_stoken: boolean;
+  is_active: boolean;
+  last_verified_at: string | null;
+  last_verified_ok: boolean | null;
+  created_at: string | null;
+}
+
+// 扫码登录状态
+export type BossQrStatus =
+  | 'pending'    // 已出码，等待扫码
+  | 'scanned'    // 已扫码，等待手机确认
+  | 'done'       // 登录成功
+  | 'expired'    // 二维码过期
+  | 'failed';    // 异常
+
+// 扫码登录启动返回
+export interface BossQrStartResult {
+  session_id: string;
+  qr_image: string;  // base64 图片
+  qr_mime: string;   // 图片 MIME（image/jpeg 或 image/png）
+}
+
+// 扫码状态查询返回
+export interface BossQrStatusResult {
+  status: BossQrStatus;
+  error: string;
+}
+
+// ── 招聘闭环：批量导入 / AI 初筛 / 面试邀请 ──────────────────────
+// 批量导入单条入参（来自收件箱列表勾选）
+export interface BossImportItem {
+  geek_id: string;
+  name?: string;
+  security_id?: string;
+  friend_id?: number;
+  job?: string;
+}
+
+export interface BossBatchImportParams {
+  items: BossImportItem[];
+  target_job_id?: number;
+  boss_job?: string;
+  limit?: number;
+  interval_sec?: number;
+}
+
+export interface BossImportResultItem {
+  geek_id: string;
+  name?: string;
+  status: 'ok' | 'skipped' | 'error';
+  reason?: string;
+  code?: string;
+  candidate_id?: number;
+  target_job_id?: number | null;
+}
+
+export interface BossBatchImportResult {
+  batch_id: number;
+  imported: number;
+  skipped: number;
+  failed: number;
+  stopped_reason: string | null;
+  results: BossImportResultItem[];
+}
+
+export interface BossAiScreenParams {
+  candidate_ids: number[];
+  job_id: number;
+}
+
+export interface BossScreenResultItem {
+  candidate_id: number;
+  name?: string;
+  status: 'ok' | 'error';
+  reason?: string;
+  score?: number | null;
+  pass_recommended?: boolean;
+  summary?: string;
+  highlights?: string[];
+  concerns?: string[];
+}
+
+export interface BossAiScreenResult {
+  screened: number;
+  failed: number;
+  results: BossScreenResultItem[];
+}
+
+export interface BossInviteInterviewParams {
+  candidate_id: number;
+  job_id: number;
+  boss_job?: string;
+  interviewer_id?: number;
+  round?: string;
+  time?: string;
+  address?: string;
+  desc?: string;
+}
+
+export interface BossInviteInterviewResult {
+  candidate_id: number;
+  job_id: number;
+  assignment_id: number;
+  boss: unknown;
+  stage: string;
+}
+
+// ---- AI 助手会话与调用日志 ----
+
+export interface ConversationSummary {
+  id: number;
+  title: string;
+  title_source?: string;
+  archived?: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+  message_count: number;
+}
+
+export interface ConversationListResponse {
+  items: ConversationSummary[];
+  page: number;
+  per_page: number;
+  total: number;
+}
+
+export interface ConversationDetailMessage {
+  id: number;
+  role: 'user' | 'assistant';
+  content: string;
+  tool_calls?: Array<{ tool: string; args: Record<string, unknown>; result?: unknown }> | null;
+  thoughts?: string[] | null;
+  created_at: string | null;
+}
+
+export interface ConversationDetail {
+  id: number;
+  title: string;
+  title_source?: string;
+  archived?: boolean;
+  messages: ConversationDetailMessage[];
+}
+
+export interface CreateConversationResponse {
+  id: number;
+  title: string;
+  archived: boolean;
+  title_source: string;
+  created_at: string | null;
+}
+
+export interface UpdateConversationResponse {
+  id: number;
+  title: string;
+  title_source: string;
+  archived: boolean;
+  updated_at: string | null;
+}
+
+export interface AgentCallLogItem {
+  id: number;
+  conversation_id: number | null;
+  message_id: number | null;
+  user_id: number;
+  role: string;
+  kind: string;
+  model: string | null;
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+  duration_ms: number | null;
+  status: string;
+  error_msg: string | null;
+  tool_calls: unknown;
+  thoughts: unknown;
+  input_text: string | null;
+  output_text: string | null;
+  created_at: string | null;
+}
+
+export interface CallLogListResponse {
+  items: AgentCallLogItem[];
+  page: number;
+  per_page: number;
+  total: number;
+}
+
+export interface CallLogQuery {
+  conversation_id?: number;
+  status?: string;
+  kind?: string;
+  user_id?: number;
+  page?: number;
+  per_page?: number;
+}
+

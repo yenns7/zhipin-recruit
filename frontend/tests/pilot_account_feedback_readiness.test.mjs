@@ -36,8 +36,7 @@ assert.match(types, /reason_tags\?: string\[\]/, 'interview feedback input shoul
 const feedbackForm = readSource('components/interview/FeedbackForm.tsx');
 assert.match(feedbackForm, /FEEDBACK_REASON_OPTIONS/, 'feedback form should define fixed reason options');
 assert.match(feedbackForm, /专业能力不匹配/, 'feedback form should include candidate-side reasons');
-assert.match(feedbackForm, /岗位要求变化/, 'feedback form should include business-side reasons');
-assert.doesNotMatch(feedbackForm, /岗位画像变化/, 'feedback form should avoid internal job-portrait wording');
+assert.match(feedbackForm, /岗位画像变化/, 'feedback form should include business-side reasons');
 assert.match(feedbackForm, /候选人已接受其他机会/, 'feedback form should include common candidate drop-off reasons');
 assert.match(feedbackForm, /岗位暂停招聘/, 'feedback form should include common demand-side stop reasons');
 assert.match(feedbackForm, /面试时间无法协调/, 'feedback form should include coordination reasons');

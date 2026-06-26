@@ -37,7 +37,6 @@ def register():
     if User.query.filter_by(email=data.get("email")).first():
         return jsonify({"error": "Email already registered"}), 409
     user = User(
-        org_id=1,
         name=data.get("name", ""),
         email=data["email"],
         role="recruiter",  # 安全：注册一律为 recruiter，特权角色由 admin 分配
@@ -59,12 +58,7 @@ def login():
         return jsonify({"error": "账号已停用，请联系管理员"}), 403
     exp = utc_now() + timedelta(hours=current_app.config["JWT_EXPIRY_HOURS"])
     token = jwt.encode(
-        {
-            "user_id": user.id,
-            "role": user.role,
-            "token_version": user.token_version or 0,
-            "exp": exp,
-        },
+        {"user_id": user.id, "role": user.role, "exp": exp},
         current_app.config["JWT_SECRET"], algorithm="HS256"
     )
     return jsonify({"token": token, "role": user.role, "name": user.name})
@@ -99,6 +93,5 @@ def change_password():
     if not _verify(old_pw, user.password_hash):
         return jsonify({"error": "旧密码不正确"}), 400
     user.password_hash = _hash(new_pw)
-    user.token_version = (user.token_version or 0) + 1
     db.session.commit()
     return jsonify({"status": "ok"})

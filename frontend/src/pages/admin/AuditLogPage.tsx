@@ -9,10 +9,6 @@ const ACTION_LABELS: Record<string, string> = {
   'job.created': '创建岗位',
   'job.updated': '编辑岗位',
   'job.closed': '关闭岗位',
-  'job.restored': '恢复岗位',
-  'candidate.viewed': '查看候选人',
-  'candidate.exported': '导出候选人',
-  'candidate.deleted': '删除候选人',
   'pipeline.moved': '流程推进',
   'candidate.onboarded': '候选人入职',
   'candidate.reassigned': '候选人转派',
@@ -27,8 +23,6 @@ const ACTION_LABELS: Record<string, string> = {
   'offer.saved': '保存 Offer',
   'user.role_changed': '角色变更',
   'user.active_changed': '账号状态变更',
-  'agent.write': 'AI 写操作',
-  'security.forbidden': '越权拦截',
 };
 
 function actionLabel(action: string): string {
@@ -45,31 +39,6 @@ function payloadLabel(payload: Record<string, unknown>): string {
   const keys = Object.keys(payload);
   if (keys.length === 0) return '-';
   return JSON.stringify(payload);
-}
-
-function resultLabel(result: string): string {
-  if (result === 'success') return '成功';
-  if (result === 'denied') return '已拦截';
-  if (result === 'failure') return '失败';
-  return result || '-';
-}
-
-function resultTone(result: string, severity: string): 'success' | 'danger' | 'warning' | 'neutral' {
-  if (severity === 'warning') return 'danger';
-  if (result === 'success') return 'success';
-  if (result === 'denied' || result === 'failure') return 'danger';
-  return 'neutral';
-}
-
-function severityTone(severity: string): 'danger' | 'neutral' {
-  return severity === 'warning' ? 'danger' : 'neutral';
-}
-
-function sourceLabel(source: string): string {
-  if (source === 'ai') return 'AI';
-  if (source === 'security') return '安全';
-  if (source === 'ui') return '页面';
-  return source || '-';
 }
 
 export function AuditLogContent() {
@@ -99,58 +68,32 @@ export function AuditLogContent() {
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-hairline bg-canvas">
-        <table className="w-full min-w-[980px] text-sm">
+        <table className="w-full min-w-[760px] text-sm">
           <thead className="border-b border-hairline bg-surface-soft text-left text-xs text-muted">
             <tr>
               <th className="px-4 py-3">时间</th>
-              <th className="px-4 py-3">结果</th>
               <th className="px-4 py-3">操作人</th>
               <th className="px-4 py-3">操作</th>
               <th className="px-4 py-3">目标</th>
-              <th className="px-4 py-3">请求</th>
               <th className="px-4 py-3">详情</th>
             </tr>
           </thead>
           <tbody>
             {data.logs.map((log) => (
-              <tr
-                key={`${log.source}-${log.id}`}
-                className={`border-b border-hairline last:border-0 ${
-                  log.severity === 'warning' ? 'bg-danger-50/60' : ''
-                }`}
-              >
+              <tr key={`${log.source}-${log.id}`} className="border-b border-hairline last:border-0">
                 <td className="whitespace-nowrap px-4 py-3 text-muted">
                   {log.ts ? formatDate(log.ts) : '-'}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3">
-                  <Badge tone={resultTone(log.result, log.severity)}>
-                    {resultLabel(log.result)}
-                  </Badge>
-                  {log.severity === 'warning' && (
-                    <Badge tone={severityTone(log.severity)} className="ml-2">
-                      告警
-                    </Badge>
-                  )}
-                </td>
                 <td className="whitespace-nowrap px-4 py-3 font-medium text-ink">
-                  <div>{log.actor_name || `用户 #${log.actor_id ?? '-'}`}</div>
-                  <div className="mt-1 text-xs font-normal text-muted-soft">
-                    {log.actor_role || '-'}
-                  </div>
+                  {log.actor_name || `用户 #${log.actor_id ?? '-'}`}
                 </td>
                 <td className="px-4 py-3">
                   <Badge tone="neutral">{actionLabel(log.action)}</Badge>
-                  <span className="ml-2 text-xs text-muted-soft">{sourceLabel(log.event_source)}</span>
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-muted">
                   {targetLabel(log)}
                 </td>
-                <td className="max-w-[220px] px-4 py-3 text-xs text-muted-soft">
-                  <div className="truncate">request_id: {log.request_id || '-'}</div>
-                  <div className="truncate">IP: {log.ip || '-'}</div>
-                </td>
                 <td className="max-w-xs truncate px-4 py-3 text-xs text-muted-soft">
-                  {log.failure_reason ? `${log.failure_reason} · ` : ''}
                   {payloadLabel(log.payload)}
                 </td>
               </tr>

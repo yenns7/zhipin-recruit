@@ -47,9 +47,9 @@
 
 | 角色 | 权限范围 |
 |------|---------|
-| admin | 当前组织内账号、候选人、岗位、流程、BI、审计和 AI 边界管理 |
-| manager | 当前组织内团队 BI、岗位/候选人/流程管理 |
-| recruiter | 当前组织内自己负责的候选人、岗位、匹配、AI 面试和个人数据；不能查看或操作别人负责的岗位 |
+| admin | 全量管理 + BI 看板 |
+| manager | BI 看板 + 团队漏斗 |
+| recruiter | 候选人 + 岗位 + 匹配 + AI 面试 + 自己负责范围内 BI；协作岗位只看自己负责候选人的漏斗 |
 | interviewer | 分配给自己的候选人查看 + 面试反馈 |
 
 ---
@@ -62,6 +62,8 @@
 | Node.js | 18+ | 推荐 20 LTS |
 | npm | 9+ | 随 Node.js 附带 |
 | Git | 任意 | 可选 |
+
+> BOSS 直聘模块还需外部 CLI `boss`（boss-cli，从 GitHub 源码安装，**必须配置**）；安装与配置见 3.2 与 `RUNNING.md`。
 
 ---
 
@@ -82,6 +84,15 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
+> **必须依赖：BOSS 直聘集成需要外部命令行工具 `boss`（boss-cli）。** `/boss` 模块（含「收件箱·闭环」：拉取已沟通候选人 → 批量导入 → AI 简历初筛 → 面试邀请）依赖该 CLI，缺失时接口返回 503。系统用到的 `recruiter` 子命令**仅 GitHub 源码版包含**，PyPI 包 `kabi-boss-cli` 未收录，因此必须从源码安装：
+>
+> ```bash
+> pip install git+https://github.com/jackwener/boss-cli.git --break-system-packages
+> boss recruiter --help   # 能看到 inbox / resume / invite-interview 即正确
+> ```
+>
+> 后端默认 `BOSS_CLI_AUTO_INSTALL=true`，缺失时会自动从上述源码地址安装；生产建议设 `false` 并手动安装。可用 `BOSS_CLI_BIN` 指定 `boss` 绝对路径。详见 `RUNNING.md` 的「BOSS 直聘集成（boss-cli，必须配置）」一节。CLI 装好后还需在 `/boss` 页面「从浏览器导入账号」绑定 BOSS 账号（云部署下后端读不到使用者本机浏览器，需用 `browser-extension/` 扩展采集完整 Cookie 后粘贴导入；扫码登录因拿不到 `__zp_stoken__` 已降级为实验性）。
+
 ### 3.3 配置环境变量
 
 ```bash
@@ -101,6 +112,10 @@ LLM_API_KEY=sk-your-deepseek-key-here       # 兼容旧模块，建议同值
 
 # JWT 密钥（生产环境请修改）
 JWT_SECRET=change-me-in-production
+
+# BOSS 账号 Cookie 加密密钥（云部署必填，否则重启后已保存的 BOSS 账号失效）
+# 生成：python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+FIELD_ENCRYPTION_KEY=your-fixed-fernet-key-here
 ```
 
 ### 3.4 启动后端
@@ -142,6 +157,15 @@ python seed_dev.py
 ```
 
 **无需 LLM API Key**，所有 AI 生成字段已预填。
+
+### 数据库迁移（AI 助手高可用增强）
+
+应用启动时 `create_app()` 会自动 `db.create_all()` 建新表，并对已存在的旧表幂等补列（`_ensure_conversation_columns` 等）。新增内容：
+
+- 新表 `agent_call_logs`：AI 调用日志，记录每次对话/写操作的输入输出/工具链/模型/token/耗时/状态。新库由 `create_all` 自动建。
+- `conversations` 表新增列 `archived`（软删标记）、`title_source`（标题来源）。旧库启动时自动 ALTER 补列（幂等，列已存在则跳过）；也可手动跑 `python migrate_stages.py`。
+
+无需额外迁移步骤，重启后端即可生效。
 
 正式试点前不要把演示数据带到真实环境。清理时先预览：
 
@@ -189,7 +213,7 @@ OPENAI_API_KEY=sk-your-openai-key
 
 | 功能 | 离线可用 |
 |------|---------|
-| 简历 AI 解析 (PDF/DOCX) | ❌ 需要 LLM |
+| 简历 AI 解析 (PDF/Word) | ❌ 需要 LLM |
 | JD 结构化 + 澄清追问 | ❌ 需要 LLM |
 | AI 面试题生成 + 评估 | ❌ 需要 LLM |
 | LangGraph AI 助手对话 | ❌ 需要 LLM |
@@ -207,20 +231,13 @@ cd frontend
 npm run build    # 生成 frontend/dist/
 ```
 
-2. 修改 `.env`。可以从轻量试点模板开始：
-```bash
-cp backend/lightweight-pilot.env.example backend/.env
-```
-然后把 `change-me`、域名、数据库地址、LLM Key 和备份目录替换成真实值：
+2. 修改 `.env`：
 ```env
 FLASK_DEBUG=false
 JWT_SECRET=your-strong-random-secret-here
 JWT_EXPIRY_HOURS=8
 DATABASE_URL=postgresql://user:pass@host:5432/zhipin
 CORS_ORIGINS=https://zhipin.内网域名
-AI_RECRUITMENT_COMPLIANCE_ACK=true
-CANDIDATE_PRIVACY_NOTICE_URL=https://zhipin.内网域名/privacy
-AI_HUMAN_REVIEW_REQUIRED=true
 SECURITY_HEADERS_ENABLED=true
 RATE_LIMIT_ENABLED=true
 RATE_LIMIT_LOGIN=10
@@ -245,54 +262,6 @@ python run.py
 ```
 
 访问 `http://your-server:5000` 即为完整系统。
-
-### 轻量试点后台兜底
-
-轻量试点不增加导出审批、水印或邀请制，HR 正常上传、推进、安排面试和导出。后台做低打扰保护：
-
-- 重复上传同一批简历会复用第一次结果，不再重复创建候选人。
-- 重复推进同一候选人到同一阶段、重复安排同一面试、重复提交同一轮反馈，会返回已有记录。
-- 普通 JSON/表单写接口支持 `Idempotency-Key`：同一用户、同一路径、同一请求体和同一个 key 的重试会返回第一次结果；同 key 不同请求体返回 409。
-- 同一面试官同一时间不能被安排两场不同面试；完全相同的重复安排仍返回已有记录。
-- 上传只支持 PDF、DOCX 和 ZIP；旧版 `.doc` 因宏风险会被跳过，需转换后再上传。
-- 误导入可按上传批次撤回：候选人会软删除、匿名化并删除原文件，保留审计事件。
-- 候选人导出继续开放，但同一账号 10 分钟内第 6 次起会在审计日志标为 `warning`，管理员页标红。
-- AI 写操作继续可用，仍写入 `agent.write` 审计；试点说明中应写清 AI 只做辅助，最终决定由人确认。
-- 管理员重置密码、用户自己修改密码后，旧登录 token 会立刻失效。
-
-### 备份与恢复演练
-
-上线前至少演练一次“能备份，也能恢复到临时库”。轻量试点不做复杂恢复后台，但必须留出可执行命令。
-
-备份：
-
-```bash
-cd backend
-python scripts/backup_pilot_data.py --dry-run
-python scripts/backup_pilot_data.py
-```
-
-恢复演练建议恢复到临时库或临时上传目录，不直接覆盖生产环境。脚本支持 PostgreSQL `pg_restore` 与 SQLite 文件恢复，并会校验 `uploads.tar.gz` 路径穿越：
-
-```bash
-cd backend
-createdb zhipin_restore_check
-
-DATABASE_URL=postgresql://user:pass@host:5432/zhipin_restore_check \
-UPLOAD_FOLDER=/tmp/zhipin-upload-restore-check \
-python scripts/restore_pilot_data.py --backup-path /var/backups/zhipin/<backup-dir> --dry-run
-
-DATABASE_URL=postgresql://user:pass@host:5432/zhipin_restore_check \
-UPLOAD_FOLDER=/tmp/zhipin-upload-restore-check \
-python scripts/restore_pilot_data.py --backup-path /var/backups/zhipin/<backup-dir> --confirm
-```
-
-验收：临时库能查到用户、候选人、岗位和审计事件；临时 `UPLOAD_FOLDER` 里能看到原简历文件。确认无误后删除临时库和临时目录：
-
-```bash
-dropdb zhipin_restore_check
-rm -rf /tmp/zhipin-upload-restore-check
-```
 
 ### 方案 B：gunicorn（多 worker，Linux 生产）
 
@@ -370,9 +339,7 @@ https://ward-mounted-concerning-fans.trycloudflare.com
 | 招聘专员 | hr03@mvp.local | 候选人 / 岗位 / 管道 / 个人数据 |
 | 面试官 | interviewer01@mvp.local | 面试任务 / 候选人查看 |
 
-MVP 试用阶段建议一人一个账号。系统会按用户 ID 记录候选人负责人、流程推进人和面试反馈人；BI 主绩效按候选人负责人归属，流程推进人用于操作留痕和后续动作审计，多人共用账号会导致贡献归属不清。试点审计日志还会记录候选人详情查看、候选人 CSV 导出、越权 403 和 AI 写操作，并附带 request_id、角色、IP、来源、结果和失败原因；同一账号短时间高频导出候选人会在管理员审计页标红。
-
-生产多组织隔离依赖 `org_id`：部署初始化时必须为每个组织创建独立管理员，并确认历史用户、岗位、候选人、流程、面试、BI 和 AI 对话均归入正确组织。当前一期没有前端组织管理页面，跨组织开通和迁移由部署脚本或数据库初始化处理。
+MVP 试用阶段建议一人一个账号。系统会按用户 ID 记录候选人负责人、流程推进人和面试反馈人；BI 主绩效按候选人负责人归属，流程推进人用于操作留痕和后续动作审计，多人共用账号会导致贡献归属不清。
 
 ---
 
@@ -382,13 +349,14 @@ MVP 试用阶段建议一人一个账号。系统会按用户 ID 记录候选人
 |------|------|------|
 | 工作台 | `/` | 角色化欢迎页 + KPI 看板 + 快速入口 |
 | AI 助手 | `/agent` | LangGraph ReAct 智能体，自然语言查询系统数据 |
-| 候选人 | `/candidates` | 简历库 + 技能标签 + 档案详情 + 受控 CSV 导出 |
-| 简历上传 | `/upload` | 拖拽上传 PDF/DOCX/ZIP，AI 自动解析技能标签；旧版 DOC 跳过 |
+| 候选人 | `/candidates` | 简历库 + 技能标签 + 档案详情 |
+| 简历上传 | `/upload` | 拖拽上传 PDF/Word，AI 自动解析技能标签 |
 | 岗位管理 | `/jobs` | 创建岗位，AI 追问补全 JD，智能解析技能要求 |
 | 候选人匹配 | `/jobs/:id/match` | 按岗位 AI 匹配并排名候选人 |
 | 候选人管道 | `/pipeline` | 阶段管理（待筛选→AI初筛→业务待反馈→面试中→Offer→已入职/淘汰），支持误推进后的“修正阶段”并保留历史流水 |
 | AI 面试 | `/interviews` | 生成定制题目，录入作答，AI 评估报告 |
-| 数据看板 | `/bi` | 团队当前阶段分布 + 专员效能 + 渠道质量 + 数据质量提醒（经理/管理员）+ 责任口径解释；当前流程人数不含已入职/已淘汰，招聘专员不能查看别人岗位 BI，面试官不开放 BI |
+| 数据看板 | `/bi` | 团队当前阶段分布 + 专员效能 + 渠道质量 + 数据质量提醒（经理/管理员）+ 责任口径解释；当前流程人数不含已入职/已淘汰，招聘专员仅自己负责范围，面试官不开放 BI |
+| BOSS 直聘 | `/boss` | 接入 BOSS 招聘端：搜/推荐候选人、查看下载简历、岗位上下线；「收件箱·闭环」工作台支持拉取已沟通候选人→批量导入候选人库→AI 简历初筛→面试邀请（BOSS+系统双写，需人工确认）。依赖 boss-cli（必须配置，见 3.2 与 RUNNING.md） |
 
 ---
 

@@ -45,19 +45,19 @@ assert.doesNotMatch(
 
 assert.match(
   jobsPage,
-  /查看需求流程/,
+  /查看候选人流程/,
   'Job rows should expose the next step from a job into its candidate flow',
 );
 
 assert.match(
   jobMatchPage,
-  /已加入需求流程/,
+  /已加入流程/,
   'Joined match rows should clearly confirm that the candidate entered the pipeline',
 );
 
 assert.match(
   jobMatchPage,
-  /去需求流程查看/,
+  /去候选人流程查看/,
   'After joining from matching, the CTA should tell HR the next destination plainly',
 );
 

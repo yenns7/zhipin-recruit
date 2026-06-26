@@ -24,9 +24,6 @@ class Config:
     LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini")
     LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
     LLM_API_URL = os.environ.get("LLM_API_URL", "")
-    AI_RECRUITMENT_COMPLIANCE_ACK = os.environ.get("AI_RECRUITMENT_COMPLIANCE_ACK", "false").lower() == "true"
-    CANDIDATE_PRIVACY_NOTICE_URL = os.environ.get("CANDIDATE_PRIVACY_NOTICE_URL", "")
-    AI_HUMAN_REVIEW_REQUIRED = os.environ.get("AI_HUMAN_REVIEW_REQUIRED", "true").lower() == "true"
 
     # JWT
     JWT_SECRET = os.environ.get("JWT_SECRET", "dev-secret-change-in-prod")
@@ -67,6 +64,14 @@ class Config:
     # Celery：开发用 eager（同进程，无需 Redis）
     CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "memory://")
     CELERY_TASK_ALWAYS_EAGER = os.environ.get("CELERY_TASK_ALWAYS_EAGER", "true").lower() == "true"
+
+    # boss-cli（BOSS 直聘招聘端集成）：二进制路径覆盖与自动安装开关
+    BOSS_CLI_BIN = os.environ.get("BOSS_CLI_BIN", "")
+    BOSS_CLI_AUTO_INSTALL = os.environ.get("BOSS_CLI_AUTO_INSTALL", "true").lower() == "true"
+
+    # 字段级加密密钥（Fernet，用于加密 BOSS 账号 cookies 等敏感数据）
+    # 生成：python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    FIELD_ENCRYPTION_KEY = os.environ.get("FIELD_ENCRYPTION_KEY", "")
 
     # Flask
     SECRET_KEY = os.environ.get("JWT_SECRET", "dev-secret")

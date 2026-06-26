@@ -1,5 +1,3 @@
-> 接手提醒：这是 `base_agent/FrontEnd/` 原始前端说明，不是智聘当前前端主线。智聘当前前端在根目录 `frontend/`，本地运行看根目录 `RUNNING.md`。
-
 NLP Project – FrontEnd (React + Vite + Tailwind)
 =================================================
 

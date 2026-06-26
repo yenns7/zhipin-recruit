@@ -47,6 +47,11 @@ pandas==3.0.3
 requests==2.34.2
 requests-toolbelt==1.0.0
 
+# ── BOSS 直聘 CLI 集成（招聘端搜候选人/岗位管理/简历下载）─────
+# 注意：招聘端 recruiter 子命令仅在 GitHub 源码版含，PyPI 发布包 kabi-boss-cli 未收录，
+# 故必须从 GitHub 源码安装（boss-cli @ jackwener）。需 Python ≥3.10。
+kabi-boss-cli @ git+https://github.com/jackwener/boss-cli.git
+
 # ── 任务队列（开发用 eager 模式，生产可换 Redis）────────────
 celery==5.6.3
 click-didyoumean==0.3.1

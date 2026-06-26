@@ -314,7 +314,7 @@ export function TalentMapPage() {
               <>
                 <div className="grid gap-3 md:grid-cols-3">
                   <div className="rounded-md border border-hairline bg-surface-soft px-4 py-3">
-                    <p className="text-xs text-muted">岗位画像</p>
+                    <p className="text-xs text-muted">关联岗位</p>
                     <p className="mt-1 text-sm font-semibold text-ink">
                       {talentMap.job_title || '暂未关联'}
                     </p>
@@ -437,11 +437,11 @@ export function TalentMapPage() {
                   onChange={(event) => setMapName(event.target.value)}
                 />
                 <Select
-                  label="岗位画像"
+                  label="关联岗位"
                   value={mapJobId}
                   onChange={(event) => setMapJobId(event.target.value)}
                 >
-                  <option value="">暂不绑定岗位画像</option>
+                  <option value="">暂不关联岗位</option>
                   {jobs.map((job) => (
                     <option key={job.id} value={job.id}>
                       {formatJobOption(job)}

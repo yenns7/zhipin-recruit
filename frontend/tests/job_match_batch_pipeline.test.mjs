@@ -20,6 +20,6 @@ assert.match(types, /BatchAddToPipelineResponse/, 'Batch add response type shoul
 const jobMatchPage = readSource('pages/JobMatchPage.tsx');
 assert.match(jobMatchPage, /selectedIds/, 'Match page should keep selected candidate ids');
 assert.match(jobMatchPage, /toggleSelectAll/, 'Match page should support selecting all joinable candidates');
-assert.match(jobMatchPage, /批量加入该需求流程/, 'Match page should expose a batch add action');
+assert.match(jobMatchPage, /批量加入流程/, 'Match page should expose a batch add action');
 assert.match(jobMatchPage, /existingPipelineIds\.has/, 'Batch selection should be aware of already-joined candidates');
 assert.match(jobMatchPage, /batchAddToPipeline/, 'Match page should call the batch add API');

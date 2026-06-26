@@ -49,15 +49,7 @@ const recruitmentTabs = readSource('components/recruitment/RecruitmentManagement
 assert.match(page, /招聘管理/, 'Demand page should live under the consolidated recruitment management title');
 assert.match(page, /RecruitmentManagementTabs/, 'Demand page should reuse the shared recruitment tabs');
 assert.match(recruitmentTabs, /用人需求/, 'Recruitment tabs should expose the demand tab label');
-assert.match(recruitmentTabs, /招聘岗位/, 'Recruitment tabs should expose the recruiting jobs tab label');
-assert.doesNotMatch(recruitmentTabs, /岗位画像/, 'Recruitment tabs should avoid internal job-portrait wording');
-assert.match(page, /招聘需求是主线/, 'Demand page should explain that recruitment demand is the main workflow');
-assert.match(page, /招聘岗位/, 'Demand form should ask for the role being requested');
-assert.match(page, /岗位职责\/任职要求/, 'Demand form should capture the JD used as the matching profile');
-assert.match(page, /复用已有岗位画像/, 'Demand form should keep profile reuse as an advanced option');
-assert.doesNotMatch(page, /关联岗位/, 'Demand creation should not lead with the ambiguous linked-job wording');
-assert.match(page, /匹配候选人/, 'Demand cards should let users match candidates from the demand');
-assert.match(page, /查看该需求流程/, 'Demand cards should link to the demand workflow');
+assert.match(recruitmentTabs, /岗位画像/, 'Recruitment tabs should expose the job portrait tab label');
 assert.match(page, /业务提需求时间/, 'Demand form should capture when business raised the request');
 assert.match(page, /HR 接手时间/, 'Demand form should capture when HR accepted the request');
 assert.match(page, /关闭需求/, 'Demand cards should support closing stale or invalid requests');

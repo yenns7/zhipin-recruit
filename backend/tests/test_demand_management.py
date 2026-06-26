@@ -8,46 +8,6 @@ def _auth(token):
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_demand_creation_can_create_matching_job_profile(client, make_user, app):
-    hr_id, token = make_user("demand-direct@example.com", role="recruiter", name="直建HR")
-
-    created = client.post(
-        "/api/demands",
-        headers=_auth(token),
-        json={
-            "job_title": "Java 后端工程师",
-            "jd_text": "负责核心业务系统开发，熟悉 Java、Spring Boot、MySQL，有高并发经验。",
-            "request_no": "REQ-DIRECT-001",
-            "requester_name": "杨阳",
-            "requester_department": "科技部",
-            "hiring_manager_name": "邹鹏辉",
-            "requested_at": "2026-06-23",
-            "accepted_at": "2026-06-23",
-            "target_date": "2026-07-31",
-            "priority": "A",
-            "headcount": 2,
-            "status": "active",
-            "note": "OA 未来会推送同类字段，当前由 HR 手工创建。",
-        },
-    )
-
-    assert created.status_code == 201
-    body = created.get_json()
-    assert body["job_id"] > 0
-    assert body["job_title"] == "Java 后端工程师"
-    assert body["job_department"] == "科技部"
-    assert body["request_no"] == "REQ-DIRECT-001"
-    assert body["owner_hr_id"] == hr_id
-
-    with app.app_context():
-      job = db.session.get(Job, body["job_id"])
-      assert job is not None
-      assert job.title == "Java 后端工程师"
-      assert job.department == "科技部"
-      assert job.owner_hr_id == hr_id
-      assert job.status == "active"
-
-
 def test_demands_can_be_created_listed_and_closed_with_metrics(client, make_user, app):
     hr_id, token = make_user("demand-hr@example.com", role="recruiter", name="需求HR")
 

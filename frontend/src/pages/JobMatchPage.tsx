@@ -1,4 +1,4 @@
-// 岗位匹配页 — 展示与当前需求画像匹配的候选人排名及标签分析，并可一键将候选人加入需求流程。
+// 岗位匹配页 — 展示与当前岗位匹配的候选人排名及标签分析，并可一键将候选人加入招聘流程。
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
@@ -191,14 +191,14 @@ function MatchRow({
           <div className="flex items-center justify-end gap-2">
             <span className="inline-flex items-center gap-1 text-xs font-medium text-success-600">
               <CheckCircle2 className="h-3.5 w-3.5" />
-              已加入需求流程
+              已加入流程
             </span>
             <Link
               to={`/pipeline?job=${jobId}&candidate=${item.candidate_id}`}
-              aria-label="查看候选人需求流程"
+              aria-label="查看候选人流程"
               className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-hairline bg-canvas px-3 text-sm font-semibold text-ink transition-colors hover:bg-surface-soft hover:border-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
             >
-              去需求流程查看
+              去候选人流程查看
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
@@ -210,7 +210,7 @@ function MatchRow({
             disabled={joinState === 'joining'}
             onClick={() => onJoin(item.candidate_id)}
           >
-            {joinState === 'error' ? '重试加入' : '加入该需求流程'}
+            {joinState === 'error' ? '重试加入' : '加入流程'}
           </Button>
         )}
       </td>
@@ -448,7 +448,7 @@ export function JobMatchPage() {
           to="/jobs"
           className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-body"
         >
-          ← 返回招聘岗位
+          ← 返回岗位画像
         </Link>
         <div className="mt-4">
           <ErrorState message="无效的岗位 ID" />
@@ -463,15 +463,15 @@ export function JobMatchPage() {
       <div>
         <nav className="mb-2 flex items-center gap-1.5 text-sm text-muted">
           <Link to="/jobs" className="hover:text-body hover:underline">
-            招聘岗位
+            岗位画像
           </Link>
           <span className="text-muted-soft">›</span>
-          <span className="text-ink">匹配结果</span>
+          <span className="text-ink">匹配候选人</span>
         </nav>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="mb-1 font-display text-2xl text-ink">
-              岗位匹配结果
+              候选人匹配
             </h1>
             <p className="text-sm text-muted">岗位 ID：{jobId} · AI 先推荐，也可以人工搜索全库候选人</p>
           </div>
@@ -548,7 +548,7 @@ export function JobMatchPage() {
                     loading={batchStatus === 'adding'}
                     onClick={handleBatchAdd}
                   >
-                    批量加入该需求流程
+                    批量加入流程
                   </Button>
                   <span className="text-xs text-muted-soft">
                     当前显示 {results.length} / {totalResults} 位候选人
@@ -578,13 +578,13 @@ export function JobMatchPage() {
                   <option value="low">低于 60%</option>
                 </Select>
                 <Select
-                  label="入需求流程状态"
+                  label="入流程状态"
                   value={pipelineFilter}
                   onChange={(event) => setPipelineFilter(event.target.value as PipelineFilter)}
                 >
                   <option value="all">全部状态</option>
-                  <option value="not_joined">未加入需求流程</option>
-                  <option value="joined">已加入需求流程</option>
+                  <option value="not_joined">未加入流程</option>
+                  <option value="joined">已加入流程</option>
                 </Select>
                 <Select
                   label="匹配技能"
@@ -615,7 +615,7 @@ export function JobMatchPage() {
                 <p className="text-xs text-muted">
                   {matchView === 'ai'
                     ? 'AI 推荐按综合匹配度排序；如果目标人没排上来，切到“全部候选人”按姓名或技能人工补找。'
-                    : '人工补找会从全量简历库检索；即使 AI 原本没推荐，也可以查看匹配预览并手动加入该需求流程。'}
+                    : '人工补找会从全量简历库检索；即使 AI 原本没推荐，也可以查看匹配预览并手动加入流程。'}
                 </p>
                 <Button variant="secondary" size="sm" onClick={resetFilters}>
                   重置筛选

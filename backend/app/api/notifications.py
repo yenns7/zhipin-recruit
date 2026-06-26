@@ -36,14 +36,12 @@ def list_notifications():
     query = (
         Notification.query
         .filter(Notification.user_id == g.user_id)
-        .filter(Notification.org_id == g.org_id)
         .order_by(Notification.created_at.desc(), Notification.id.desc())
     )
     total = query.count()
     notifications = query.offset((page - 1) * per_page).limit(per_page).all()
     unread_count = Notification.query.filter(
         Notification.user_id == g.user_id,
-        Notification.org_id == g.org_id,
         Notification.is_read.is_(False),
     ).count()
 
@@ -62,7 +60,6 @@ def list_notifications():
 def unread_count():
     count = Notification.query.filter(
         Notification.user_id == g.user_id,
-        Notification.org_id == g.org_id,
         Notification.is_read.is_(False),
     ).count()
     return jsonify({"unread_count": count})
@@ -76,7 +73,6 @@ def mark_read():
 
     query = Notification.query.filter(
         Notification.user_id == g.user_id,
-        Notification.org_id == g.org_id,
         Notification.is_read.is_(False),
     )
     if ids:

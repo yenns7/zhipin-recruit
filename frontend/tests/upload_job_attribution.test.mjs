@@ -30,7 +30,7 @@ assert.match(
 
 assert.match(
   uploadPage,
-  /后续可在简历库筛选后再加入招聘需求流程/,
+  /后续可在简历库筛选后再加入岗位流程/,
   'Upload page should move job assignment guidance to the resume library',
 );
 
@@ -120,7 +120,7 @@ assert.match(
 
 assert.match(
   uploadPage,
-  /后续可在简历库筛选后再加入招聘需求流程/,
+  /后续可在简历库筛选后再加入岗位流程/,
   'Upload page should explain the downstream path for library-only resumes',
 );
 

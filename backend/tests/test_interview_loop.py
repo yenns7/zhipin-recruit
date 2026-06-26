@@ -77,7 +77,7 @@ def test_feedback_persists_structured_reason_tags(client, make_user, app):
         "round": "round_1",
         "score": 2,
         "passed": False,
-        "reason_tags": ["专业能力不匹配", "岗位要求变化", "候选人已接受其他机会", "未知原因"],
+        "reason_tags": ["专业能力不匹配", "岗位画像变化", "候选人已接受其他机会", "未知原因"],
         "concerns": "业务侧重新调整画像",
     })
     assert r.status_code == 201
@@ -86,65 +86,11 @@ def test_feedback_persists_structured_reason_tags(client, make_user, app):
         f"/api/interview/feedback?candidate_id={cid}&job_id={jid}",
         headers=_auth(mgr_token),
     ).get_json()[0]
-    assert feedback["reason_tags"] == ["专业能力不匹配", "岗位要求变化", "候选人已接受其他机会"]
+    assert feedback["reason_tags"] == ["专业能力不匹配", "岗位画像变化", "候选人已接受其他机会"]
 
     listed = client.get("/api/interviews", headers=_auth(mgr_token)).get_json()
     row = next(item for item in listed if item["type"] == "feedback")
-    assert row["reason_tags"] == ["专业能力不匹配", "岗位要求变化", "候选人已接受其他机会"]
-
-
-def test_feedback_rejects_legacy_job_portrait_reason_tag(client, make_user, app):
-    interviewer_id, iv_token = make_user("iv-legacy-reason@x.com", role="interviewer")
-    _, mgr_token = make_user("mgr-legacy-reason@x.com", role="manager")
-    jid, cid = _seed(app)
-    _assign(app, cid, jid, interviewer_id, "round_1")
-
-    response = client.post("/api/interview/feedback", headers=_auth(iv_token), json={
-        "candidate_id": cid,
-        "job_id": jid,
-        "round": "round_1",
-        "score": 3,
-        "passed": False,
-        "reason_tags": ["岗位画像变化", "岗位要求变化"],
-    })
-    assert response.status_code == 201
-
-    feedback = client.get(
-        f"/api/interview/feedback?candidate_id={cid}&job_id={jid}",
-        headers=_auth(mgr_token),
-    ).get_json()[0]
-    assert feedback["reason_tags"] == ["岗位要求变化"]
-
-
-def test_legacy_job_portrait_reason_tags_are_migrated(app, make_user):
-    interviewer_id, _ = make_user("iv-migrate-reason@x.com", role="interviewer")
-    jid, cid = _seed(app)
-
-    with app.app_context():
-        import app as app_module
-        from app import db
-        from app.models import InterviewFeedback
-
-        normalize = getattr(app_module, "_normalize_legacy_feedback_reason_tags", None)
-        assert callable(normalize), "app startup should expose a legacy reason-tag normalizer"
-
-        feedback = InterviewFeedback(
-            candidate_id=cid,
-            job_id=jid,
-            round="round_1",
-            interviewer_id=interviewer_id,
-            score=2,
-            passed=False,
-            reason_tags=["岗位画像变化", "专业能力不匹配", "岗位画像变化"],
-        )
-        db.session.add(feedback)
-        db.session.commit()
-
-        normalize()
-
-        refreshed = db.session.get(InterviewFeedback, feedback.id)
-        assert refreshed.reason_tags == ["岗位要求变化", "专业能力不匹配"]
-
+    assert row["reason_tags"] == ["专业能力不匹配", "岗位画像变化", "候选人已接受其他机会"]
 
 def test_feedback_requires_core_fields(client, make_user, app):
     _, token = make_user("iv@x.com", role="interviewer")

@@ -142,7 +142,7 @@ export function PipelineProgress({ candidateId }: { candidateId: number }) {
 
   const pipelines = data?.pipelines ?? [];
   if (pipelines.length === 0) {
-    return <p className="text-sm text-muted-soft">该候选人尚未进入任何招聘需求流程。</p>;
+    return <p className="text-sm text-muted-soft">该候选人尚未进入任何岗位流程。</p>;
   }
 
   return (

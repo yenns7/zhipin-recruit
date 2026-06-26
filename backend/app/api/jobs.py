@@ -6,14 +6,7 @@ from ..middleware.events import record_event
 from ..services.match_service import MatchService
 from .. import db
 from ..models import Candidate, Job
-from .access import (
-    can_manage_job,
-    can_read_job,
-    job_is_active,
-    same_org,
-    visible_candidate_query,
-    visible_job_query,
-)
+from .access import assigned_job_ids_for_interviewer, can_manage_job, visible_candidate_query
 
 BASE_AGENT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "base_agent"
 if str(BASE_AGENT_DIR) not in sys.path:
@@ -96,7 +89,6 @@ def _job_detail_payload(job):
 
 @bp.post("/jobs/clarify")
 @require_auth
-@require_role("recruiter", "manager", "admin")
 def clarify_job():
     """JD 澄清追问：返回 AI 针对 JD 缺失信息生成的追问列表。不落库。"""
     data = request.get_json() or {}
@@ -162,7 +154,6 @@ def create_job():
         jd_text=jd_text,
         jd_structured=structured,
         owner_hr_id=g.user_id,
-        org_id=g.org_id,
     )
     db.session.add(job)
     db.session.commit()
@@ -183,9 +174,12 @@ def list_jobs():
     status = (request.args.get("status") or "active").strip().lower()
     if status not in {"active", "closed", "all"}:
         return jsonify({"error": "Invalid status. Valid: active, closed, all"}), 400
-    q = visible_job_query(g.user_id, g.role)
+    q = Job.query
     if status != "all":
         q = q.filter_by(status=status)
+    if g.role == "interviewer":
+        assigned_ids = assigned_job_ids_for_interviewer(g.user_id)
+        q = q.filter(Job.id.in_(assigned_ids or [-1]))
     jobs = q.all()
     return jsonify([_job_list_payload(j) for j in jobs])
 
@@ -195,9 +189,7 @@ def list_jobs():
 def get_job(job_id):
     """单个岗位详情，含结构化 JD。"""
     job = db.get_or_404(Job, job_id)
-    if not same_org(job, g.org_id):
-        return jsonify({"error": "岗位不存在"}), 404
-    if not can_read_job(g.user_id, g.role, job):
+    if g.role == "interviewer" and job.id not in assigned_job_ids_for_interviewer(g.user_id):
         return jsonify({"error": "Forbidden"}), 403
     return jsonify(_job_detail_payload(job))
 
@@ -212,8 +204,6 @@ def _can_manage_job(job):
 def update_job(job_id):
     """编辑岗位：改基础信息 / JD（jd_text 变化时重新结构化）。"""
     job = db.get_or_404(Job, job_id)
-    if not same_org(job, g.org_id):
-        return jsonify({"error": "岗位不存在"}), 404
     if not _can_manage_job(job):
         return jsonify({"error": "无权编辑该岗位"}), 403
     data = request.get_json() or {}
@@ -247,8 +237,6 @@ def update_job(job_id):
 def close_job(job_id):
     """关闭/下线岗位（status=closed），不物理删除以保留历史与 BI 关联。"""
     job = db.get_or_404(Job, job_id)
-    if not same_org(job, g.org_id):
-        return jsonify({"error": "岗位不存在"}), 404
     if not _can_manage_job(job):
         return jsonify({"error": "无权关闭该岗位"}), 403
     job.status = "closed"
@@ -262,8 +250,6 @@ def close_job(job_id):
 def restore_job(job_id):
     """恢复已关闭岗位（status=active），用于修正误关闭或继续招聘。"""
     job = db.get_or_404(Job, job_id)
-    if not same_org(job, g.org_id):
-        return jsonify({"error": "岗位不存在"}), 404
     if not _can_manage_job(job):
         return jsonify({"error": "无权恢复该岗位"}), 403
     job.status = "active"
@@ -280,8 +266,6 @@ def match_job(job_id):
     job = db.get_or_404(Job, job_id)
     if not can_manage_job(g.user_id, g.role, job):
         return jsonify({"error": "Forbidden"}), 403
-    if not job_is_active(job):
-        return jsonify({"error": "岗位已关闭，请先恢复在招后再运行匹配"}), 400
     svc = MatchService()
     results = svc.rank_for_job(
         job_id,
@@ -339,8 +323,6 @@ def batch_add_to_pipeline(job_id):
     job = db.get_or_404(Job, job_id)
     if not can_manage_job(g.user_id, g.role, job):
         return jsonify({"error": "Forbidden"}), 403
-    if not job_is_active(job):
-        return jsonify({"error": "岗位已关闭，请先恢复在招后再加入流程"}), 400
 
     candidate_ids = []
     seen = set()
@@ -384,7 +366,6 @@ def batch_add_to_pipeline(job_id):
             skipped_existing += 1
             continue
         db.session.add(PipelineStage(
-            org_id=g.org_id,
             candidate_id=candidate_id,
             job_id=job.id,
             stage="pending",

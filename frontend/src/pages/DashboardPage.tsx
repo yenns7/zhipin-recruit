@@ -10,7 +10,7 @@ import {
   ClipboardCheck,
   ArrowRight,
   Upload,
-  Target,
+  Briefcase,
   KanbanSquare,
   BarChart3,
   Settings,
@@ -93,9 +93,9 @@ const WORKFLOW_ACTIONS: WorkflowAction[] = [
   },
   {
     to: '/jobs',
-    label: '匹配候选人',
-    desc: '在招聘岗位列表里选择岗位并开始匹配',
-    icon: Target,
+    label: '选择岗位匹配',
+    desc: '先选岗位，再运行候选人匹配并加入流程',
+    icon: Briefcase,
     roles: ['recruiter', 'manager', 'admin'],
   },
   {
@@ -137,8 +137,8 @@ const WORKFLOW_ACTIONS: WorkflowAction[] = [
 
 const ACTION_ORDER_BY_ROLE: Record<Role, string[]> = {
   recruiter: ['/upload', '/jobs', '/pipeline'],
-  manager: ['/bi', '/jobs', '/pipeline', '/agent'],
-  admin: ['/bi', '/jobs', '/admin/settings', '/agent'],
+  manager: ['/bi', '/pipeline', '/agent'],
+  admin: ['/bi', '/admin/settings', '/agent'],
   interviewer: ['/interviews'],
 };
 
@@ -282,16 +282,14 @@ function KpiCard({
   decimals = 0,
   suffix = '',
   accent,
-  to,
 }: {
   label: string;
   value: number | null;
   decimals?: number;
   suffix?: string;
   accent?: string;
-  to?: string;
 }) {
-  const content = (
+  return (
     <Card variant="elevated" className="overflow-hidden">
       <div className="relative px-5 py-5">
         {accent && (
@@ -310,15 +308,6 @@ function KpiCard({
         </div>
       </div>
     </Card>
-  );
-  if (!to) return content;
-  return (
-    <Link
-      to={to}
-      className="group block rounded-apple focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
-    >
-      {content}
-    </Link>
   );
 }
 
@@ -384,33 +373,6 @@ function ManagementAlerts({ alerts }: { alerts: BiManagerAlert[] }) {
 function valueOrNull(value: number | null | undefined): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
-
-const kpiLinksByRole: Record<Role, Record<string, string>> = {
-  recruiter: {
-    candidates: '/candidates',
-    jobs: '/demands',
-    interview: '/pipeline?stage=interview',
-    conversion: '/pipeline',
-  },
-  manager: {
-    candidates: '/candidates',
-    jobs: '/demands',
-    interview: '/pipeline?stage=interview',
-    conversion: '/bi',
-  },
-  admin: {
-    candidates: '/candidates',
-    jobs: '/demands',
-    interview: '/pipeline?stage=interview',
-    conversion: '/bi',
-  },
-  interviewer: {
-    pendingFeedback: '/interviews?focus=pending',
-    todayInterviews: '/interviews',
-    submittedFeedback: '/interviews',
-    overdueFeedback: '/interviews?focus=pending',
-  },
-};
 
 function RecruiterPerformancePanel({ performance }: { performance: BiStaffMember | null }) {
   return (
@@ -615,7 +577,6 @@ export function DashboardPage() {
   const showInterviewerKpis = role === 'interviewer';
 
   const actions = workflowActionsForRole(role);
-  const kpiLinks = kpiLinksByRole[role];
 
   return (
     <div className="space-y-8">
@@ -663,34 +624,30 @@ export function DashboardPage() {
                 label="待我反馈"
                 value={stats.interviewerTasks.pendingFeedback}
                 accent="#FF9500"
-                to={kpiLinks.pendingFeedback}
               />
               <KpiCard
                 label="今日面试"
                 value={stats.interviewerTasks.todayInterviews}
                 accent="#007AFF"
-                to={kpiLinks.todayInterviews}
               />
               <KpiCard
                 label="已反馈"
                 value={stats.interviewerTasks.submittedFeedback}
                 accent="#34C759"
-                to={kpiLinks.submittedFeedback}
               />
               <KpiCard
                 label="超时待反馈"
                 value={stats.interviewerTasks.overdueFeedback}
                 accent="#FF3B30"
-                to={kpiLinks.overdueFeedback}
               />
             </>
           ) : (
             <>
-              <KpiCard label="候选人总数" value={stats.candidates} accent="#007AFF" to={kpiLinks.candidates} />
-              <KpiCard label="需求/岗位总数" value={stats.jobs} accent="#5856D6" to={kpiLinks.jobs} />
-              {showFunnelKpis && <KpiCard label="面试中" value={stats.interview} accent="#FF9500" to={kpiLinks.interview} />}
+              <KpiCard label="候选人总数" value={stats.candidates} accent="#007AFF" />
+              <KpiCard label="岗位总数" value={stats.jobs} accent="#5856D6" />
+              {showFunnelKpis && <KpiCard label="面试中" value={stats.interview} accent="#FF9500" />}
               {showFunnelKpis && (
-                <KpiCard label="转化率" value={stats.conversionRate} decimals={1} suffix="%" accent="#34C759" to={kpiLinks.conversion} />
+                <KpiCard label="转化率" value={stats.conversionRate} decimals={1} suffix="%" accent="#34C759" />
               )}
             </>
           )}

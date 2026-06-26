@@ -75,31 +75,6 @@ def test_upload_rejects_oversized_resume_before_parse(client, make_user, monkeyp
     assert "candidate_id" not in result
 
 
-def test_upload_rejects_legacy_doc_macro_risk_before_parse(client, make_user, monkeypatch):
-    _, token = make_user("upload-macro-doc@x.com", role="recruiter")
-
-    def fail_if_called(self, *args, **kwargs):
-        raise AssertionError("parser should not receive a legacy DOC with macro risk")
-
-    monkeypatch.setattr(
-        "app.services.resume_service.ResumeBatchService.parse_and_save",
-        fail_if_called,
-    )
-
-    response = client.post(
-        "/api/resume/upload",
-        headers=_auth(token),
-        data={"files": (io.BytesIO(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1macro"), "macro.doc")},
-        content_type="multipart/form-data",
-    )
-
-    assert response.status_code == 202
-    result = response.get_json()["results"][0]
-    assert result["status"] == "skipped"
-    assert "宏风险" in result["reason"]
-    assert "candidate_id" not in result
-
-
 def test_interviewer_cannot_upload_resume(client, make_user):
     _, token = make_user("interviewer-upload@x.com", role="interviewer")
 

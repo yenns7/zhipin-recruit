@@ -11,7 +11,6 @@ function readSource(path) {
 }
 
 const pipelinePage = readSource('pages/PipelinePage.tsx');
-const apiClient = readSource('lib/api.ts');
 const addToPipeline = readSource('components/pipeline/AddToPipeline.tsx');
 const candidateList = readSource('components/pipeline/PipelineCandidateList.tsx');
 const candidatePanel = readSource('components/pipeline/PipelineCandidatePanel.tsx');
@@ -62,36 +61,6 @@ assert.match(
   candidatePanel,
   /更多操作/,
   'Candidate detail panel should tuck low-frequency correction behind a more-actions disclosure',
-);
-
-assert.match(
-  candidatePanel,
-  /转入其他招聘需求/,
-  'Candidate detail panel should expose demand transfer as a recoverable workflow action',
-);
-
-assert.match(
-  candidatePanel,
-  /保留当前需求历史/,
-  'Demand transfer guidance should tell users history is preserved',
-);
-
-assert.match(
-  apiClient,
-  /transferPipeline\(payload:\s*PipelineTransferRequest\)/,
-  'API client should expose a real pipeline transfer mutation, not only a navigation entry',
-);
-
-assert.match(
-  pipelinePage,
-  /onTransfer=\{handleTransfer\}/,
-  'Pipeline page should wire the demand transfer panel to the backend transfer action',
-);
-
-assert.match(
-  candidatePanel,
-  /目标招聘需求[\s\S]*转入原因[\s\S]*确认转入/,
-  'Candidate detail panel should collect target demand and transfer reason before moving candidates',
 );
 
 assert.match(

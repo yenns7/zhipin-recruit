@@ -25,10 +25,9 @@ def _clean_text(value, limit):
 @require_auth
 @require_role("admin")
 def list_users():
-    users = User.query.filter(User.org_id == g.org_id).order_by(User.id.asc()).all()
+    users = User.query.order_by(User.id.asc()).all()
     return jsonify([{
         "id": u.id, "name": u.name, "email": u.email, "role": u.role,
-        "org_id": u.org_id,
         "is_active": u.is_active,
         "created_at": u.created_at.isoformat() if u.created_at else None,
     } for u in users])
@@ -54,7 +53,6 @@ def create_user():
         return jsonify({"error": f"无效角色。可选：{sorted(VALID_ROLES)}"}), 400
 
     user = User(
-        org_id=g.org_id,
         name=name or email.split("@")[0],
         email=email,
         role=role,
@@ -67,7 +65,6 @@ def create_user():
                  payload={"role": user.role})
     return jsonify({
         "id": user.id, "name": user.name, "email": user.email, "role": user.role,
-        "org_id": user.org_id,
         "is_active": user.is_active,
         "created_at": user.created_at.isoformat() if user.created_at else None,
     }), 201
@@ -113,7 +110,7 @@ def audit_logs():
     from_dt = _parse_datetime_arg("from")
     to_dt = _parse_datetime_arg("to")
 
-    query = Event.query.filter(Event.org_id == g.org_id)
+    query = Event.query
     if actor_id is not None:
         query = query.filter(Event.actor_id == actor_id)
     if action:
@@ -141,18 +138,10 @@ def audit_logs():
             "source": "event",
             "actor_id": log.actor_id,
             "actor_name": actor_names.get(log.actor_id),
-            "actor_role": log.actor_role,
             "action": log.action,
             "entity_type": log.entity_type,
             "entity_id": log.entity_id,
             "payload": log.payload or {},
-            "request_id": log.request_id,
-            "ip": log.ip,
-            "user_agent": log.user_agent,
-            "result": log.result,
-            "failure_reason": log.failure_reason,
-            "event_source": log.source,
-            "severity": log.severity,
             "ts": log.ts.isoformat() if log.ts else None,
         } for log in logs],
         "total": total,
@@ -168,7 +157,7 @@ def audit_logs():
 def update_user(user_id):
     data = request.get_json() or {}
     user = db.session.get(User, user_id)
-    if user is None or user.org_id != g.org_id:
+    if user is None:
         return jsonify({"error": "用户不存在"}), 404
     if user_id == g.user_id:
         if data.get("is_active") is False or ("role" in data and data["role"] != "admin"):
@@ -187,7 +176,7 @@ def update_user(user_id):
                      payload={"is_active": user.is_active})
     db.session.commit()
     return jsonify({"id": user.id, "name": user.name, "email": user.email,
-                    "role": user.role, "org_id": user.org_id, "is_active": user.is_active})
+                    "role": user.role, "is_active": user.is_active})
 
 
 @bp.post("/admin/users/<int:user_id>/reset-password")
@@ -199,10 +188,9 @@ def reset_user_password(user_id):
     if len(password) < 6:
         return jsonify({"error": "密码至少 6 位"}), 400
     user = db.session.get(User, user_id)
-    if user is None or user.org_id != g.org_id:
+    if user is None:
         return jsonify({"error": "用户不存在"}), 404
     user.password_hash = _hash_password(password)
-    user.token_version = (user.token_version or 0) + 1
     db.session.commit()
     record_event("user.password_reset", entity_id=user_id, entity_type="user")
     return jsonify({"status": "ok", "id": user.id})
