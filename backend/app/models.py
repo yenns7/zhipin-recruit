@@ -275,6 +275,8 @@ class Conversation(db.Model):
     title = db.Column(db.String(200), default="新对话")
     created_at = db.Column(db.DateTime, default=utc_now)
     updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
+    archived = db.Column(db.Boolean, default=False, nullable=False)
+    title_source = db.Column(db.String(20), default="auto_first", nullable=False)  # auto_first / auto_llm / manual
     messages = db.relationship(
         "ConversationMessage",
         backref="conversation",
@@ -295,6 +297,34 @@ class ConversationMessage(db.Model):
     content = db.Column(db.Text, nullable=False)
     tool_calls = db.Column(db.JSON)
     thoughts = db.Column(db.JSON)
+    created_at = db.Column(db.DateTime, default=utc_now)
+
+
+class AgentCallLog(db.Model):
+    """Agent 调用日志：记录每一次模型/工具调用的输入输出与耗时，用于可观测与排查。"""
+    __tablename__ = "agent_call_logs"
+    __table_args__ = (
+        db.Index("ix_agent_call_logs_user_created", "user_id", "created_at"),
+        db.Index("ix_agent_call_logs_conv_created", "conversation_id", "created_at"),
+        db.Index("ix_agent_call_logs_status", "status"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(db.Integer, db.ForeignKey("conversations.id"), nullable=True)  # 异常场景可空
+    message_id = db.Column(db.Integer, db.ForeignKey("conversation_messages.id"), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    role = db.Column(db.String(30), nullable=False)        # 发起人角色快照
+    kind = db.Column(db.String(20), nullable=False)        # chat / tool_read / tool_write
+    input_text = db.Column(db.Text)
+    output_text = db.Column(db.Text)
+    tool_calls = db.Column(db.JSON)
+    thoughts = db.Column(db.JSON)
+    model = db.Column(db.String(100))
+    prompt_tokens = db.Column(db.Integer)
+    completion_tokens = db.Column(db.Integer)
+    duration_ms = db.Column(db.Integer)
+    status = db.Column(db.String(20), nullable=False)      # ok / error / timeout
+    error_msg = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=utc_now)
 
 
