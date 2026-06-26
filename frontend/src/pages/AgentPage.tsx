@@ -85,13 +85,34 @@ export function AgentPage() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // Build the history payload (user/assistant pairs) from completed turns.
+  // 多轮上下文回传 tool_calls/thoughts 摘要（控 token），让 LLM 知道上一轮查了什么、
+  // 想了什么，避免重复调工具或上下文断裂（对应计划 T10）。
   const buildHistory = useCallback((msgs: Message[]): ChatTurn[] => {
     const turns: ChatTurn[] = [];
     for (const m of msgs) {
       if (m.kind === 'user') {
         turns.push({ role: 'user', content: m.text });
-      } else if (m.status === 'done' && m.answer) {
-        turns.push({ role: 'assistant', content: m.answer });
+      } else if (m.status === 'done' && (m.answer || m.toolCalls.length || m.thoughts.length)) {
+        // 把上一轮的工具调用与思考摘要附在回答前，供 LLM 续接上下文
+        const parts: string[] = [];
+        if (m.thoughts.length) {
+          parts.push(`[上轮思考] ${m.thoughts.slice(-3).join('；')}`);
+        }
+        if (m.toolCalls.length) {
+          const toolSummary = m.toolCalls
+            .slice(-4)
+            .map((c) => {
+              const argBrief = Object.entries(c.args)
+                .slice(0, 2)
+                .map(([k, v]) => `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`)
+                .join(',');
+              return `${c.tool}(${argBrief})`;
+            })
+            .join('；');
+          parts.push(`[上轮工具调用] ${toolSummary}`);
+        }
+        if (m.answer) parts.push(m.answer);
+        turns.push({ role: 'assistant', content: parts.join('\n') });
       }
     }
     return turns;
