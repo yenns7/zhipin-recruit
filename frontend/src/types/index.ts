@@ -1158,3 +1158,91 @@ export interface BossInviteInterviewResult {
   stage: string;
 }
 
+// ---- AI 助手会话与调用日志 ----
+
+export interface ConversationSummary {
+  id: number;
+  title: string;
+  title_source?: string;
+  archived?: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+  message_count: number;
+}
+
+export interface ConversationListResponse {
+  items: ConversationSummary[];
+  page: number;
+  per_page: number;
+  total: number;
+}
+
+export interface ConversationDetailMessage {
+  id: number;
+  role: 'user' | 'assistant';
+  content: string;
+  tool_calls?: Array<{ tool: string; args: Record<string, unknown>; result?: unknown }> | null;
+  thoughts?: string[] | null;
+  created_at: string | null;
+}
+
+export interface ConversationDetail {
+  id: number;
+  title: string;
+  title_source?: string;
+  archived?: boolean;
+  messages: ConversationDetailMessage[];
+}
+
+export interface CreateConversationResponse {
+  id: number;
+  title: string;
+  archived: boolean;
+  title_source: string;
+  created_at: string | null;
+}
+
+export interface UpdateConversationResponse {
+  id: number;
+  title: string;
+  title_source: string;
+  archived: boolean;
+  updated_at: string | null;
+}
+
+export interface AgentCallLogItem {
+  id: number;
+  conversation_id: number | null;
+  message_id: number | null;
+  user_id: number;
+  role: string;
+  kind: string;
+  model: string | null;
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+  duration_ms: number | null;
+  status: string;
+  error_msg: string | null;
+  tool_calls: unknown;
+  thoughts: unknown;
+  input_text: string | null;
+  output_text: string | null;
+  created_at: string | null;
+}
+
+export interface CallLogListResponse {
+  items: AgentCallLogItem[];
+  page: number;
+  per_page: number;
+  total: number;
+}
+
+export interface CallLogQuery {
+  conversation_id?: number;
+  status?: string;
+  kind?: string;
+  user_id?: number;
+  page?: number;
+  per_page?: number;
+}
+

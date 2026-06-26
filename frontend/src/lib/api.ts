@@ -80,6 +80,13 @@ import type {
   BossAiScreenResult,
   BossInviteInterviewParams,
   BossInviteInterviewResult,
+  ConversationListResponse,
+  ConversationDetail,
+  CreateConversationResponse,
+  UpdateConversationResponse,
+  AgentCallLogItem,
+  CallLogListResponse,
+  CallLogQuery,
 } from '../types';
 
 const API_BASE = '/api';
@@ -486,6 +493,50 @@ export const api = {
   },
   getAdminAiArchitecture(): Promise<AdminAiArchitecture> {
     return request('/admin/ai-architecture');
+  },
+
+  // ---- AI 助手会话管理 ----
+  listConversations(params: {
+    archived?: boolean;
+    page?: number;
+    per_page?: number;
+  } = {}): Promise<ConversationListResponse> {
+    const search = new URLSearchParams();
+    if (params.archived !== undefined) search.set('archived', String(params.archived));
+    if (params.page !== undefined) search.set('page', String(params.page));
+    if (params.per_page !== undefined) search.set('per_page', String(params.per_page));
+    const query = search.toString();
+    return request(`/agent/conversations${query ? `?${query}` : ''}`);
+  },
+  createConversation(title?: string): Promise<CreateConversationResponse> {
+    return request('/agent/conversations', { method: 'POST', body: title ? { title } : {} });
+  },
+  getConversation(id: number): Promise<ConversationDetail> {
+    return request(`/agent/conversations/${id}`);
+  },
+  updateConversation(
+    id: number,
+    payload: { title?: string; archived?: boolean },
+  ): Promise<UpdateConversationResponse> {
+    return request(`/agent/conversations/${id}`, { method: 'PATCH', body: payload });
+  },
+  deleteConversation(id: number): Promise<{ id: number; archived: boolean }> {
+    return request(`/agent/conversations/${id}`, { method: 'DELETE' });
+  },
+
+  // ---- AI 调用日志（审计）----
+  listCallLogs(params: CallLogQuery = {}): Promise<CallLogListResponse> {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value).trim() !== '') {
+        search.set(key, String(value));
+      }
+    });
+    const query = search.toString();
+    return request(`/agent/call-logs${query ? `?${query}` : ''}`);
+  },
+  getCallLog(id: number): Promise<AgentCallLogItem> {
+    return request(`/agent/call-logs/${id}`);
   },
   getAuditLogs(params: AuditLogQuery = {}): Promise<AuditLogResponse> {
     const search = new URLSearchParams();
