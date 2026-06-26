@@ -157,7 +157,7 @@ function QrLoginModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: 
           if (r.status === 'failed') toast.error('登录失败：' + (r.error || ''));
           if (r.status === 'done') toast.success('扫码登录成功');
         }
-      } catch (_e) { /* 静默 */ }
+      } catch { /* 静默 */ }
     }, 2000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [sessionId, toast]);

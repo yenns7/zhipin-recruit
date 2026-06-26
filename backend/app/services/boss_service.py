@@ -411,6 +411,34 @@ class BossService:
         args += _opt("--job", job)
         return _run(args, timeout=30, cookies_override=cookies_override)
 
+    def recruiter_invite_interview(
+        self,
+        encrypt_geek_id: str,
+        job: str,
+        time: Optional[str] = None,
+        address: Optional[str] = None,
+        desc: Optional[str] = None,
+        cookies_override: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """向候选人发送 BOSS 面试邀请。
+
+        对应 `boss recruiter invite-interview ENCRYPT_GEEK_ID --job ... -y`。
+        --job（关联职位 encryptJobId）为 CLI 必填项，缺失直接 invalid_params。
+        time/address/desc 可空；-y 跳过 CLI 二次确认（人工确认在系统侧完成）。
+        """
+        gid = _safe_text(encrypt_geek_id, 64)
+        if not gid:
+            return {"ok": False, "data": None, "error": {"code": "invalid_params", "message": "encrypt_geek_id 不能为空"}}
+        jid = _safe_text(job, 64)
+        if not jid:
+            return {"ok": False, "data": None, "error": {"code": "invalid_params", "message": "job（BOSS encryptJobId）不能为空"}}
+        args = ["recruiter", "invite-interview", gid, "--job", jid]
+        args += _opt("--time", _safe_text(time, 64) if time else None)
+        args += _opt("--address", _safe_text(address, 200) if address else None)
+        args += _opt("--desc", _safe_text(desc, 500) if desc else None)
+        args += ["-y"]
+        return _run(args, timeout=45, cookies_override=cookies_override)
+
     def recruiter_request_resume(self, friend_id: int, cookies_override: Optional[str] = None) -> Dict[str, Any]:
         try:
             fid = int(friend_id)

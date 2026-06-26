@@ -12,12 +12,14 @@ import jwt
 from ..middleware.auth import require_auth, require_role
 from ..middleware.events import record_event
 from ..services.boss_service import BossService
+from ..services.boss_pipeline_service import BossPipelineService
 from ..models import User
 from .. import db
 
 bp = Blueprint("boss", __name__)
 
 _svc = BossService()
+_pipeline = BossPipelineService(boss=_svc)
 
 # 招聘端操作允许的角色
 _RECRUITER_ROLES = ("recruiter", "manager", "admin")
@@ -317,6 +319,110 @@ def boss_chat_reply(friend_id: int):
     result = _svc.recruiter_reply(friend_id, message, cookies_override=cookies)
     record_event("boss.reply", entity_type="boss_candidate",
                  payload={"friend_id": friend_id, "ok": result.get("ok")})
+    return _ok_or_fail(result)
+
+
+# ── 招聘端 · 闭环：批量导入 / AI 筛选 / 面试邀请 ──────────────────────
+@bp.post("/boss/candidates/batch-import")
+@require_auth
+@require_role(*_RECRUITER_ROLES)
+def boss_candidates_batch_import():
+    """批量下载并导入收件箱候选人简历到候选人库。
+
+    body: {
+      items: [{geek_id, name?, security_id?, friend_id?, job?}],  # 必填，至少含 geek_id
+      target_job_id?: int,   # 导入后自动加入该系统岗位 pipeline(stage=pending)
+      boss_job?: str,        # BOSS encryptJobId，下载简历透传 --job
+      limit?: int,           # 单次上限(<=50)
+      interval_sec?: float   # 每条间隔秒，默认 1.5；命中 rate_limited 立即停止
+    }
+    """
+    data = request.get_json(silent=True) or {}
+    items = data.get("items")
+    if not isinstance(items, list) or not items:
+        return jsonify({"ok": False, "error": {"code": "invalid_params", "message": "items 不能为空"}}), 400
+    cookies, err = _active_cookies_or_409()
+    if err is not None:
+        return err
+    result = _pipeline.batch_import(
+        owner_hr_id=g.user_id,
+        items=items,
+        cookies_override=cookies,
+        target_job_id=data.get("target_job_id"),
+        boss_job=(data.get("boss_job") or None),
+        limit=data.get("limit", 20),
+        interval_sec=data.get("interval_sec", 1.5),
+    )
+    if result.get("ok"):
+        d = result.get("data") or {}
+        record_event("boss.batch_import", entity_type="boss",
+                     payload={"imported": d.get("imported"), "skipped": d.get("skipped"),
+                              "failed": d.get("failed"), "stopped_reason": d.get("stopped_reason")})
+    return _ok_or_fail(result)
+
+
+@bp.post("/boss/candidates/ai-screen")
+@require_auth
+@require_role(*_RECRUITER_ROLES)
+def boss_candidates_ai_screen():
+    """对已导入候选人做 AI 简历初筛（LLM 评估 + 写 Interview + 推进 ai_screen）。
+
+    body: {candidate_ids: [int], job_id: int}
+    """
+    data = request.get_json(silent=True) or {}
+    candidate_ids = data.get("candidate_ids")
+    job_id = data.get("job_id")
+    if not isinstance(candidate_ids, list) or not candidate_ids:
+        return jsonify({"ok": False, "error": {"code": "invalid_params", "message": "candidate_ids 不能为空"}}), 400
+    if job_id is None:
+        return jsonify({"ok": False, "error": {"code": "invalid_params", "message": "job_id 必填"}}), 400
+    result = _pipeline.ai_screen(owner_hr_id=g.user_id, candidate_ids=candidate_ids, job_id=job_id)
+    if result.get("ok"):
+        d = result.get("data") or {}
+        record_event("boss.ai_screen", entity_type="boss",
+                     payload={"job_id": job_id, "screened": d.get("screened"), "failed": d.get("failed")})
+    return _ok_or_fail(result)
+
+
+@bp.post("/boss/candidates/invite-interview")
+@require_auth
+@require_role(*_RECRUITER_ROLES)
+def boss_candidates_invite_interview():
+    """发送面试邀请（BOSS invite-interview + 系统 InterviewAssignment 双写）。
+
+    需前端完成人工确认后调用。
+    body: {
+      candidate_id: int, job_id: int,
+      boss_job?: str,          # BOSS encryptJobId，缺省取候选人 resume_json.boss.job
+      interviewer_id?: int, round?: str,
+      time?: str, address?: str, desc?: str
+    }
+    """
+    cookies, err = _active_cookies_or_409()
+    if err is not None:
+        return err
+    data = request.get_json(silent=True) or {}
+    candidate_id = data.get("candidate_id")
+    job_id = data.get("job_id")
+    if candidate_id is None or job_id is None:
+        return jsonify({"ok": False, "error": {"code": "invalid_params", "message": "candidate_id 与 job_id 必填"}}), 400
+    result = _pipeline.invite_interview(
+        owner_hr_id=g.user_id,
+        candidate_id=candidate_id,
+        job_id=job_id,
+        cookies_override=cookies,
+        boss_job=(data.get("boss_job") or None),
+        interviewer_id=data.get("interviewer_id"),
+        round_name=(data.get("round") or "interview"),
+        time_text=(data.get("time") or None),
+        address=(data.get("address") or None),
+        desc=(data.get("desc") or None),
+    )
+    if result.get("ok"):
+        d = result.get("data") or {}
+        record_event("boss.invite_interview", entity_type="boss_candidate",
+                     payload={"candidate_id": candidate_id, "job_id": job_id,
+                              "assignment_id": d.get("assignment_id")})
     return _ok_or_fail(result)
 
 

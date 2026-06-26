@@ -23,6 +23,18 @@ QUESTION_PROMPT_SYS = (
     "用 JSON 数组返回（字符串列表），不含其他文字。"
 )
 
+RESUME_EVAL_PROMPT_SYS = (
+    "你是一位严格的招聘初筛官。请基于岗位要求评估候选人简历的匹配度，"
+    "只返回如下 JSON（不含其他文字）：\n"
+    '{"score": 1-5, "summary": "一句话总体判断", '
+    '"highlights": ["匹配亮点"], "concerns": ["风险或缺口"], '
+    '"pass_recommended": true/false}'
+)
+
+RESUME_EVAL_PROMPT_USER = (
+    "岗位要求：\n{jd}\n\n候选人简历：\n{resume}"
+)
+
 
 class PreScreenService:
     def __init__(self, llm=None):
@@ -48,12 +60,28 @@ class PreScreenService:
     def evaluate_answer(self, question: str, answer: str, jd_text: str) -> dict:
         raw = self.llm.chat(
             EVAL_PROMPT_SYS,
-            EVAL_PROMPT_USER.format(jd=jd_text[:800], question=question, answer=answer)
+            EVAL_PROMPT_USER.format(jd=jd_text[:2000], question=question, answer=answer)
         )
         try:
             return json.loads(raw.strip())
         except Exception:
             return {"score": 3, "highlight": "", "concern": "解析失败", "pass_recommended": False}
+
+    def evaluate_resume(self, resume_text: str, jd_text: str) -> dict:
+        raw = self.llm.chat(
+            RESUME_EVAL_PROMPT_SYS,
+            RESUME_EVAL_PROMPT_USER.format(jd=jd_text[:2000], resume=resume_text[:4000])
+        )
+        try:
+            return json.loads(raw.strip())
+        except Exception:
+            return {
+                "score": 3,
+                "summary": "解析失败",
+                "highlights": [],
+                "concerns": ["解析失败"],
+                "pass_recommended": False,
+            }
 
     def build_report(self, qa_pairs: list, jd_text: str) -> dict:
         """qa_pairs: [(question, answer), ...]"""

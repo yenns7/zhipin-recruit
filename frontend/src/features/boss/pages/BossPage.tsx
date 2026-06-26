@@ -28,8 +28,9 @@ import type {
   BossStatus,
 } from '../../../types';
 import { BossAccountManager } from './BossAccountManager';
+import { BossInboxWorkbench } from './BossInboxWorkbench';
 
-type TabKey = 'search' | 'recommend' | 'jobs';
+type TabKey = 'inbox' | 'search' | 'recommend' | 'jobs';
 
 const CITY_OPTIONS = [
   '全国', '北京', '上海', '杭州', '深圳', '广州', '成都', '南京',
@@ -320,11 +321,15 @@ export function BossPage() {
         value={tab}
         onChange={setTab}
         options={[
+          { value: 'inbox', label: '收件箱·闭环' },
           { value: 'search', label: '搜候选人' },
           { value: 'recommend', label: '推荐候选人' },
           { value: 'jobs', label: '岗位管理' },
         ]}
       />
+
+      {/* 收件箱招聘闭环：拉取→批量导入→AI初筛→面试邀请（人工确认） */}
+      {tab === 'inbox' && <BossInboxWorkbench />}
 
       {/* 搜候选人 */}
       {tab === 'search' && (

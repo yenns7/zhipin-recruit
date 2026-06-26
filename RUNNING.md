@@ -104,16 +104,49 @@ python backend/scripts/cleanup_demo_data.py --confirm
 
 ---
 
-## BOSS 直聘集成（boss-cli）
+## BOSS 直聘集成（boss-cli，必须配置）
 
-`/boss` 页面通过外部命令行工具 `boss`（PyPI 包 `kabi-boss-cli`）接入 BOSS 直聘招聘端。后端会在调用时自动定位并按需安装该工具：
+`/boss` 页面（含「收件箱·闭环」工作台：拉取已沟通候选人 → 批量导入 → AI 简历初筛 → 面试邀请）通过外部命令行工具 `boss` 接入 BOSS 直聘招聘端。**boss-cli 是该模块的硬性前置依赖，未正确安装时 `/boss` 全部功能不可用**（接口返回 503 `boss_cli_not_installed`）。
 
-- 自动安装：默认开启（`BOSS_CLI_AUTO_INSTALL=true`）。`boss` 缺失时自动执行 `pip install git+https://github.com/jackwener/boss-cli.git`（recruiter 子命令仅源码版含，故从 GitHub 装）。
-- 二进制查找顺序：`BOSS_CLI_BIN` 环境变量 → 系统 `PATH`（`which boss`）→ 当前 Python 解释器同目录 → `sysconfig` 脚本目录 / 已安装包前缀下的 `bin`。
+> 重点：本系统用到的招聘端命令（`recruiter inbox / resume / invite-interview` 等）**只存在于 GitHub 源码版**，PyPI 包 `kabi-boss-cli` 未收录。因此**必须从 GitHub 源码安装**，不能只 `pip install kabi-boss-cli`。
 
-### 找不到 `boss` 时的排障
+### 1. 安装（必须，二选一）
 
-如果日志或接口返回「boss-cli 安装后仍未找到 `boss`」，说明包已装但可执行脚本不在上述任一查找位置（常见于 pip 用 `--prefix` 装到非标准前缀，脚本目录与解释器目录分离）。先定位真实路径再用环境变量兜底：
+方式 A —— 自动安装（默认开启 `BOSS_CLI_AUTO_INSTALL=true`）：后端首次调用 `/boss/*` 时，若检测到 `boss` 缺失，会自动执行 `pip install git+https://github.com/jackwener/boss-cli.git` 并重新定位。
+
+方式 B —— 手动安装（推荐用于生产 / 离线环境，或关闭自动安装时）：
+
+```bash
+# 必须从 GitHub 源码安装（含 recruiter 子命令）；macOS/外部管理环境加 --break-system-packages
+pip install git+https://github.com/jackwener/boss-cli.git --break-system-packages
+```
+
+### 2. 验证安装
+
+```bash
+boss --help                 # 能打印帮助即二进制就位
+boss recruiter --help       # 必须能看到 inbox / resume / invite-interview，否则是 PyPI 版，需改用 GitHub 源码版
+```
+
+### 3. 后端二进制查找顺序
+
+后端按以下顺序定位 `boss`：`BOSS_CLI_BIN` 环境变量 → 系统 `PATH`（`which boss`）→ 当前 Python 解释器同目录 → `sysconfig` 脚本目录 / 已安装包前缀下的 `bin`。
+
+### 4. 相关环境变量
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `BOSS_CLI_AUTO_INSTALL` | `true` | 是否允许后端在 `boss` 缺失时自动从 GitHub 源码安装。生产建议设 `false` 并改用手动安装。 |
+| `BOSS_CLI_BIN` | 空 | 显式指定 `boss` 可执行文件绝对路径，优先级最高（解决 pip `--prefix` 装到非标准前缀的场景）。 |
+| `BOSS_COOKIES` | 由系统注入 | 多账号 Cookie（`k1=v1; k2=v2`）。无需手工设置——在 `/boss` 页面扫码登录后，系统以 Fernet 加密保存账号，调用时按激活账号自动注入。 |
+
+### 5. BOSS 账号登录（必须，运行期配置）
+
+CLI 装好后还需绑定 BOSS 账号：进入 `/boss` 页面 → 顶部「BOSS 账号管理」→ 扫码登录 → 保存账号。系统加密保存 Cookie 并支持多账号切换。
+
+### 6. 找不到 `boss` 时的排障
+
+如果日志或接口返回「boss-cli 安装后仍未找到 `boss`」，说明包已装但可执行脚本不在上述任一查找位置（常见于 pip 用 `--prefix` 装到非标准前缀）。先定位真实路径再用环境变量兜底：
 
 ```bash
 # 1. 确认包已安装并查看安装位置
@@ -126,7 +159,9 @@ python -c "import sysconfig; print(sysconfig.get_paths()['scripts'])"
 export BOSS_CLI_BIN=/path/to/bin/boss
 ```
 
-`/api/boss/status` 在 BOSS 账号未绑定时返回 409 `no_active_account` 属正常业务响应（去 `/boss` 页面扫码登录即可）；只有返回 `boss_cli_not_installed` 才是 CLI 未就绪。
+### 7. 状态码对照
+
+`/api/boss/status` 在 BOSS 账号未绑定时返回 409 `no_active_account` 属正常业务响应（去 `/boss` 页面扫码登录即可）；返回 401 `not_authenticated` 表示账号 Cookie 失效需重新登录；只有返回 503 `boss_cli_not_installed` 才是 CLI 未就绪，需回到第 1 步。
 
 ---
 

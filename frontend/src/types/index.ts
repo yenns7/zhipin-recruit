@@ -1078,3 +1078,83 @@ export interface BossQrStatusResult {
   status: BossQrStatus;
   error: string;
 }
+
+// ── 招聘闭环：批量导入 / AI 初筛 / 面试邀请 ──────────────────────
+// 批量导入单条入参（来自收件箱列表勾选）
+export interface BossImportItem {
+  geek_id: string;
+  name?: string;
+  security_id?: string;
+  friend_id?: number;
+  job?: string;
+}
+
+export interface BossBatchImportParams {
+  items: BossImportItem[];
+  target_job_id?: number;
+  boss_job?: string;
+  limit?: number;
+  interval_sec?: number;
+}
+
+export interface BossImportResultItem {
+  geek_id: string;
+  name?: string;
+  status: 'ok' | 'skipped' | 'error';
+  reason?: string;
+  code?: string;
+  candidate_id?: number;
+  target_job_id?: number | null;
+}
+
+export interface BossBatchImportResult {
+  batch_id: number;
+  imported: number;
+  skipped: number;
+  failed: number;
+  stopped_reason: string | null;
+  results: BossImportResultItem[];
+}
+
+export interface BossAiScreenParams {
+  candidate_ids: number[];
+  job_id: number;
+}
+
+export interface BossScreenResultItem {
+  candidate_id: number;
+  name?: string;
+  status: 'ok' | 'error';
+  reason?: string;
+  score?: number | null;
+  pass_recommended?: boolean;
+  summary?: string;
+  highlights?: string[];
+  concerns?: string[];
+}
+
+export interface BossAiScreenResult {
+  screened: number;
+  failed: number;
+  results: BossScreenResultItem[];
+}
+
+export interface BossInviteInterviewParams {
+  candidate_id: number;
+  job_id: number;
+  boss_job?: string;
+  interviewer_id?: number;
+  round?: string;
+  time?: string;
+  address?: string;
+  desc?: string;
+}
+
+export interface BossInviteInterviewResult {
+  candidate_id: number;
+  job_id: number;
+  assignment_id: number;
+  boss: unknown;
+  stage: string;
+}
+

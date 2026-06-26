@@ -63,6 +63,8 @@
 | npm | 9+ | 随 Node.js 附带 |
 | Git | 任意 | 可选 |
 
+> BOSS 直聘模块还需外部 CLI `boss`（boss-cli，从 GitHub 源码安装，**必须配置**）；安装与配置见 3.2 与 `RUNNING.md`。
+
 ---
 
 ## 3. 快速启动（本地开发）
@@ -81,6 +83,15 @@ cd backend
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
+
+> **必须依赖：BOSS 直聘集成需要外部命令行工具 `boss`（boss-cli）。** `/boss` 模块（含「收件箱·闭环」：拉取已沟通候选人 → 批量导入 → AI 简历初筛 → 面试邀请）依赖该 CLI，缺失时接口返回 503。系统用到的 `recruiter` 子命令**仅 GitHub 源码版包含**，PyPI 包 `kabi-boss-cli` 未收录，因此必须从源码安装：
+>
+> ```bash
+> pip install git+https://github.com/jackwener/boss-cli.git --break-system-packages
+> boss recruiter --help   # 能看到 inbox / resume / invite-interview 即正确
+> ```
+>
+> 后端默认 `BOSS_CLI_AUTO_INSTALL=true`，缺失时会自动从上述源码地址安装；生产建议设 `false` 并手动安装。可用 `BOSS_CLI_BIN` 指定 `boss` 绝对路径。详见 `RUNNING.md` 的「BOSS 直聘集成（boss-cli，必须配置）」一节。CLI 装好后还需在 `/boss` 页面扫码登录绑定 BOSS 账号。
 
 ### 3.3 配置环境变量
 
@@ -332,6 +343,7 @@ MVP 试用阶段建议一人一个账号。系统会按用户 ID 记录候选人
 | 候选人管道 | `/pipeline` | 阶段管理（待筛选→AI初筛→业务待反馈→面试中→Offer→已入职/淘汰），支持误推进后的“修正阶段”并保留历史流水 |
 | AI 面试 | `/interviews` | 生成定制题目，录入作答，AI 评估报告 |
 | 数据看板 | `/bi` | 团队当前阶段分布 + 专员效能 + 渠道质量 + 数据质量提醒（经理/管理员）+ 责任口径解释；当前流程人数不含已入职/已淘汰，招聘专员仅自己负责范围，面试官不开放 BI |
+| BOSS 直聘 | `/boss` | 接入 BOSS 招聘端：搜/推荐候选人、查看下载简历、岗位上下线；「收件箱·闭环」工作台支持拉取已沟通候选人→批量导入候选人库→AI 简历初筛→面试邀请（BOSS+系统双写，需人工确认）。依赖 boss-cli（必须配置，见 3.2 与 RUNNING.md） |
 
 ---
 

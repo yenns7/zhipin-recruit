@@ -74,6 +74,12 @@ import type {
   BossAccount,
   BossQrStartResult,
   BossQrStatusResult,
+  BossBatchImportParams,
+  BossBatchImportResult,
+  BossAiScreenParams,
+  BossAiScreenResult,
+  BossInviteInterviewParams,
+  BossInviteInterviewResult,
 } from '../types';
 
 const API_BASE = '/api';
@@ -589,6 +595,20 @@ export const api = {
   },
   bossReply(friendId: number, message: string): Promise<unknown> {
     return bossRequest(`/boss/chat/${friendId}/reply`, { method: 'POST', body: { message } });
+  },
+
+  // ---- 招聘闭环：批量导入 / AI 初筛 / 面试邀请 ----
+  // 批量下载并导入收件箱候选人简历到候选人库（限量+间隔+去重）。
+  bossBatchImport(params: BossBatchImportParams): Promise<BossBatchImportResult> {
+    return bossRequest('/boss/candidates/batch-import', { method: 'POST', body: params });
+  },
+  // 对已导入候选人做 AI 简历初筛（LLM 评估 + 写 Interview + 推进 ai_screen）。
+  bossAiScreen(params: BossAiScreenParams): Promise<BossAiScreenResult> {
+    return bossRequest('/boss/candidates/ai-screen', { method: 'POST', body: params });
+  },
+  // 发送面试邀请（BOSS invite-interview + 系统双写），需前端人工确认后调用。
+  bossInviteInterview(params: BossInviteInterviewParams): Promise<BossInviteInterviewResult> {
+    return bossRequest('/boss/candidates/invite-interview', { method: 'POST', body: params });
   },
   // 简历下载走专用 URL（返回 text/markdown），由调用方用 window.open 触发；
   // ?token= 让后端做查询参数鉴权（无法带 Authorization 头）。
