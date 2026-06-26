@@ -4,7 +4,10 @@
 // 维护多轮 history，每次请求带上历史消息实现连续对话。
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowUp, Bot, Brain, Sparkles, Square, User, Check, X, Loader2 } from 'lucide-react';
+import {
+  ArrowUp, Bot, Brain, Sparkles, Square, User, Check, X, Loader2,
+  Plus, MessageSquare, Trash2, Pencil, PanelLeftClose, PanelLeft,
+} from 'lucide-react';
 import {
   fetchAgentTools,
   streamChat,
@@ -26,7 +29,7 @@ import { RichText } from '../components/agent/RichText';
 import { ThoughtTrace } from '../components/agent/ThoughtTrace';
 import { ToolCallCard } from '../components/agent/ToolCallCard';
 import { useAuth } from '../lib/auth';
-import type { Role } from '../types';
+import type { Role, ConversationSummary } from '../types';
 
 // View-model types now live in ../lib/agentChat (shared with the Context that
 // holds conversation state across route switches).
@@ -70,8 +73,14 @@ export function AgentPage() {
     toolSeqRef,
     conversationId,
     setConversationId,
+    conversations,
+    switchConversation,
+    createNewConversation,
+    renameConversation,
+    archiveConversation,
   } = useAgentChat();
   const [tools, setTools] = useState<AgentTool[]>([]);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -324,43 +333,68 @@ export function AgentPage() {
     <div className="flex h-[calc(100vh-7rem)] flex-col">
       {/* 页头 */}
       <div className="mb-5 flex items-start justify-between">
-        <div>
-          <div className="mb-1 flex items-center gap-2">
-            <h1 className="text-2xl font-display text-ink">AI 助手</h1>
-            <span className="inline-flex items-center gap-1 rounded-full border border-hairline bg-surface-soft px-2.5 py-0.5 text-xs font-medium text-muted">
-              <Sparkles className="h-3 w-3" />
-              DeepSeek v4 驱动
-            </span>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen((v) => !v)}
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-hairline bg-canvas text-muted transition-colors hover:bg-surface-soft hover:text-ink"
+            title={sidebarOpen ? '收起会话列表' : '展开会话列表'}
+          >
+            {sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
+          </button>
+          <div>
+            <div className="mb-1 flex items-center gap-2">
+              <h1 className="text-2xl font-display text-ink">AI 助手</h1>
+              <span className="inline-flex items-center gap-1 rounded-full border border-hairline bg-surface-soft px-2.5 py-0.5 text-xs font-medium text-muted">
+                <Sparkles className="h-3 w-3" />
+                DeepSeek v4 驱动
+              </span>
+            </div>
+            <p className="text-sm text-muted">
+              用自然语言查询候选人、岗位、匹配、流程和团队报表 · 涉及写入时必须人工确认
+            </p>
           </div>
-          <p className="text-sm text-muted">
-            用自然语言查询候选人、岗位、匹配、流程和团队报表 · 涉及写入时必须人工确认
-          </p>
         </div>
       </div>
 
-      {/* 消息区 */}
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto rounded-lg border border-hairline bg-canvas"
-      >
-        {isEmpty ? (
-          <EmptyState tools={tools} examples={examples} onPick={send} disabled={streaming} />
-        ) : (
-          <div className="mx-auto max-w-3xl space-y-6 px-5 py-6">
-            {messages.map((m) =>
-              m.kind === 'user' ? (
-                <UserBubble key={m.id} text={m.text} />
-              ) : (
-                <AssistantBubble
-                  key={m.id}
-                  msg={m}
-                  onConfirm={() => resolveProposal(m.id, true)}
-                  onCancel={() => resolveProposal(m.id, false)}
-                />
-              )
-            )}
-          </div>
+      {/* 主体：侧边栏 + 对话区 */}
+      <div className="flex flex-1 gap-4 overflow-hidden">
+        {sidebarOpen && (
+          <ConversationSidebar
+            conversations={conversations}
+            currentId={conversationId}
+            streaming={streaming}
+            onSwitch={switchConversation}
+            onCreate={() => createNewConversation()}
+            onRename={renameConversation}
+            onDelete={(id) => archiveConversation(id, true)}
+          />
         )}
+
+        {/* 消息区 */}
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto rounded-lg border border-hairline bg-canvas"
+        >
+          {isEmpty ? (
+            <EmptyState tools={tools} examples={examples} onPick={send} disabled={streaming} />
+          ) : (
+            <div className="mx-auto max-w-3xl space-y-6 px-5 py-6">
+              {messages.map((m) =>
+                m.kind === 'user' ? (
+                  <UserBubble key={m.id} text={m.text} />
+                ) : (
+                  <AssistantBubble
+                    key={m.id}
+                    msg={m}
+                    onConfirm={() => resolveProposal(m.id, true)}
+                    onCancel={() => resolveProposal(m.id, false)}
+                  />
+                )
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 输入区 */}
@@ -372,6 +406,162 @@ export function AgentPage() {
         streaming={streaming}
       />
     </div>
+  );
+}
+
+// ---- Conversation sidebar (history list) --------------------------------
+
+function ConversationSidebar({
+  conversations,
+  currentId,
+  streaming,
+  onSwitch,
+  onCreate,
+  onRename,
+  onDelete,
+}: {
+  conversations: ConversationSummary[];
+  currentId: number | null;
+  streaming: boolean;
+  onSwitch: (id: number) => void;
+  onCreate: () => void;
+  onRename: (id: number, title: string) => void;
+  onDelete: (id: number) => void;
+}) {
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [menuId, setMenuId] = useState<number | null>(null);
+
+  function startRename(c: ConversationSummary) {
+    setEditingId(c.id);
+    setEditValue(c.title);
+    setMenuId(null);
+  }
+
+  function commitRename() {
+    if (editingId !== null && editValue.trim()) {
+      onRename(editingId, editValue.trim());
+    }
+    setEditingId(null);
+  }
+
+  return (
+    <aside className="flex w-64 shrink-0 flex-col rounded-lg border border-hairline bg-surface-soft">
+      <div className="flex items-center justify-between border-b border-hairline px-3 py-2.5">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-soft">
+          会话历史
+        </span>
+        <button
+          type="button"
+          onClick={onCreate}
+          disabled={streaming}
+          className="flex h-6 w-6 items-center justify-center rounded-md bg-brand-600 text-on-primary transition-colors hover:bg-brand-700 disabled:opacity-40"
+          title="新建会话"
+        >
+          <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto py-1">
+        {conversations.length === 0 ? (
+          <p className="px-3 py-6 text-center text-xs text-muted-soft">
+            还没有会话
+            <br />
+            点击上方 + 开始
+          </p>
+        ) : (
+          conversations.map((c) => {
+            const active = c.id === currentId;
+            const editing = editingId === c.id;
+            return (
+              <div
+                key={c.id}
+                className={cn(
+                  'group relative mx-1.5 mb-0.5 rounded-md px-2.5 py-2 text-sm transition-colors',
+                  active
+                    ? 'bg-surface-card text-ink'
+                    : 'text-body hover:bg-surface-card/60',
+                )}
+              >
+                {editing ? (
+                  <input
+                    autoFocus
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onBlur={commitRename}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitRename();
+                      if (e.key === 'Escape') setEditingId(null);
+                    }}
+                    className="w-full rounded border border-hairline bg-canvas px-1.5 py-0.5 text-sm text-ink focus:border-ink focus:outline-none"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onSwitch(c.id)}
+                    disabled={streaming || active}
+                    className="flex w-full items-start gap-2 text-left disabled:cursor-default"
+                  >
+                    <MessageSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" />
+                    <span className="min-w-0 flex-1 truncate">{c.title}</span>
+                  </button>
+                )}
+
+                {/* 操作菜单触发 */}
+                {!editing && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuId(menuId === c.id ? null : c.id);
+                    }}
+                    className={cn(
+                      'absolute right-1 top-1.5 flex h-5 w-5 items-center justify-center rounded text-muted opacity-0 transition-opacity hover:bg-surface-strong hover:text-ink',
+                      'group-hover:opacity-100',
+                      menuId === c.id && 'opacity-100',
+                    )}
+                    title="更多操作"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                )}
+
+                {/* 下拉菜单 */}
+                {menuId === c.id && !editing && (
+                  <div className="absolute right-1 top-7 z-10 w-28 rounded-md border border-hairline bg-canvas py-1 shadow-card">
+                    <button
+                      type="button"
+                      onClick={() => startRename(c)}
+                      className="flex w-full items-center gap-2 px-2.5 py-1.5 text-xs text-body hover:bg-surface-soft"
+                    >
+                      <Pencil className="h-3 w-3" /> 重命名
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuId(null);
+                        if (confirm(`删除会话「${c.title}」？删除后可在归档列表恢复。`)) {
+                          onDelete(c.id);
+                        }
+                      }}
+                      className="flex w-full items-center gap-2 px-2.5 py-1.5 text-xs text-danger-700 hover:bg-danger-50"
+                    >
+                      <Trash2 className="h-3 w-3" /> 删除
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {streaming && (
+        <div className="border-t border-hairline px-3 py-1.5 text-xs text-muted-soft">
+          生成中，暂不可切换
+        </div>
+      )}
+    </aside>
   );
 }
 
