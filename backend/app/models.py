@@ -323,7 +323,7 @@ class AgentCallLog(db.Model):
     prompt_tokens = db.Column(db.Integer)
     completion_tokens = db.Column(db.Integer)
     duration_ms = db.Column(db.Integer)
-    status = db.Column(db.String(20), nullable=False)      # ok / error / timeout
+    status = db.Column(db.String(20), nullable=False)      # ok / error / timeout / aborted
     error_msg = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=utc_now)
 

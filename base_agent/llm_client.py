@@ -358,11 +358,13 @@ class LLMClient:
 
         最后 yield {'type':'done'}。供 SSE 端点转发。
         调用结束后 self.last_call_log 记录本次调用耗时与状态。
+        即使调用方中途停止迭代（GeneratorExit/客户端断连），finally 也会记录 aborted。
         """
         body = self._build_body(messages, None, temperature, model, thinking, stream=True)
         use_model = body.get("model", self.model)
         api_key = self._resolve_key()
         t0 = time.time()
+        finished = False  # 是否正常跑到末尾
         try:
             with requests.post(
                 self.api_url, headers=self._headers(api_key), json=body,
@@ -386,6 +388,7 @@ class LLMClient:
                     piece = delta.get("content")
                     if piece:
                         yield {"type": "content", "text": piece}
+            finished = True
             self.last_call_log = build_call_log(
                 model=use_model, duration_ms=int((time.time() - t0) * 1000), status="ok",
             )
@@ -396,5 +399,13 @@ class LLMClient:
                 status="error", error_msg=str(e),
             )
             raise
+        finally:
+            # 生成器被中途关闭（客户端断连/调用方停止迭代）时，finished 仍为 False，
+            # 此前未写过 log（异常路径已写过），补一条 aborted，便于审计真实断流场景。
+            if not finished and self.last_call_log is None:
+                self.last_call_log = build_call_log(
+                    model=use_model, duration_ms=int((time.time() - t0) * 1000),
+                    status="aborted", error_msg="stream interrupted before completion",
+                )
 
 

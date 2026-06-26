@@ -140,3 +140,33 @@ def test_chat_stream_failure_records_error_log(monkeypatch):
     log = client.last_call_log
     assert log["status"] == "error"
     assert log["error_msg"]
+
+
+def test_chat_stream_aborted_when_not_fully_consumed(monkeypatch):
+    """生成器被中途停止迭代（客户端断连）时，last_call_log 应记录 aborted。"""
+    client = _make_client(monkeypatch)
+
+    class FakeStream:
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+        def raise_for_status(self):
+            pass
+        def iter_lines(self, decode_unicode=True):
+            yield 'data: {"choices":[{"delta":{"content":"片段1"}}]}'
+            yield 'data: {"choices":[{"delta":{"content":"片段2"}}]}'
+            yield "data: [DONE]"
+
+    with patch("llm_client.requests.post", return_value=FakeStream()):
+        gen = client.chat_stream([{"role": "user", "content": "hi"}])
+        # 只取第一个 token 就停止迭代，模拟客户端断连
+        first = next(gen)
+        assert first.get("type") == "content"
+        # 显式关闭生成器，触发 GeneratorExit → finally
+        gen.close()
+
+    log = client.last_call_log
+    assert log is not None
+    assert log["status"] == "aborted"
+    assert log["duration_ms"] is not None and log["duration_ms"] >= 0
