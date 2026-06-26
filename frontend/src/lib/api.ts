@@ -683,6 +683,11 @@ export const api = {
   bossQrLoginConfirm(sessionId: string, label: string): Promise<BossAccount> {
     return bossRequest('/boss/qr-login/confirm', { method: 'POST', body: { session_id: sessionId, label } });
   },
+  // 从本机浏览器导入完整 cookie（扩展采集后粘贴，或手动粘贴 Cookie 头）。
+  // 后端校验必需 cookie 齐全 + status 有效才保存激活。
+  bossImportBrowserCookie(cookies: string, label = ''): Promise<BossAccount> {
+    return bossRequest('/boss/login/browser-cookie', { method: 'POST', body: { cookies, label } });
+  },
   bossAccounts(): Promise<BossAccount[]> {
     return bossRequest('/boss/accounts');
   },

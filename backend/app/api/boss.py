@@ -63,6 +63,8 @@ def _ok_or_fail(result: dict, *, success_code: int = 200, installed_err_code: in
         status = 401
     elif code == "needs_stoken":
         status = 409
+    elif code == "incomplete_cookie":
+        status = 409
     elif code in ("invalid_params",):
         status = 400
     elif code in ("rate_limited",):
@@ -116,6 +118,35 @@ def boss_login_cookie():
     browser = (data.get("browser") or "chrome").strip()
     result = _svc.login_cookie(browser)
     record_event("boss.login", entity_type="boss", payload={"mode": "cookie", "ok": result.get("ok")})
+    return _ok_or_fail(result)
+
+
+@bp.post("/boss/login/browser-cookie")
+@require_auth
+@require_role(*_RECRUITER_ROLES)
+def boss_login_browser_cookie():
+    """从本机浏览器导入完整 BOSS cookie（扩展采集或手动粘贴提交）。
+
+    云部署下后端读不到使用者本机浏览器，cookie 必须由客户端提交。
+    body: {cookies: "k=v; k=v" | {k: v}, label?}
+    校验通过（含 __zp_stoken__ + 必需 cookie 齐全 + status authenticated）才保存激活，
+    否则不落库：缺 __zp_stoken__ → 409 needs_stoken，失效 → 401 not_authenticated。
+    """
+    data = request.get_json(silent=True) or {}
+    raw_cookies = data.get("cookies")
+    label = (data.get("label") or "").strip()
+    if not raw_cookies:
+        return jsonify({"ok": False, "error": {"code": "invalid_params", "message": "cookies 不能为空"}}), 400
+    result = _svc.import_browser_cookie(g.user_id, raw_cookies, label)
+    if result.get("ok"):
+        acct = result.get("data") or {}
+        record_event("boss.login", entity_type="boss_account",
+                     payload={"mode": "browser_cookie", "account_id": acct.get("id"),
+                              "label": acct.get("label")})
+    else:
+        record_event("boss.login", entity_type="boss",
+                     payload={"mode": "browser_cookie", "ok": False,
+                              "code": (result.get("error") or {}).get("code")})
     return _ok_or_fail(result)
 
 
@@ -472,6 +503,14 @@ def boss_qr_login_confirm():
     if not cookies:
         return jsonify({"ok": False, "error": {
             "code": "qr_not_done", "message": "扫码登录尚未完成，请先扫码并确认",
+        }}), 409
+    # 纯 HTTP 扫码拿不到页面 JS 生成的 __zp_stoken__，缺失则不保存为激活账号，
+    # 直接引导改用「从浏览器导入账号」（扩展采集全量 cookie）。
+    if "__zp_stoken__" not in cookies:
+        return jsonify({"ok": False, "error": {
+            "code": "needs_stoken",
+            "message": "扫码登录无法获取完整浏览器凭证（缺少 __zp_stoken__），"
+                       "请改用「从浏览器导入账号」：先在本机浏览器登录 BOSS 招聘端，再用浏览器扩展采集。",
         }}), 409
     acct = _svc.save_account(g.user_id, cookies, label)
     record_event("boss.qr_login.confirm", entity_type="boss_account",

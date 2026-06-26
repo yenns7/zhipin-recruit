@@ -27,6 +27,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
+# boss-cli 鉴权所需的全套 cookie（与 boss_cli.constants.REQUIRED_COOKIES 对齐）。
+# __zp_stoken__ 由页面 JS 生成、wt2/wbg/zp_at 为服务端 HttpOnly 会话 cookie，
+# 四者缺一不可，否则 recruiter 接口会判 not_authenticated。
+REQUIRED_COOKIES = ("__zp_stoken__", "wt2", "wbg", "zp_at")
+
 BOSS_PYPI_PKG = "kabi-boss-cli"
 # 招聘端 recruiter 子命令只在 GitHub 源码里，PyPI 发布包未收录，
 # 故强制从 GitHub 安装（pip install git+...）。
@@ -244,6 +249,33 @@ def _safe_text(value: Any, max_len: int = 200) -> str:
     # 去除换行，防止参数注入换行干扰 CLI 解析
     s = re.sub(r"\s+", " ", s)
     return s[:max_len]
+
+
+def parse_cookies(raw: Any) -> Dict[str, str]:
+    """把客户端提交的 cookie 解析成 {name: value} dict。
+
+    兼容两种来源（浏览器扩展 chrome.cookies / 用户手动粘贴 Cookie 头）：
+    - dict：{"wt2": "v1", ...} 直接归一化为字符串键值。
+    - str：Cookie 头格式 "k1=v1; k2=v2"，按 `;` 切分，仅取第一个 `=` 前后。
+    值里可能含 `=`（如 base64），故用 split("=", 1) 只切一次。
+    """
+    out: Dict[str, str] = {}
+    if isinstance(raw, dict):
+        for k, v in raw.items():
+            k = str(k).strip()
+            if k:
+                out[k] = str(v)
+        return out
+    if isinstance(raw, str):
+        for part in raw.split(";"):
+            part = part.strip()
+            if not part or "=" not in part:
+                continue
+            k, v = part.split("=", 1)
+            k = k.strip()
+            if k:
+                out[k] = v.strip()
+    return out
 
 
 class BossService:
@@ -497,6 +529,49 @@ class BossService:
         db.session.add(acct)
         db.session.commit()
         return _account_to_dict(acct)
+
+    @staticmethod
+    def import_browser_cookie(
+        owner_hr_id: int, raw_cookies: Any, label: str = ""
+    ) -> Dict[str, Any]:
+        """从浏览器扩展/手动粘贴导入完整 cookie，校验通过后保存为激活账号。
+
+        云部署下后端读不到使用者本机浏览器，cookie 必须由客户端（扩展或粘贴）
+        提交。流程：解析 → 校验必需 cookie 齐全 → 跑 boss status 复核登录态，
+        仅当含 __zp_stoken__ 且 authenticated 才落库激活，否则不保存并回 needs_stoken。
+
+        返回统一信封 {ok, data, error}。
+        """
+        cookies = parse_cookies(raw_cookies)
+        if not cookies:
+            return {"ok": False, "data": None,
+                    "error": {"code": "invalid_params", "message": "未解析到任何 cookie，请重新采集"}}
+
+        missing = [c for c in REQUIRED_COOKIES if c not in cookies]
+        if missing:
+            # 缺 __zp_stoken__ 单独给 needs_stoken（前端据此引导改用扩展），
+            # 其余缺失统一提示重新登录采集。
+            code = "needs_stoken" if "__zp_stoken__" in missing else "incomplete_cookie"
+            return {
+                "ok": False, "data": {"missing": missing},
+                "error": {"code": code,
+                          "message": f"cookie 不完整，缺少 {', '.join(missing)}；"
+                                     f"请确认已在本机浏览器完整登录 BOSS 直聘招聘端后用扩展重新采集"},
+            }
+
+        # 用提交的 cookie 真实复核登录态，避免存入失效凭证
+        cookie_header = "; ".join(f"{k}={v}" for k, v in cookies.items())
+        st = _run(["status"], timeout=30, cookies_override=cookie_header)
+        authenticated = bool(st.get("ok") and st.get("data", {}).get("authenticated"))
+        if not authenticated:
+            return {
+                "ok": False, "data": st.get("data"),
+                "error": {"code": "not_authenticated",
+                          "message": "cookie 校验未通过（可能已过期），请在浏览器重新登录后再采集"},
+            }
+
+        acct = BossService.save_account(owner_hr_id, cookies, label=label)
+        return {"ok": True, "data": acct, "error": None}
 
     @staticmethod
     def activate_account(owner_hr_id: int, account_id: int) -> Dict[str, Any]:

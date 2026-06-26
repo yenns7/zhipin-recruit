@@ -1,4 +1,4 @@
-// BOSS 账号管理区：扫码登录 + 多账号切换/校验/删除。
+// BOSS 账号管理区：从浏览器导入账号（推荐）+ 扫码登录（实验性降级）+ 多账号切换/校验/删除。
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Badge, Button, Card, CardBody, Input, Spinner } from '../../../components/ui';
 import { useToast } from '../../../components/ui/ToastContext';
@@ -16,6 +16,7 @@ export function BossAccountManager({ onChanged }: { onChanged?: () => void }) {
   const [accounts, setAccounts] = useState<BossAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [qrOpen, setQrOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -82,7 +83,16 @@ export function BossAccountManager({ onChanged }: { onChanged?: () => void }) {
               <Badge tone="warning">未绑定账号</Badge>
             )}
           </div>
-          <Button size="sm" onClick={() => setQrOpen(true)}>+ 扫码登录添加账号</Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={() => setImportOpen(true)}>从浏览器导入账号</Button>
+            <button
+              type="button"
+              className="text-caption text-text-muted underline underline-offset-2 hover:text-text-secondary"
+              onClick={() => setQrOpen(true)}
+            >
+              扫码登录（实验性）
+            </button>
+          </div>
         </div>
 
         {accounts.length > 0 && (
@@ -104,6 +114,13 @@ export function BossAccountManager({ onChanged }: { onChanged?: () => void }) {
           </div>
         )}
 
+        {importOpen && (
+          <BrowserCookieImportModal
+            onClose={() => setImportOpen(false)}
+            onSuccess={async () => { setImportOpen(false); await refresh(); onChanged?.(); }}
+          />
+        )}
+
         {qrOpen && (
           <QrLoginModal
             onClose={() => setQrOpen(false)}
@@ -112,6 +129,63 @@ export function BossAccountManager({ onChanged }: { onChanged?: () => void }) {
         )}
       </CardBody>
     </Card>
+  );
+}
+
+// ── 从浏览器导入账号弹窗（推荐）─────────────────────────────────────
+// 云部署下后端读不到用户本机浏览器，需用户用扩展采集完整 cookie 后粘贴。
+function BrowserCookieImportModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+  const toast = useToast();
+  const [cookies, setCookies] = useState('');
+  const [label, setLabel] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = useCallback(async () => {
+    const raw = cookies.trim();
+    if (!raw) { toast.error('请先粘贴从浏览器扩展采集的 Cookie'); return; }
+    setSaving(true);
+    try {
+      await api.bossImportBrowserCookie(raw, label.trim() || `账号${new Date().toLocaleDateString()}`);
+      toast.success('账号已导入并激活');
+      onSuccess();
+    } catch (e) {
+      // 后端缺 __zp_stoken__ 返回 needs_stoken；缺其他 cookie 返回 incomplete_cookie
+      toast.error(errMsg(e, '导入失败，请确认已采集完整 Cookie'));
+    } finally { setSaving(false); }
+  }, [cookies, label, onSuccess, toast]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <Card className="w-full max-w-md">
+        <CardBody className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-title-sm font-semibold text-text-primary">从浏览器导入 BOSS 账号</h3>
+            <Button variant="ghost" size="sm" onClick={onClose}>关闭</Button>
+          </div>
+          <ol className="list-decimal space-y-1 pl-5 text-body-sm text-text-secondary">
+            <li>在本机浏览器登录 <span className="font-medium">BOSS 直聘招聘端</span>（zhipin.com）。</li>
+            <li>安装并点击「智聘 · BOSS Cookie 采集器」扩展，点「一键采集并复制」。</li>
+            <li>把复制的 Cookie 粘贴到下方输入框后保存。</li>
+          </ol>
+          <div className="rounded-lg bg-warning-50 px-3 py-2 text-caption text-text-secondary">
+            扫码登录无法获取浏览器 JS 生成的 <code>__zp_stoken__</code>，必须用扩展采集完整 Cookie 才能正常使用招聘端能力。
+          </div>
+          <div className="space-y-2">
+            <label className="text-body-sm font-medium text-text-primary">粘贴 Cookie</label>
+            <textarea
+              className="h-28 w-full rounded-lg border border-hairline p-2 font-mono text-caption"
+              placeholder="__zp_stoken__=...; wt2=...; wbg=...; zp_at=..."
+              value={cookies}
+              onChange={(e) => setCookies(e.target.value)}
+            />
+            <Input label="账号别名" placeholder="如：主账号" value={label} onChange={(e) => setLabel(e.target.value)} />
+            <Button className="w-full" onClick={handleSave} disabled={saving}>
+              {saving ? '校验并保存中…' : '校验并保存'}
+            </Button>
+          </div>
+        </CardBody>
+      </Card>
+    </div>
   );
 }
 
