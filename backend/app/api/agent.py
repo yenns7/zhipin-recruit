@@ -48,19 +48,55 @@ def list_tools():
 @require_auth
 @require_role("recruiter", "manager", "admin")
 def list_conversations():
-    conversations = (
+    """列出当前用户的会话。支持 archived 过滤与分页（默认只看未归档）。"""
+    archived = request.args.get("archived", "false").lower() in ("1", "true", "yes")
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+        per_page = min(100, max(1, int(request.args.get("per_page", 50))))
+    except (TypeError, ValueError):
+        page, per_page = 1, 50
+
+    query = (
         Conversation.query
-        .filter_by(user_id=g.user_id)
+        .filter_by(user_id=g.user_id, archived=archived)
         .order_by(Conversation.updated_at.desc())
-        .all()
     )
-    return jsonify([{
+    paginated = query.paginate(page=page, per_page=per_page, error_out=False)
+    return jsonify({
+        "items": [{
+            "id": conversation.id,
+            "title": conversation.title,
+            "title_source": conversation.title_source,
+            "archived": conversation.archived,
+            "created_at": conversation.created_at.isoformat() if conversation.created_at else None,
+            "updated_at": conversation.updated_at.isoformat() if conversation.updated_at else None,
+            "message_count": len(conversation.messages),
+        } for conversation in paginated.items],
+        "page": paginated.page,
+        "per_page": paginated.per_page,
+        "total": paginated.total,
+    })
+
+
+@bp.post("/agent/conversations")
+@require_auth
+@require_role("recruiter", "manager", "admin")
+def create_conversation():
+    """新建空会话，返回 {id, title, archived, title_source}。"""
+    data = request.get_json(silent=True) or {}
+    title = (data.get("title") or "新对话").strip()[:200] or "新对话"
+    conversation = Conversation(
+        user_id=g.user_id, title=title, title_source="manual",
+    )
+    db.session.add(conversation)
+    db.session.commit()
+    return jsonify({
         "id": conversation.id,
         "title": conversation.title,
+        "archived": conversation.archived,
+        "title_source": conversation.title_source,
         "created_at": conversation.created_at.isoformat() if conversation.created_at else None,
-        "updated_at": conversation.updated_at.isoformat() if conversation.updated_at else None,
-        "message_count": len(conversation.messages),
-    } for conversation in conversations])
+    }), 201
 
 
 @bp.get("/agent/conversations/<int:conversation_id>")
@@ -73,6 +109,8 @@ def get_conversation(conversation_id):
     return jsonify({
         "id": conversation.id,
         "title": conversation.title,
+        "title_source": conversation.title_source,
+        "archived": conversation.archived,
         "messages": [{
             "id": message.id,
             "role": message.role,
@@ -82,6 +120,45 @@ def get_conversation(conversation_id):
             "created_at": message.created_at.isoformat() if message.created_at else None,
         } for message in conversation.messages],
     })
+
+
+@bp.patch("/agent/conversations/<int:conversation_id>")
+@require_auth
+@require_role("recruiter", "manager", "admin")
+def update_conversation(conversation_id):
+    """重命名 / 归档 / 取消归档。请求体：{"title": "...", "archived": bool}（均可选）。"""
+    conversation = db.get_or_404(Conversation, conversation_id)
+    if conversation.user_id != g.user_id:
+        return jsonify({"error": "Forbidden"}), 403
+    data = request.get_json(silent=True) or {}
+    if "title" in data:
+        new_title = (str(data["title"]).strip())[:200]
+        if new_title:
+            conversation.title = new_title
+            conversation.title_source = "manual"
+    if "archived" in data:
+        conversation.archived = bool(data["archived"])
+    db.session.commit()
+    return jsonify({
+        "id": conversation.id,
+        "title": conversation.title,
+        "title_source": conversation.title_source,
+        "archived": conversation.archived,
+        "updated_at": conversation.updated_at.isoformat() if conversation.updated_at else None,
+    })
+
+
+@bp.delete("/agent/conversations/<int:conversation_id>")
+@require_auth
+@require_role("recruiter", "manager", "admin")
+def delete_conversation(conversation_id):
+    """软删会话（置 archived=True）。按 user_id 鉴权。"""
+    conversation = db.get_or_404(Conversation, conversation_id)
+    if conversation.user_id != g.user_id:
+        return jsonify({"error": "Forbidden"}), 403
+    conversation.archived = True
+    db.session.commit()
+    return jsonify({"id": conversation.id, "archived": True})
 
 
 @bp.post("/agent/execute")

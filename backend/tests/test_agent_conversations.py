@@ -56,7 +56,7 @@ def test_agent_chat_creates_conversation_and_persists_messages(
 
     list_response = client.get("/api/agent/conversations", headers=_auth(token))
     assert list_response.status_code == 200
-    assert list_response.get_json()[0]["message_count"] == 2
+    assert list_response.get_json()["items"][0]["message_count"] == 2
 
 
 def test_agent_conversation_detail_is_user_scoped(client, make_user, app):
