@@ -6,8 +6,11 @@
 
 CLI 未安装时统一返回 503 + code=boss_cli_not_installed，前端据此引导安装/登录。
 """
-from flask import Blueprint, request, jsonify, Response, current_app, g
+from flask import Blueprint, request, jsonify, Response, current_app, g, send_file
+import io
 import jwt
+import zipfile
+from pathlib import Path
 
 from ..middleware.auth import require_auth, require_role
 from ..middleware.events import record_event
@@ -148,6 +151,69 @@ def boss_login_browser_cookie():
                      payload={"mode": "browser_cookie", "ok": False,
                               "code": (result.get("error") or {}).get("code")})
     return _ok_or_fail(result)
+
+
+@bp.post("/boss/accounts/<int:account_id>/supplement-cookie")
+@require_auth
+@require_role(*_RECRUITER_ROLES)
+def boss_supplement_cookie(account_id: int):
+    """向已保存的 BOSS 账号补充 Cookie（如扫码后用扩展补全 __zp_stoken__）。
+
+    body: {cookies: "k=v; k=v" | {k: v}}
+    将提交的 cookie 合并到已有账号，重新校验后更新。
+    """
+    from ..services.boss_service import parse_cookies, REQUIRED_COOKIES as _REQ, _run as _boss_run
+    from ..models import BossAccount
+    from ..services.crypto import decrypt, encrypt
+    import json as _json
+
+    data = request.get_json(silent=True) or {}
+    raw_cookies = data.get("cookies")
+    if not raw_cookies:
+        return jsonify({"ok": False, "error": {"code": "invalid_params", "message": "cookies 不能为空"}}), 400
+
+    acct = BossAccount.query.filter_by(id=account_id, owner_hr_id=g.user_id).first()
+    if not acct:
+        return jsonify({"ok": False, "error": {"code": "not_found", "message": "账号不存在"}}), 404
+
+    try:
+        existing = _json.loads(decrypt(acct.cookies_encrypted))
+    except Exception as e:
+        return jsonify({"ok": False, "error": {"code": "decrypt_error", "message": f"解密失败：{e}"}}), 500
+
+    new_cookies = parse_cookies(raw_cookies)
+    # 合并：新 cookie 覆盖旧值（同名 key 以新为准）
+    merged = {**existing, **new_cookies}
+
+    # 校验必需 cookie 是否齐全
+    missing = [c for c in _REQ if c not in merged]
+    if missing:
+        return jsonify({"ok": False, "error": {
+            "code": "incomplete_cookie",
+            "message": "合并后仍缺少必需 Cookie：" + ", ".join(missing),
+        }}), 409
+
+    # 用合并后的 cookie 校验登录态
+    cookie_header = "; ".join(f"{k}={v}" for k, v in merged.items())
+    st = _boss_run(["status"], timeout=30, cookies_override=cookie_header)
+    authenticated = bool(st.get("ok") and st.get("data", {}).get("authenticated"))
+
+    # 更新账号
+    acct.cookies_encrypted = encrypt(_json.dumps(merged, ensure_ascii=False))
+    acct.cookie_count = len(merged)
+    acct.has_stoken = "__zp_stoken__" in merged
+    db.session.commit()
+
+    record_event("boss.account.supplement", entity_type="boss_account",
+                 payload={"account_id": acct.id, "added_keys": list(new_cookies.keys()),
+                          "authenticated": authenticated})
+
+    from ..services.boss_service import _account_to_dict
+    result = _account_to_dict(acct)
+    result["authenticated"] = authenticated
+    if not authenticated:
+        result["warning"] = "Cookie 已合并但登录态校验未通过，可能已过期"
+    return jsonify({"ok": True, "data": result})
 
 
 # ── 招聘端 · 岗位管理 ──────────────────────────────────────────────
@@ -492,8 +558,17 @@ def boss_qr_login_status():
 @require_auth
 @require_role(*_RECRUITER_ROLES)
 def boss_qr_login_confirm():
-    """扫码成功后，把登录凭证存为该用户的新 BOSS 账号。body: {session_id, label?}"""
+    """扫码成功后，把登录凭证存为该用户的新 BOSS 账号。body: {session_id, label?}
+
+    会话 cookie（wt2/wbg/zp_at）由纯 HTTP 扫码拿到。__zp_stoken__ 由 Camoufox
+    在后台流程中尝试补全，但受 BOSS 反爬影响可能失败。
+
+    功能分层策略：
+    - 扫码成功即保存账号（has_stoken=False），Tier-1 功能（查看/下载简历等）立即可用。
+    - 缺 stoken 时返回 warning 引导用户安装浏览器扩展补全 Cookie，解锁 Tier-2 功能。
+    """
     from ..services import boss_qr_service
+    from ..services.boss_service import REQUIRED_COOKIES
     data = request.get_json(silent=True) or {}
     session_id = data.get("session_id", "")
     label = (data.get("label") or "").strip()
@@ -504,18 +579,26 @@ def boss_qr_login_confirm():
         return jsonify({"ok": False, "error": {
             "code": "qr_not_done", "message": "扫码登录尚未完成，请先扫码并确认",
         }}), 409
-    # 纯 HTTP 扫码拿不到页面 JS 生成的 __zp_stoken__，缺失则不保存为激活账号，
-    # 直接引导改用「从浏览器导入账号」（扩展采集全量 cookie）。
-    if "__zp_stoken__" not in cookies:
-        return jsonify({"ok": False, "error": {
-            "code": "needs_stoken",
-            "message": "扫码登录无法获取完整浏览器凭证（缺少 __zp_stoken__），"
-                       "请改用「从浏览器导入账号」：先在本机浏览器登录 BOSS 招聘端，再用浏览器扩展采集。",
-        }}), 409
+
+    has_stoken = "__zp_stoken__" in cookies
     acct = _svc.save_account(g.user_id, cookies, label)
+
+    if not has_stoken:
+        # 功能分层：保存账号但标记缺 stoken，Tier-1 可用，Tier-2 引导扩展补全
+        missing = [c for c in REQUIRED_COOKIES if c not in cookies]
+        record_event("boss.qr_login.confirm", entity_type="boss_account",
+                     payload={"account_id": acct["id"], "label": acct["label"],
+                              "has_stoken": False, "missing": missing})
+        return jsonify({"ok": True, "data": dict(acct), "warning":
+            ("账号已保存，可使用查看职位、查看简历、收件箱等基础功能。"
+             "搜索候选人、打招呼、邀请面试等高级功能需要完整 Cookie，"
+             "请安装浏览器扩展一键补全。")
+        })
+
     record_event("boss.qr_login.confirm", entity_type="boss_account",
-                 payload={"account_id": acct["id"], "label": acct["label"]})
-    return jsonify({"ok": True, "data": acct})
+                 payload={"account_id": acct["id"], "label": acct["label"],
+                          "has_stoken": True})
+    return jsonify({"ok": True, "data": dict(acct)})
 
 
 # ── 账号管理 ───────────────────────────────────────────────────────
@@ -564,3 +647,38 @@ def boss_account_verify(account_id: int):
     record_event("boss.account.verify", entity_type="boss_account",
                  payload={"account_id": account_id, "ok": result.get("data", {}).get("authenticated")})
     return jsonify(result)
+
+
+# ── 浏览器扩展下载 ──────────────────────────────────────────────
+@bp.get("/boss/extension/download")
+def boss_extension_download():
+    """下载 BOSS Cookie 采集浏览器扩展（ZIP 包）。
+
+    将 extension/ 目录打包为 ZIP 返回，用户解压后在 Chrome 加载即可使用。
+    用 ?token= 传 JWT（window.open 无法带 Authorization 头），手动鉴权。
+    """
+    err = _require_query_token()
+    if err is not None:
+        return err
+    ext_dir = Path(__file__).resolve().parent.parent.parent.parent / "extension"
+    if not ext_dir.is_dir():
+        return jsonify({"ok": False, "error": {"code": "not_found", "message": "扩展目录不存在"}}), 404
+
+    buf = io.BytesIO()
+    file_count = 0
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in sorted(ext_dir.rglob("*")):
+            if f.is_file():
+                arcname = f"boss-cookie-extension/{f.relative_to(ext_dir)}"
+                zf.write(f, arcname)
+                file_count += 1
+    buf.seek(0)
+
+    record_event("boss.extension.download", entity_type="boss_extension",
+                 payload={"file_count": file_count})
+    return send_file(
+        buf,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name="boss-cookie-extension.zip",
+    )

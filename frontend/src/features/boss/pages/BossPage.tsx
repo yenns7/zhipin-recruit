@@ -23,6 +23,7 @@ import {
 import { useToast } from '../../../components/ui/ToastContext';
 import { api, ApiError } from '../../../lib/api';
 import type {
+  BossAccount,
   BossCandidate,
   BossJob,
   BossStatus,
@@ -86,18 +87,28 @@ export function BossPage() {
   const [statusLoading, setStatusLoading] = useState(true);
   const [statusError, setStatusError] = useState<string | null>(null);
 
+  // ── stoken 状态（功能分层：Tier-2 需要 stoken）────────────
+  const [hasStoken, setHasStoken] = useState(true); // 默认 true，避免闪烁
+
   const refreshStatus = useCallback(async () => {
     setStatusLoading(true);
     setStatusError(null);
     try {
-      const s = await api.bossStatus();
+      const [s, accounts] = await Promise.all([
+        api.bossStatus(),
+        api.bossAccounts().catch(() => [] as BossAccount[]),
+      ]);
       setStatus(s);
+      // 从激活账号获取 stoken 状态
+      const active = accounts.find((a) => a.is_active);
+      setHasStoken(active?.has_stoken ?? false);
     } catch (e) {
       const kind = classifyError(e);
       if (kind === 'boss_cli_not_installed') {
         setStatusError('boss_cli_not_installed');
       } else if (kind === 'not_authenticated' || kind === 'no_active_account') {
         setStatus({ authenticated: false, credential_present: false });
+        setHasStoken(false);
       } else {
         setStatusError(errMsg(e, '登录态检测失败'));
       }
@@ -266,6 +277,9 @@ export function BossPage() {
   }, [toast]);
 
   // ── 沟通动作 ───────────────────────────────────────────
+  // 打招呼需要 encrypt_job_id（关联职位）；从已加载的岗位列表自动选取
+  const greetJobId = jobs.length === 1 ? (jobs[0].encryptJobId ?? '') : '';
+
   const greet = useCallback(async (c: BossCandidate) => {
     const gid = c.encryptGeekId ?? c.encryptUid ?? '';
     if (!gid) {
@@ -273,12 +287,12 @@ export function BossPage() {
       return;
     }
     try {
-      await api.bossGreet(gid);
+      await api.bossGreet(gid, { job: greetJobId || undefined });
       toast.success(`已向 ${candidateName(c)} 发起沟通`);
     } catch (e) {
       toast.error(errMsg(e, '打招呼失败'));
     }
-  }, [toast]);
+  }, [toast, greetJobId]);
 
   const requestResume = useCallback(async (c: BossCandidate) => {
     const fid = c.friendId;
@@ -302,7 +316,7 @@ export function BossPage() {
     <div className="space-y-6">
       <PageHeader
         title="BOSS 直聘"
-        description="通过 boss-cli 接入招聘端：搜候选人、查看/下载简历、岗位上下线、沟通动作。"
+        description="扫码登录即用：收件箱闭环、推荐候选人、查看/下载简历、打招呼、邀请面试、岗位管理。"
       />
 
       {/* BOSS 账号管理区：扫码登录 + 多账号切换 */}
@@ -327,6 +341,28 @@ export function BossPage() {
           { value: 'jobs', label: '岗位管理' },
         ]}
       />
+
+      {/* stoken 缺失提示：扫码登录已覆盖大部分能力，搜索可能受限 */}
+      {authenticated && !hasStoken && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardBody className="flex flex-row items-center gap-3 text-body-sm text-amber-700">
+            <span className="text-lg">ℹ️</span>
+            <div>
+              <span className="font-medium">Cookie 不完整，搜索功能可能受限。</span>
+              {' '}当前缺少 <code>__zp_stoken__</code>，搜索候选人可能返回空结果。
+              推荐候选人、收件箱、查看/下载简历、打招呼、邀请面试等功能均已可用。
+              安装浏览器扩展并点击「安装扩展」按钮可一键补全 Cookie，解锁完整搜索能力。
+            </div>
+          </CardBody>
+        </Card>
+      )}
+
+      {/* 多岗位时打招呼提示：需先在岗位管理确认唯一岗位 */}
+      {authenticated && jobs.length > 1 && (tab === 'search' || tab === 'recommend') && (
+        <div className="text-caption text-text-muted px-1">
+          💡 当前有 {jobs.length} 个在招岗位，打招呼将自动关联第一个岗位。如需指定岗位，请在「岗位管理」中只保留一个在招岗位。
+        </div>
+      )}
 
       {/* 收件箱招聘闭环：拉取→批量导入→AI初筛→面试邀请（人工确认） */}
       {tab === 'inbox' && <BossInboxWorkbench />}
@@ -377,7 +413,14 @@ export function BossPage() {
             />
           )}
           {!searchLoading && !searchError && searched && searchResults.length === 0 && (
-            <EmptyState title="未找到匹配候选人" description="可调整关键词/城市/筛选条件后重试（部分结果需要 __zp_stoken__）。" />
+            <EmptyState
+              title="未找到匹配候选人"
+              description={
+                !hasStoken
+                  ? '搜索可能因缺少 __zp_stoken__ 返回空结果。可尝试更换关键词，或在「账号管理」中补全 Cookie 以解锁完整搜索能力。'
+                  : '可调整关键词/城市/筛选条件后重试。'
+              }
+            />
           )}
           {!searchLoading && !searchError && searchResults.length > 0 && (
             <CandidateList

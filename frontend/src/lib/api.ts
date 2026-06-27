@@ -74,6 +74,7 @@ import type {
   BossAccount,
   BossQrStartResult,
   BossQrStatusResult,
+  BossQrConfirmResult,
   BossBatchImportParams,
   BossBatchImportResult,
   BossAiScreenParams,
@@ -107,10 +108,12 @@ export function clearToken(): void {
 // Error surfaced to callers; carries HTTP status and any backend message.
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  code?: string;
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -188,6 +191,12 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
       rawError && typeof rawError === 'object' && 'message' in rawError
         ? String((rawError as Record<string, unknown>).message)
         : null;
+    // boss 蓝图错误体为 { ok:false, error:{ code, message } }，提取 code 供上层
+    // 按 code（如 needs_stoken）分支处理，而不止依赖 message 文本。
+    const nestedErrorCode =
+      rawError && typeof rawError === 'object' && 'code' in rawError
+        ? String((rawError as Record<string, unknown>).code)
+        : undefined;
     const message =
       nestedErrorMessage ||
       (typeof rawError === 'string' ? rawError : null) ||
@@ -195,7 +204,7 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
         ? String((data as Record<string, unknown>).message)
         : null) ||
       `Request failed with status ${res.status}`;
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, nestedErrorCode);
   }
 
   return data as T;
@@ -205,7 +214,7 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
 async function bossRequest<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const res = await request<{ ok: boolean; data: T; error?: { code: string; message: string } }>(path, opts);
   if (!res.ok) {
-    throw new ApiError(0, res.error?.message ?? 'BOSS 接口错误');
+    throw new ApiError(0, res.error?.message ?? 'BOSS 接口错误', res.error?.code);
   }
   return res.data;
 }
@@ -673,6 +682,14 @@ export const api = {
     return `${API_BASE}/boss/candidates/${encodeURIComponent(encryptGeekId)}/resume/download?${qs}`;
   },
 
+  // 浏览器扩展下载走专用 URL（返回 ZIP），window.open 触发。
+  bossExtensionDownloadUrl(): string {
+    const qs = new URLSearchParams();
+    const token = getToken();
+    if (token) qs.set('token', token);
+    return `${API_BASE}/boss/extension/download?${qs}`;
+  },
+
   // ---- BOSS 账号管理 + 扫码登录 ----
   bossQrLoginStart(): Promise<BossQrStartResult> {
     return bossRequest('/boss/qr-login/start', { method: 'POST' });
@@ -680,8 +697,15 @@ export const api = {
   bossQrLoginStatus(sessionId: string): Promise<BossQrStatusResult> {
     return bossRequest(`/boss/qr-login/status?session_id=${encodeURIComponent(sessionId)}`);
   },
-  bossQrLoginConfirm(sessionId: string, label: string): Promise<BossAccount> {
-    return bossRequest('/boss/qr-login/confirm', { method: 'POST', body: { session_id: sessionId, label } });
+  async bossQrLoginConfirm(sessionId: string, label: string): Promise<BossQrConfirmResult> {
+    // 后端 200 + warning 表示「已保存但缺 stoken」，需提取 warning 字段
+    const res = await request<{ ok: boolean; data: BossQrConfirmResult; warning?: string }>(
+      '/boss/qr-login/confirm', { method: 'POST', body: { session_id: sessionId, label } }
+    );
+    if (!res.ok) {
+      throw new ApiError(0, '保存失败');
+    }
+    return { ...res.data, warning: res.warning };
   },
   // 从本机浏览器导入完整 cookie（扩展采集后粘贴，或手动粘贴 Cookie 头）。
   // 后端校验必需 cookie 齐全 + status 有效才保存激活。
@@ -699,5 +723,8 @@ export const api = {
   },
   bossVerifyAccount(accountId: number): Promise<{ authenticated: boolean; status: unknown }> {
     return bossRequest(`/boss/accounts/${accountId}/verify`, { method: 'POST' });
+  },
+  bossSupplementCookie(accountId: number, cookies: string): Promise<BossAccount & { authenticated?: boolean; warning?: string }> {
+    return bossRequest(`/boss/accounts/${accountId}/supplement-cookie`, { method: 'POST', body: { cookies } });
   },
 };

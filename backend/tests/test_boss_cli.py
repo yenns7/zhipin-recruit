@@ -507,7 +507,7 @@ def test_import_browser_cookie_requires_recruiter(client, make_user, monkeypatch
 
 
 def test_qr_confirm_missing_stoken_degraded(client, make_user, monkeypatch):
-    """扫码 confirm 拿到的 cookie 缺 __zp_stoken__ → 409 needs_stoken，引导改用浏览器导入。"""
+    """扫码 confirm 拿到的 cookie 缺 __zp_stoken__ → 200 已保存 + warning 引导安装扩展。"""
     _patch_cli_ok(monkeypatch)
     uid, token = make_user("qrdeg@x.com", role="recruiter")
     # 模拟扫码已完成但缺 stoken（纯 HTTP 扫码的真实情况）。
@@ -517,8 +517,13 @@ def test_qr_confirm_missing_stoken_degraded(client, make_user, monkeypatch):
                         lambda sid: {"wt2": "w1", "wbg": "g1", "zp_at": "at1"})
     r = client.post("/api/boss/qr-login/confirm",
                     json={"session_id": "sess", "label": "扫码"}, headers=_auth(token))
-    assert r.status_code == 409
-    assert r.get_json()["error"]["code"] == "needs_stoken"
+    data = r.get_json()
+    # 功能分层：缺 stoken 也保存账号（has_stoken=False），返回 200 + warning
+    assert r.status_code == 200
+    assert data["ok"] is True
+    assert data["data"]["has_stoken"] is False
+    assert "warning" in data
+    assert "浏览器扩展" in data["warning"]
 
 
 def test_parse_cookies_header_and_dict():

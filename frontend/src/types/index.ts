@@ -1062,6 +1062,7 @@ export interface BossAccount {
 export type BossQrStatus =
   | 'pending'    // 已出码，等待扫码
   | 'scanned'    // 已扫码，等待手机确认
+  | 'stoken'     // 已拿会话 cookie，Camoufox 正在补 __zp_stoken__
   | 'done'       // 登录成功
   | 'expired'    // 二维码过期
   | 'failed';    // 异常
@@ -1077,6 +1078,13 @@ export interface BossQrStartResult {
 export interface BossQrStatusResult {
   status: BossQrStatus;
   error: string;
+  has_stoken?: boolean;       // __zp_stoken__ 是否已补全
+  stoken_skipped?: boolean;   // Camoufox 不可用而跳过补全
+}
+
+// 扫码登录确认返回（成功时是账号；缺 stoken 时后端返回 409，由 ApiError 承载）
+export interface BossQrConfirmResult extends BossAccount {
+  warning?: string;
 }
 
 // ── 招聘闭环：批量导入 / AI 初筛 / 面试邀请 ──────────────────────

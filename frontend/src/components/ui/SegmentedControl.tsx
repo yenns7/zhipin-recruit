@@ -4,6 +4,8 @@ import { cn } from '../../lib/cn';
 interface SegmentOption<T extends string | number> {
   value: T;
   label: string;
+  disabled?: boolean;
+  tooltip?: string;
 }
 
 interface SegmentedControlProps<T extends string | number> {
@@ -68,11 +70,15 @@ export function SegmentedControl<T extends string | number>({
             key={opt.value}
             type="button"
             aria-pressed={isActive}
-            onClick={() => onChange(opt.value)}
+            aria-disabled={opt.disabled}
+            title={opt.tooltip}
+            disabled={opt.disabled}
+            onClick={() => !opt.disabled && onChange(opt.value)}
             className={cn(
               'relative z-10 rounded-full font-medium transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1',
               sizeClasses,
               isActive ? 'text-ink' : 'text-muted hover:text-ink',
+              opt.disabled && 'opacity-40 cursor-not-allowed',
             )}
           >
             {opt.label}
