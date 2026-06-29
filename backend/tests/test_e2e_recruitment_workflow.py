@@ -54,7 +54,8 @@ def test_full_recruitment_lifecycle(client, make_user, app):
     job = job_res.get_json()
     job_id = job["id"]
     assert job["title"] == "高级Python工程师"
-    # 注意：POST /api/jobs 返回中不包含 status 字段
+    # POST /api/jobs 返回新岗位 status（默认 active），与列表端点一致
+    assert job["status"] == "active"
 
     # === 阶段2: 上传简历（通过DB直接建数据，跳过解析） ===
     with app.app_context():

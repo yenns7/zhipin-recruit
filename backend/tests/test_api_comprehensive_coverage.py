@@ -192,7 +192,8 @@ class TestJobEndpoints:
         assert r.status_code == 201
         body = r.get_json()
         assert body["title"] == "测试岗位"
-        # POST /api/jobs 返回中不含 status 字段
+        # POST /api/jobs 返回新创建岗位的 status（默认 active）
+        assert body["status"] == "active"
 
     def test_list_jobs(self, client, make_user):
         _, token = make_user("list-jobs@test.com")

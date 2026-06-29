@@ -208,6 +208,7 @@ export interface CreateJobResponse {
   city: string;
   department: string;
   job_code: string;
+  status: string;
   structured: JobStructured;
 }
 
