@@ -986,13 +986,6 @@ export interface BossStatus {
   reason?: string | null;
 }
 
-export interface BossLoginGuide {
-  installed: boolean;
-  bin: string | null;
-  interactive: boolean;
-  instructions: string[];
-}
-
 // 招聘端在招职位条目（字段来自 boss-cli recruiter jobs）
 export interface BossJob {
   jobName?: string;
@@ -1024,16 +1017,6 @@ export interface BossCandidate {
   [k: string]: unknown;
 }
 
-export interface BossSearchParams {
-  keyword: string;
-  city?: string;
-  exp?: string;
-  degree?: string;
-  salary?: string;
-  job?: string;
-  page?: number;
-}
-
 export interface BossRecommendParams {
   job?: string;
   limit?: number;
@@ -1052,18 +1035,16 @@ export interface BossAccount {
   id: number;
   label: string;
   cookie_count: number;
-  has_stoken: boolean;
   is_active: boolean;
   last_verified_at: string | null;
   last_verified_ok: boolean | null;
   created_at: string | null;
 }
 
-// 扫码登录状态
+// 扫码登录状态。纯 HTTP 扫码拿到会话 cookie 即登录完成，无 stoken 补全环节。
 export type BossQrStatus =
   | 'pending'    // 已出码，等待扫码
   | 'scanned'    // 已扫码，等待手机确认
-  | 'stoken'     // 已拿会话 cookie，Camoufox 正在补 __zp_stoken__
   | 'done'       // 登录成功
   | 'expired'    // 二维码过期
   | 'failed';    // 异常
@@ -1079,16 +1060,12 @@ export interface BossQrStartResult {
 export interface BossQrStatusResult {
   status: BossQrStatus;
   error: string;
-  has_stoken?: boolean;       // __zp_stoken__ 是否已补全
-  stoken_skipped?: boolean;   // Camoufox 不可用而跳过补全
 }
 
-// 扫码登录确认返回（成功时是账号；缺 stoken 时后端返回 409，由 ApiError 承载）
-export interface BossQrConfirmResult extends BossAccount {
-  warning?: string;
-}
+// 扫码登录确认返回：成功即账号
+export type BossQrConfirmResult = BossAccount;
 
-// ── 招聘闭环：批量导入 / AI 初筛 / 面试邀请 ──────────────────────
+// ── 招聘闭环：批量导入 / AI 初筛 ──────────────────────────────────
 // 批量导入单条入参（来自收件箱列表勾选）
 export interface BossImportItem {
   geek_id: string;
@@ -1146,25 +1123,6 @@ export interface BossAiScreenResult {
   screened: number;
   failed: number;
   results: BossScreenResultItem[];
-}
-
-export interface BossInviteInterviewParams {
-  candidate_id: number;
-  job_id: number;
-  boss_job?: string;
-  interviewer_id?: number;
-  round?: string;
-  time?: string;
-  address?: string;
-  desc?: string;
-}
-
-export interface BossInviteInterviewResult {
-  candidate_id: number;
-  job_id: number;
-  assignment_id: number;
-  boss: unknown;
-  stage: string;
 }
 
 // ---- AI 助手会话与调用日志 ----

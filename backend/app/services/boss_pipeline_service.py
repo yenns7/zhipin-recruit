@@ -1,18 +1,17 @@
 # -*- coding: utf-8 -*-
-"""BOSS 直聘端到端闭环编排服务。
+"""BOSS 直聘收件箱闭环编排服务。
 
-把「收件箱拉取 → 批量导入候选人库 → AI 简历初筛 → 面试邀请（BOSS+系统双写）」
-串成一条流水线，复用既有能力：
-- BossService：boss-cli 招聘端封装（简历下载 / 发面试邀请）。
+把「收件箱拉取 → 批量导入候选人库 → AI 简历初筛」串成一条流水线，复用既有能力：
+- BossService：boss-cli 招聘端封装（简历下载）。
 - PreScreenService：LLM 简历评估。
-- Candidate / UploadBatch / PipelineStage / Interview / InterviewAssignment 模型。
+- Candidate / UploadBatch / PipelineStage / Interview 模型。
 
 设计约束（与产品确认）：
 - 简历来源 = 已沟通收件箱（inbox），导入存完整 Markdown 原文 + 解析出的基础字段。
 - 节流 = 限量 + 间隔（默认 1.5s/条），命中 rate_limited 立即停止，已成功的保留。
 - AI 筛选 = LLM 简历评估，写 Interview 记录并把候选人阶段推进到 ai_screen。
-- 面试邀请 = BOSS 侧 invite-interview + 系统侧 InterviewAssignment 双写；
-  人工确认在调用方（API/前端）完成，本服务只负责执行。
+- 面试安排 = 初筛后由用户在系统「面试安排」流程内创建（POST /interview/assignments），
+  不再向 BOSS 直聘发面试邀请（该动作依赖短效 __zp_stoken__，云端无法稳定持有）。
 
 所有写库方法需在 Flask app context 内调用。
 """
@@ -31,7 +30,6 @@ from .. import db
 from ..models import (
     Candidate,
     Interview,
-    InterviewAssignment,
     Job,
     PipelineStage,
     UploadBatch,
@@ -363,88 +361,3 @@ class BossPipelineService:
         if rj:
             return "\n".join(f"{k}: {v}" for k, v in rj.items() if isinstance(v, (str, int, float)))
         return ""
-
-    # ── 3) 面试邀请（BOSS + 系统双写）────────────────────
-    def invite_interview(
-        self,
-        owner_hr_id: int,
-        candidate_id: int,
-        job_id: int,
-        cookies_override: str,
-        *,
-        boss_job: Optional[str] = None,
-        interviewer_id: Optional[int] = None,
-        round_name: str = "interview",
-        time_text: Optional[str] = None,
-        address: Optional[str] = None,
-        desc: Optional[str] = None,
-        scheduled_at=None,
-    ) -> Dict[str, Any]:
-        """向候选人发送面试邀请：先 BOSS 侧 invite-interview，成功后系统侧落 InterviewAssignment + 阶段推进。
-
-        人工确认在调用方完成，此处不再二次确认。BOSS 调用失败时不写系统记录，避免脏数据。
-        """
-        candidate = db.session.get(Candidate, candidate_id)
-        if candidate is None or candidate.owner_hr_id != owner_hr_id:
-            return {"ok": False, "data": None,
-                    "error": {"code": "invalid_params", "message": "候选人不存在或无权操作"}}
-        job = db.session.get(Job, job_id)
-        if job is None:
-            return {"ok": False, "data": None,
-                    "error": {"code": "invalid_params", "message": "job_id 对应岗位不存在"}}
-
-        rj = candidate.resume_json if isinstance(candidate.resume_json, dict) else {}
-        boss_info = rj.get("boss") or {}
-        geek_id = _safe_str(boss_info.get("geek_id"), 64)
-        if not geek_id:
-            return {"ok": False, "data": None,
-                    "error": {"code": "invalid_params", "message": "该候选人非 BOSS 来源或缺少 geek_id，无法发 BOSS 邀请"}}
-        encrypt_job = _safe_str(boss_job or boss_info.get("job"), 64)
-        if not encrypt_job:
-            return {"ok": False, "data": None,
-                    "error": {"code": "invalid_params", "message": "缺少 BOSS encryptJobId（boss_job），无法发邀请"}}
-
-        # 1) BOSS 侧发邀请
-        boss_result = self.boss.recruiter_invite_interview(
-            encrypt_geek_id=geek_id,
-            job=encrypt_job,
-            time=time_text,
-            address=address,
-            desc=desc,
-            cookies_override=cookies_override,
-        )
-        if not boss_result.get("ok"):
-            return boss_result  # 透传错误码（rate_limited / not_authenticated 等）
-
-        # 2) 系统侧双写
-        assignment = InterviewAssignment(
-            candidate_id=candidate_id,
-            job_id=job_id,
-            round=_safe_str(round_name, 30) or "interview",
-            interviewer_id=interviewer_id or owner_hr_id,
-            scheduled_at=scheduled_at,
-            location=_safe_str(address, 240),
-            note=_safe_str(desc, 500),
-            status="invited",
-            created_by=owner_hr_id,
-        )
-        db.session.add(assignment)
-        db.session.add(PipelineStage(
-            candidate_id=candidate_id,
-            job_id=job_id,
-            stage="interview",
-            updated_by=owner_hr_id,
-            note="BOSS 面试邀请已发送",
-        ))
-        db.session.commit()
-        return {
-            "ok": True,
-            "data": {
-                "candidate_id": candidate_id,
-                "job_id": job_id,
-                "assignment_id": assignment.id,
-                "boss": boss_result.get("data"),
-                "stage": "interview",
-            },
-            "error": None,
-        }

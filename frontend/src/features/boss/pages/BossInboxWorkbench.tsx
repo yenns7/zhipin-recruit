@@ -1,7 +1,8 @@
-// BOSS 招聘闭环工作台 —— 收件箱拉取 → 勾选批量导入 → AI 简历初筛 → 面试邀请（人工确认）。
+// BOSS 招聘闭环工作台 —— 收件箱拉取 → 勾选批量导入 → AI 简历初筛。
 //
-// 一条龙把已沟通候选人沉淀进系统候选人库，并打通 AI 初筛与面试邀请，
-// 邀面动作走「BOSS invite-interview + 系统 InterviewAssignment 双写」，需人工确认。
+// 扫码登录即全功能可用，无需 stoken 或浏览器扩展。
+// 导入后的候选人可在系统「候选人管理」中安排面试（POST /interview/assignments），
+// 不再向 BOSS 直聘发面试邀请（该动作依赖短效 __zp_stoken__，已移除）。
 import { useCallback, useEffect, useState } from 'react';
 import {
   Badge,
@@ -10,7 +11,6 @@ import {
   CardBody,
   EmptyState,
   ErrorState,
-  Input,
   Select,
   Spinner,
 } from '../../../components/ui';
@@ -53,23 +53,22 @@ function nameOf(c: BossCandidate): string {
   return String(c.name ?? c.geekName ?? '—');
 }
 
-// 导入后产生的候选人（用于 AI 初筛/邀面阶段）
+// 导入后产生的候选人（用于 AI 初筛阶段）
 interface ImportedRow {
   candidateId: number;
   name: string;
   geekId: string;
   bossJob?: string;
   screen?: BossScreenResultItem;
-  invited?: boolean;
 }
 
 export function BossInboxWorkbench() {
   const toast = useToast();
 
-  // ── 系统岗位（导入归属 / AI 初筛 JD 来源 / 邀面关联）──────
+  // ── 系统岗位（导入归属 / AI 初筛 JD 来源）───────────────────
   const [jobs, setJobs] = useState<JobListItem[]>([]);
   const [targetJobId, setTargetJobId] = useState<number | ''>('');
-  // BOSS encryptJobId：收件箱过滤 + 简历下载 --job + 邀面关联职位
+  // BOSS encryptJobId：收件箱过滤 + 简历下载 --job
   const [bossJob, setBossJob] = useState('');
 
   useEffect(() => {
@@ -190,48 +189,6 @@ export function BossInboxWorkbench() {
     }
   }, [targetJobId, toast]);
 
-  // ── 面试邀请（人工确认）──────────────────────────────
-  const [inviteRow, setInviteRow] = useState<ImportedRow | null>(null);
-  const [inviteTime, setInviteTime] = useState('');
-  const [inviteAddress, setInviteAddress] = useState('线上面试');
-  const [inviteDesc, setInviteDesc] = useState('');
-  const [inviteLoading, setInviteLoading] = useState(false);
-
-  const openInvite = (row: ImportedRow) => {
-    setInviteRow(row);
-    setInviteTime('');
-    setInviteAddress('线上面试');
-    setInviteDesc('');
-  };
-
-  const confirmInvite = useCallback(async () => {
-    if (!inviteRow) return;
-    if (targetJobId === '') {
-      toast.error('请先选择系统岗位');
-      return;
-    }
-    setInviteLoading(true);
-    try {
-      await api.bossInviteInterview({
-        candidate_id: inviteRow.candidateId,
-        job_id: Number(targetJobId),
-        boss_job: inviteRow.bossJob || bossJob || undefined,
-        round: 'interview',
-        time: inviteTime || undefined,
-        address: inviteAddress || undefined,
-        desc: inviteDesc || undefined,
-      });
-      setImported((prev) => prev.map((p) =>
-        p.candidateId === inviteRow.candidateId ? { ...p, invited: true } : p));
-      toast.success(`已向 ${inviteRow.name} 发送面试邀请，候选人已进入「面试」阶段`);
-      setInviteRow(null);
-    } catch (e) {
-      toast.error(errMsg(e, '发送面试邀请失败'));
-    } finally {
-      setInviteLoading(false);
-    }
-  }, [inviteRow, targetJobId, bossJob, inviteTime, inviteAddress, inviteDesc, toast]);
-
   return (
     <div className="space-y-4">
       {/* 配置区：系统岗位 + BOSS 关联职位 */}
@@ -239,7 +196,7 @@ export function BossInboxWorkbench() {
         <CardBody className="flex flex-wrap items-end gap-3">
           <div className="min-w-[220px] flex-1">
             <Select
-              label="系统岗位（导入归属 / AI 初筛 JD / 邀面关联）"
+              label="系统岗位（导入归属 / AI 初筛 JD）"
               value={targetJobId === '' ? '' : String(targetJobId)}
               onChange={(e) => setTargetJobId(e.target.value ? Number(e.target.value) : '')}
             >
@@ -248,9 +205,10 @@ export function BossInboxWorkbench() {
             </Select>
           </div>
           <div className="min-w-[240px] flex-1">
-            <Input
-              label="BOSS 关联职位 encryptJobId（收件箱过滤 + 邀面必填）"
-              placeholder="如 f806096ea327cd610nZ80t21FVNQ"
+            <label className="text-body-sm font-medium text-text-primary block mb-1.5">BOSS 关联职位 encryptJobId（收件箱过滤）</label>
+            <input
+              className="w-full rounded-lg border border-hairline px-3 py-2 text-body-sm"
+              placeholder="如 f806096ea327cd610nZ80t21FVNQ（可留空）"
               value={bossJob}
               onChange={(e) => setBossJob(e.target.value)}
             />
@@ -338,7 +296,7 @@ export function BossInboxWorkbench() {
         </CardBody>
       </Card>
 
-      {/* 步骤二/三：已导入候选人 → AI 初筛 → 邀面 */}
+      {/* 步骤二：已导入候选人 → AI 初筛 */}
       <Card>
         <CardBody className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -366,7 +324,6 @@ export function BossInboxWorkbench() {
                   <tr className="border-b border-hairline text-left text-text-muted">
                     <th className="px-3 py-2 font-medium">候选人</th>
                     <th className="px-3 py-2 font-medium">AI 初筛</th>
-                    <th className="px-3 py-2 font-medium">结论</th>
                     <th className="px-3 py-2 text-right font-medium">操作</th>
                   </tr>
                 </thead>
@@ -393,9 +350,6 @@ export function BossInboxWorkbench() {
                           <span className="text-text-muted">未初筛</span>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-caption text-text-muted">
-                        {r.invited ? <Badge tone="success">已邀面</Badge> : '—'}
-                      </td>
                       <td className="px-3 py-2 text-right">
                         <Button
                           variant="ghost"
@@ -404,14 +358,6 @@ export function BossInboxWorkbench() {
                           disabled={screening}
                         >
                           {r.screen ? '重筛' : 'AI 初筛'}
-                        </Button>{' '}
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => openInvite(r)}
-                          disabled={r.invited}
-                        >
-                          {r.invited ? '已邀面' : '发面试邀请'}
                         </Button>
                       </td>
                     </tr>
@@ -420,38 +366,14 @@ export function BossInboxWorkbench() {
               </table>
             </div>
           )}
+
+          {imported.length > 0 && (
+            <div className="rounded-lg bg-surface-soft px-4 py-3 text-body-sm text-text-secondary">
+              💡 导入后如需安排面试，请前往「候选人管理」页面创建面试安排，或联系管理员配置面试流程。
+            </div>
+          )}
         </CardBody>
       </Card>
-
-      {/* 面试邀请弹窗（人工确认）*/}
-      {inviteRow && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <Card className="w-full max-w-md">
-            <CardBody className="space-y-3">
-              <h3 className="text-title-sm font-semibold text-text-primary">
-                向「{inviteRow.name}」发送面试邀请
-              </h3>
-              <p className="text-caption text-text-muted">
-                将同时在 BOSS 直聘发出邀约，并在系统创建面试安排、推进到「面试」阶段。请确认信息无误。
-              </p>
-              <Input label="面试时间（可选）" placeholder="如 2026-07-01 10:00"
-                value={inviteTime} onChange={(e) => setInviteTime(e.target.value)} />
-              <Input label="地点/方式（可选）" placeholder="线上面试 / 公司地址"
-                value={inviteAddress} onChange={(e) => setInviteAddress(e.target.value)} />
-              <Input label="备注（可选）" placeholder="如 一面 · 技术面"
-                value={inviteDesc} onChange={(e) => setInviteDesc(e.target.value)} />
-              <div className="flex justify-end gap-2 pt-1">
-                <Button variant="ghost" size="sm" onClick={() => setInviteRow(null)} disabled={inviteLoading}>
-                  取消
-                </Button>
-                <Button variant="primary" size="sm" onClick={confirmInvite} disabled={inviteLoading}>
-                  {inviteLoading ? '发送中…' : '确认发送'}
-                </Button>
-              </div>
-            </CardBody>
-          </Card>
-        </div>
-      )}
     </div>
   );
 }
