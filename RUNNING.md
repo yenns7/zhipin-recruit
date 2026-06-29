@@ -228,6 +228,20 @@ npm run build    # 重新构建后提交 frontend/dist/
 
 开发时只保留一个前端地址：`http://localhost:5173`。如果 5173 被占用，Vite 会直接报错，不会自动跳到 5174/5175。
 
+### 前端质量门禁
+
+前端有一套基于 Node 原生 `assert` 的契约测试（`frontend/tests/*.test.mjs`，覆盖流水线、候选人、面试、BI、权限等模块），改动前端代码后按需运行：
+
+```bash
+cd frontend
+npm run typecheck   # TypeScript 类型检查
+npm run lint        # ESLint
+npm test            # 运行全部 tests/*.test.mjs 契约测试
+npm run build       # 生产构建（产出 dist/）
+```
+
+`npm test` 逐个执行 `tests/*.test.mjs`，任一失败即整体失败。这些测试读取 `src/` 源码做断言，不启动浏览器，主要用于防止组件契约和路由/权限边界回归。
+
 ## 临时外链试用
 
 给内部同事临时试看时，可以用 Cloudflare Tunnel 或 localtunnel 把本机 `5173` 暴露出去。前端开发服务已允许 `.trycloudflare.com` 和 `.loca.lt` 临时域名访问。
