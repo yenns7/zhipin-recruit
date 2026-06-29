@@ -2,8 +2,9 @@
 // 收件箱闭环、推荐候选人、查看/下载简历、岗位列表。
 //
 // 扫码登录即全功能可用，无需安装浏览器扩展或采集 __zp_stoken__。
-import { useCallback, useEffect, useState } from 'react';
+import { Component, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Badge,
   Button,
   Card,
   CardBody,
@@ -25,6 +26,42 @@ import type {
 } from '../../../types';
 import { BossAccountManager } from './BossAccountManager';
 import { BossInboxWorkbench } from './BossInboxWorkbench';
+
+// 错误边界组件，防止白屏
+interface ErrorBoundaryProps { children: ReactNode }
+interface ErrorBoundaryState { hasError: boolean; error: Error | null }
+
+class BossPageErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="space-y-6">
+          <PageHeader title="BOSS 直聘" description="加载出错，请刷新页面重试。" />
+          <Card>
+            <CardBody className="space-y-4">
+              <div className="text-body-sm text-red-600">
+                ⚠️ 页面加载出错：{this.state.error?.message || '未知错误'}
+              </div>
+              <Button onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload(); }}>
+                刷新页面
+              </Button>
+            </CardBody>
+          </Card>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 type TabKey = 'inbox' | 'recommend' | 'jobs';
 
@@ -175,6 +212,7 @@ export function BossPage() {
     setResumeText('');
     try {
       const data = await api.bossResume(gid);
+      // 后端返回格式化 Markdown 文本
       setResumeText(typeof data === 'string' ? data : JSON.stringify(data, null, 2));
     } catch (e) {
       setResumeText('加载失败：' + errMsg(e, '未知错误'));
@@ -189,12 +227,19 @@ export function BossPage() {
       toast.error('该候选人缺少 encryptGeekId，无法下载简历');
       return;
     }
+    const name = candidateName(c);
     const url = api.bossResumeDownloadUrl(gid);
-    window.open(url, '_blank');
+    // 创建隐藏 a 标签触发下载，指定文件名
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${name}_resume.md`;
+    a.click();
+    toast.success(`${name} 简历下载中…`);
   }, [toast]);
 
   // ── 渲染 ───────────────────────────────────────────────
-  const authenticated = !!status?.authenticated;
+  // 只要 credential_present 为 true 就认为已登录（不需要检查 authenticated，因为搜索功能需要 __zp_stoken__）
+  const authenticated = !!status?.credential_present;
 
   return (
     <div className="space-y-6">
@@ -333,7 +378,7 @@ export function BossPage() {
                 {resumeLoading ? (
                   <div className="flex justify-center py-10"><Spinner /></div>
                 ) : (
-                  <pre className="whitespace-pre-wrap break-words text-body-sm text-text-secondary">{resumeText}</pre>
+                  <ResumeContent markdown={resumeText} />
                 )}
               </div>
             </CardBody>
@@ -398,5 +443,83 @@ function CandidateList({
         );
       })}
     </div>
+  );
+}
+
+// 简历内容渲染器：把 Markdown 转为结构化 HTML
+function ResumeContent({ markdown }: { markdown: string }) {
+  const html = useMemo(() => {
+    if (!markdown) return '';
+    const lines = markdown.split('\n');
+    const parts: string[] = [];
+    let inList = false;
+
+    for (const line of lines) {
+      const trimmed = line.trimEnd();
+
+      // 空行
+      if (!trimmed) {
+        if (inList) { parts.push('</ul>'); inList = false; }
+        continue;
+      }
+
+      // H1: 姓名
+      if (trimmed.startsWith('# ') && !trimmed.startsWith('## ')) {
+        if (inList) { parts.push('</ul>'); inList = false; }
+        parts.push(`<h1 class="text-xl font-bold text-text-primary mb-1">${esc(trimmed.slice(2))}</h1>`);
+        continue;
+      }
+
+      // H2: 章节标题
+      if (trimmed.startsWith('## ') && !trimmed.startsWith('### ')) {
+        if (inList) { parts.push('</ul>'); inList = false; }
+        parts.push(`<h2 class="text-title-sm font-semibold text-text-primary mt-4 mb-2 border-b border-hairline pb-1">${esc(trimmed.slice(3))}</h2>`);
+        continue;
+      }
+
+      // H3: 公司/学校/项目
+      if (trimmed.startsWith('### ')) {
+        if (inList) { parts.push('</ul>'); inList = false; }
+        parts.push(`<h3 class="text-body-sm font-semibold text-text-primary mt-3">${esc(trimmed.slice(4))}</h3>`);
+        continue;
+      }
+
+      // **bold:** value
+      const boldMatch = trimmed.match(/^\*\*(.+?)\*\*(.*)$/);
+      if (boldMatch) {
+        if (inList) { parts.push('</ul>'); inList = false; }
+        const value = boldMatch[2].replace(/^\s*-\s*/, '').trim();
+        parts.push(`<p class="text-body-sm text-text-secondary mt-1"><span class="font-semibold text-text-primary">${esc(boldMatch[1])}</span>${value ? ': ' + esc(value) : ''}</p>`);
+        continue;
+      }
+
+      // 列表项
+      if (trimmed.startsWith('- ')) {
+        if (!inList) { parts.push('<ul class="list-disc list-inside text-body-sm text-text-secondary space-y-0.5 mt-1">'); inList = true; }
+        parts.push(`<li>${esc(trimmed.slice(2))}</li>`);
+        continue;
+      }
+
+      // 普通文本
+      if (inList) { parts.push('</ul>'); inList = false; }
+      parts.push(`<p class="text-body-sm text-text-secondary mt-1">${esc(trimmed)}</p>`);
+    }
+    if (inList) parts.push('</ul>');
+    return parts.join('');
+  }, [markdown]);
+
+  return <div dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+function esc(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// 带错误边界的导出组件
+export function BossPageWithBoundary() {
+  return (
+    <BossPageErrorBoundary>
+      <BossPage />
+    </BossPageErrorBoundary>
   );
 }

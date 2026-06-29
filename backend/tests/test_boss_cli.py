@@ -414,30 +414,6 @@ def test_crypto_roundtrip():
     assert decrypt(ct) == plaintext
 
 
-def test_login_cookie_gone_returns_410(client, make_user):
-    """login/cookie 端点已下线，返回 410。"""
-    _, token = make_user("gone@x.com", role="recruiter")
-    r = client.post("/api/boss/login/cookie", headers=_auth(token))
-    assert r.status_code == 410
-    assert r.get_json()["error"]["code"] == "gone"
-
-
-def test_qr_confirm_saves_account(client, make_user, monkeypatch):
-    """扫码 confirm 拿到会话 cookie → 200 已保存，无需 stoken。"""
-    _patch_cli_ok(monkeypatch)
-    uid, token = make_user("qr1@x.com", role="recruiter")
-    from app.services import boss_qr_service as qr_mod
-    monkeypatch.setattr(qr_mod, "get_qr_credential",
-                        lambda sid: {"wt2": "w1", "wbg": "g1", "zp_at": "at1"})
-    r = client.post("/api/boss/qr-login/confirm",
-                    json={"session_id": "sess", "label": "扫码"}, headers=_auth(token))
-    data = r.get_json()
-    assert r.status_code == 200
-    assert data["ok"] is True
-    assert data["data"]["is_active"] is True
-    assert "warning" not in data  # 不再有 stoken warning
-
-
 def test_parse_cookies_header_and_dict():
     """parse_cookies 兼容 Cookie 头字符串与 dict，且值含 = 不被切坏。"""
     from app.services.boss_service import parse_cookies
@@ -459,12 +435,3 @@ def test_field_encryption_key_fixed_survives_restart(monkeypatch):
     ct = f1.encrypt(b'{"wt2":"x"}')
     f2 = Fernet(key.encode())
     assert f2.decrypt(ct) == b'{"wt2":"x"}'
-
-
-def test_qr_status_unknown_session(client, make_user):
-    """未知 session_id 查状态 → expired。"""
-    uid, token = make_user("qr2@x.com", role="recruiter")
-    r = client.get("/api/boss/qr-login/status?session_id=nonexistent",
-                   headers=_auth(token))
-    assert r.status_code == 200
-    assert r.get_json()["data"]["status"] == "expired"

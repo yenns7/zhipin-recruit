@@ -70,9 +70,6 @@ import type {
   BossRecommendParams,
   BossInboxParams,
   BossAccount,
-  BossQrStartResult,
-  BossQrStatusResult,
-  BossQrConfirmResult,
   BossBatchImportParams,
   BossBatchImportResult,
   BossAiScreenParams,
@@ -640,22 +637,17 @@ export const api = {
     return `${API_BASE}/boss/candidates/${encodeURIComponent(encryptGeekId)}/resume/download?${qs}`;
   },
 
-  // ---- BOSS 账号管理 + 扫码登录 ----
-  bossQrLoginStart(): Promise<BossQrStartResult> {
-    return bossRequest('/boss/qr-login/start', { method: 'POST' });
+  // ---- BOSS 账号管理 ----
+  // 从浏览器粘贴 Cookie 导入（招聘端 Web API 需要浏览器 cookie，QR 扫码无效）。
+  bossImportBrowserCookie(cookies: string, label = ''): Promise<BossAccount> {
+    return bossRequest('/boss/login/browser-cookie', { method: 'POST', body: { cookies, label } });
   },
-  bossQrLoginStatus(sessionId: string): Promise<BossQrStatusResult> {
-    return bossRequest(`/boss/qr-login/status?session_id=${encodeURIComponent(sessionId)}`);
-  },
-  // 扫码确认：派发会话 cookie 即保存账号，全功能可用。
-  async bossQrLoginConfirm(sessionId: string, label: string): Promise<BossQrConfirmResult> {
-    const res = await request<{ ok: boolean; data: BossQrConfirmResult }>(
-      '/boss/qr-login/confirm', { method: 'POST', body: { session_id: sessionId, label } }
-    );
-    if (!res.ok) {
-      throw new ApiError(0, '保存失败');
-    }
-    return res.data;
+  // 浏览器扩展下载走专用 URL（返回 ZIP），window.open 触发。
+  bossExtensionDownloadUrl(): string {
+    const qs = new URLSearchParams();
+    const token = getToken();
+    if (token) qs.set('token', token);
+    return `${API_BASE}/boss/extension/download?${qs}`;
   },
   bossAccounts(): Promise<BossAccount[]> {
     return bossRequest('/boss/accounts');
@@ -668,5 +660,19 @@ export const api = {
   },
   bossVerifyAccount(accountId: number): Promise<{ authenticated: boolean; status: unknown }> {
     return bossRequest(`/boss/accounts/${accountId}/verify`, { method: 'POST' });
+  },
+
+  // ---- BOSS CLI 高级功能 ----
+  // 候选人标签列表
+  bossLabels(): Promise<unknown> {
+    return bossRequest('/boss/labels');
+  },
+  // 聊天记录
+  bossChat(friendId: string): Promise<unknown> {
+    return bossRequest(`/boss/chat/${encodeURIComponent(friendId)}`);
+  },
+  // 导出候选人列表
+  bossExport(): Promise<unknown> {
+    return bossRequest('/boss/export');
   },
 };

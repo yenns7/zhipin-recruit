@@ -1,11 +1,12 @@
-// BOSS 账号管理区：扫码登录 + 多账号切换/校验/删除。
+// BOSS 账号导入区：从浏览器导入 Cookie。
 //
-// 扫码登录拿到会话 cookie（wt2/wbg/zp_at）即全功能可用，无需浏览器扩展。
-import { useCallback, useEffect, useRef, useState } from 'react';
+// 招聘端 Web API 需要浏览器 cookie（wt2/wbg/zp_at），QR 扫码拿到的是移动端 cookie 无效。
+// 主路径：Chrome 扩展一键采集 Cookie 或手动从开发者工具复制粘贴。
+import { useCallback, useEffect, useState } from 'react';
 import { Badge, Button, Card, CardBody, Input, Spinner } from '../../../components/ui';
 import { useToast } from '../../../components/ui/ToastContext';
 import { api, ApiError } from '../../../lib/api';
-import type { BossAccount, BossQrStatus } from '../../../types';
+import type { BossAccount } from '../../../types';
 
 function errMsg(e: unknown, fallback: string): string {
   if (e instanceof ApiError) return e.message;
@@ -17,7 +18,7 @@ export function BossAccountManager({ onChanged }: { onChanged?: () => void }) {
   const toast = useToast();
   const [accounts, setAccounts] = useState<BossAccount[]>([]);
   const [loading, setLoading] = useState(true);
-  const [qrOpen, setQrOpen] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -34,33 +35,6 @@ export function BossAccountManager({ onChanged }: { onChanged?: () => void }) {
   useEffect(() => { refresh(); }, [refresh]);
 
   const activeAccount = accounts.find((a) => a.is_active) || null;
-
-  const handleActivate = useCallback(async (id: number) => {
-    try {
-      await api.bossActivateAccount(id);
-      toast.success('已切换激活账号');
-      await refresh();
-      onChanged?.();
-    } catch (e) { toast.error(errMsg(e, '切换失败')); }
-  }, [refresh, toast, onChanged]);
-
-  const handleDelete = useCallback(async (id: number) => {
-    if (!window.confirm('确认删除该 BOSS 账号？')) return;
-    try {
-      await api.bossDeleteAccount(id);
-      toast.success('已删除账号');
-      await refresh();
-      onChanged?.();
-    } catch (e) { toast.error(errMsg(e, '删除失败')); }
-  }, [refresh, toast, onChanged]);
-
-  const handleVerify = useCallback(async (id: number) => {
-    try {
-      const r = await api.bossVerifyAccount(id);
-      toast.success(r.authenticated ? '账号登录态正常' : '账号未登录或已失效');
-      await refresh();
-    } catch (e) { toast.error(errMsg(e, '校验失败')); }
-  }, [refresh, toast]);
 
   return (
     <Card>
@@ -82,35 +56,16 @@ export function BossAccountManager({ onChanged }: { onChanged?: () => void }) {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Button size="sm" onClick={() => setQrOpen(true)}>
-              {activeAccount ? '切换账号' : '扫码登录'}
+            <Button size="sm" onClick={() => setPasteOpen(true)}>
+              从浏览器导入
             </Button>
           </div>
         </div>
 
-        {accounts.length > 0 && (
-          <div className="space-y-2">
-            {accounts.map((a) => (
-              <div key={a.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-hairline px-3 py-2">
-                <div className="flex items-center gap-2 text-body-sm">
-                  {a.is_active && <Badge tone="success">激活中</Badge>}
-                  <span className="font-medium text-text-primary">{a.label || '未命名'}</span>
-                  <span className="text-text-muted">{a.cookie_count} cookies</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  {!a.is_active && <Button variant="ghost" size="sm" onClick={() => handleActivate(a.id)}>切换</Button>}
-                  <Button variant="ghost" size="sm" onClick={() => handleVerify(a.id)}>校验</Button>
-                  <Button variant="ghost" size="sm" onClick={() => handleDelete(a.id)}>删除</Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {qrOpen && (
-          <QrLoginModal
-            onClose={() => setQrOpen(false)}
-            onSuccess={async () => { setQrOpen(false); await refresh(); onChanged?.(); }}
+        {pasteOpen && (
+          <BrowserCookiePasteModal
+            onClose={() => setPasteOpen(false)}
+            onSuccess={async () => { setPasteOpen(false); await refresh(); onChanged?.(); }}
           />
         )}
       </CardBody>
@@ -118,105 +73,129 @@ export function BossAccountManager({ onChanged }: { onChanged?: () => void }) {
   );
 }
 
-// ── 扫码登录弹窗 ─────────────────────────────────────────────────
-function QrLoginModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+// ── 浏览器 Cookie 导入弹窗（扩展采集 + 手动粘贴）───────────────────
+function BrowserCookiePasteModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const toast = useToast();
-  const [sessionId, setSessionId] = useState('');
-  const [qrImage, setQrImage] = useState('');
-  const [qrMime, setQrMime] = useState('image/png');
-  const [status, setStatus] = useState<BossQrStatus | ''>('');
+  const [cookies, setCookies] = useState('');
   const [label, setLabel] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [confirming, setConfirming] = useState(false);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [step, setStep] = useState<'tutorial' | 'paste'>('tutorial');
 
-  const startLogin = useCallback(async () => {
-    setLoading(true);
-    setStatus('');
+  const handleSave = useCallback(async () => {
+    const raw = cookies.trim();
+    if (!raw) { toast.error('请先粘贴从浏览器复制的 Cookie'); return; }
+    setSaving(true);
     try {
-      const r = await api.bossQrLoginStart();
-      setSessionId(r.session_id);
-      setQrImage(r.qr_image);
-      setQrMime(r.qr_mime || 'image/png');
-    } catch (e) {
-      toast.error(errMsg(e, '获取二维码失败'));
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
-
-  useEffect(() => { startLogin(); }, [startLogin]);
-
-  useEffect(() => {
-    if (!sessionId) return;
-    pollRef.current = setInterval(async () => {
-      try {
-        const r = await api.bossQrLoginStatus(sessionId);
-        setStatus(r.status);
-        if (r.status === 'done' || r.status === 'expired' || r.status === 'failed') {
-          if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-          if (r.status === 'expired') toast.error('二维码已过期');
-          if (r.status === 'failed') toast.error('登录失败：' + (r.error || ''));
-          if (r.status === 'done') toast.success('扫码登录成功');
-        }
-      } catch { /* 静默 */ }
-    }, 2000);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [sessionId, toast]);
-
-  const handleConfirm = useCallback(async () => {
-    setConfirming(true);
-    try {
-      await api.bossQrLoginConfirm(sessionId, label.trim() || `账号${new Date().toLocaleDateString()}`);
-      toast.success('账号已保存，扫码登录全功能可用');
+      await api.bossImportBrowserCookie(raw, label.trim() || `账号${new Date().toLocaleDateString()}`);
+      toast.success('账号已导入并激活');
       onSuccess();
     } catch (e) {
-      toast.error(errMsg(e, '保存失败'));
-    } finally { setConfirming(false); }
-  }, [sessionId, label, onSuccess, toast]);
-
-  const statusText: Record<string, string> = {
-    pending: '请用 BOSS 直聘 APP 扫描二维码',
-    scanned: '已扫码，请在手机上确认',
-    done: '登录成功！输入别名后保存',
-    expired: '二维码已过期，请重新获取',
-    failed: '登录失败，请重试',
-  };
+      toast.error(errMsg(e, '导入失败，请确认 Cookie 完整且未过期'));
+    } finally { setSaving(false); }
+  }, [cookies, label, onSuccess, toast]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <CardBody className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-title-sm font-semibold text-text-primary">扫码登录 BOSS 直聘</h3>
+            <h3 className="text-title-sm font-semibold text-text-primary">从浏览器导入 BOSS 账号</h3>
             <Button variant="ghost" size="sm" onClick={onClose}>关闭</Button>
           </div>
-          <p className="text-caption text-text-muted">
-            扫码登录即可使用全部招聘端功能（收件箱、推荐、查看/下载简历、AI 初筛），无需安装浏览器扩展。
-          </p>
-          <div className="flex flex-col items-center gap-3 py-2">
-            {loading && <Spinner />}
-            {!loading && qrImage && status !== 'expired' && status !== 'failed' && (
-              <img src={`data:${qrMime};base64,${qrImage}`} alt="二维码" className="h-56 w-56 rounded-lg border border-hairline" />
-            )}
-            {(status === 'expired' || status === 'failed') && (
-              <div className="flex h-56 w-56 flex-col items-center justify-center rounded-lg border border-hairline text-text-muted">
-                <span className="mb-2">二维码失效</span>
-                <Button size="sm" onClick={startLogin}>重新获取</Button>
+
+          {step === 'tutorial' && (
+            <>
+              {/* 方式一：Chrome 扩展（推荐） */}
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
+                <div className="flex items-center gap-2 text-body-sm font-semibold text-blue-800">
+                  <span>🧩</span> 方式一：Chrome 扩展一键采集（推荐）
+                </div>
+                <ol className="list-decimal space-y-2 pl-5 text-body-sm text-blue-900">
+                  <li>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">下载扩展并解压</span>
+                      <Button size="sm" variant="ghost" onClick={() => window.open(api.bossExtensionDownloadUrl(), '_blank')}>
+                        📥 下载 ZIP
+                      </Button>
+                    </div>
+                    <div className="text-caption text-blue-700 mt-0.5">双击 ZIP 自动解压，得到 <code className="bg-blue-100 px-1 rounded">boss-cookie-extension</code> 文件夹</div>
+                  </li>
+                  <li>
+                    <div>
+                      Chrome 地址栏输入{' '}
+                      <code
+                        className="cursor-pointer rounded bg-blue-100 px-1.5 py-0.5 text-caption font-mono underline decoration-blue-400 hover:bg-blue-200"
+                        onClick={() => { navigator.clipboard.writeText('chrome://extensions'); toast.success('已复制，粘贴到地址栏即可'); }}
+                        title="点击复制"
+                      >chrome://extensions</code>
+                      ，开启「<span className="font-medium">开发者模式</span>」
+                    </div>
+                  </li>
+                  <li>
+                    <div>把解压后的 <code className="bg-blue-100 px-1 rounded">boss-cookie-extension</code> 文件夹<span className="font-medium">直接拖进 Chrome 扩展页面</span>即可安装（或点「加载已解压的扩展程序」选择文件夹）</div>
+                  </li>
+                  <li>
+                    <div>打开 <a href="https://www.zhipin.com/web/chat/recommend" target="_blank" rel="noopener" className="underline decoration-blue-400 hover:text-blue-600">BOSS 直聘招聘端</a> 并登录，点一下「推荐」或「沟通」</div>
+                  </li>
+                  <li>
+                    <div>点浏览器右上角扩展图标 →「<span className="font-medium">🚀 一键发送到智聘</span>」即可自动导入</div>
+                    <div className="text-caption text-blue-700 mt-0.5">首次使用需在扩展设置中配置智聘地址和登录 Token</div>
+                  </li>
+                </ol>
+                <div className="flex justify-end pt-1">
+                  <Button size="sm" variant="ghost" onClick={() => setStep('paste')}>
+                    或手动复制粘贴 →
+                  </Button>
+                </div>
               </div>
-            )}
-            {status && <p className="text-body-sm text-text-secondary text-center">{statusText[status]}</p>}
-          </div>
-          {status === 'done' && (
-            <div className="space-y-2">
-              <Input label="账号别名" placeholder="如：主账号" value={label} onChange={(e) => setLabel(e.target.value)} />
-              <Button className="w-full" onClick={handleConfirm} disabled={confirming}>
-                {confirming ? '保存中…' : '保存账号'}
-              </Button>
-            </div>
+
+              {/* 方式二：手动复制 */}
+              <div className="rounded-lg border border-hairline p-4 space-y-3">
+                <div className="flex items-center gap-2 text-body-sm font-semibold text-text-primary">
+                  <span>📋</span> 方式二：手动从开发者工具复制
+                </div>
+                <ol className="list-decimal space-y-2 pl-5 text-body-sm text-text-secondary">
+                  <li>在浏览器打开 BOSS 直聘招聘端并登录</li>
+                  <li>
+                    按 <kbd className="rounded bg-gray-100 px-1.5 py-0.5 text-caption font-mono">F12</kbd> 打开开发者工具
+                    → <kbd className="rounded bg-gray-100 px-1.5 py-0.5 text-caption font-mono">Network</kbd> 标签
+                  </li>
+                  <li>在页面点一下「推荐」或「沟通」，触发一个请求</li>
+                  <li>点击该请求 → <kbd className="rounded bg-gray-100 px-1.5 py-0.5 text-caption font-mono">Headers</kbd> → 找到 <code className="bg-gray-100 px-1 rounded">Cookie:</code> 行 → 右键复制整行值</li>
+                </ol>
+                <div className="flex justify-end pt-1">
+                  <Button size="sm" variant="ghost" onClick={() => setStep('paste')}>
+                    已复制，去粘贴 →
+                  </Button>
+                </div>
+              </div>
+            </>
           )}
-          {status && status !== 'done' && status !== 'expired' && status !== 'failed' && (
-            <Button variant="ghost" size="sm" className="w-full" onClick={startLogin} disabled={loading}>刷新二维码</Button>
+
+          {step === 'paste' && (
+            <>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setStep('tutorial')}>← 返回教程</Button>
+              </div>
+              <div className="rounded-lg bg-surface-soft px-3 py-2 text-body-sm text-text-secondary">
+                粘贴从浏览器扩展或开发者工具复制的 Cookie，后端会自动校验完整性与登录态。
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-body-sm font-medium text-text-primary block mb-1.5">Cookie</label>
+                  <textarea
+                    className="h-28 w-full rounded-lg border border-hairline p-2 font-mono text-caption"
+                    placeholder="wt2=...; wbg=...; zp_at=..."
+                    value={cookies}
+                    onChange={(e) => setCookies(e.target.value)}
+                  />
+                </div>
+                <Input label="账号别名（可选）" placeholder="如：主账号" value={label} onChange={(e) => setLabel(e.target.value)} />
+                <Button className="w-full" onClick={handleSave} disabled={saving}>
+                  {saving ? '保存中…' : '保存'}
+                </Button>
+              </div>
+            </>
           )}
         </CardBody>
       </Card>

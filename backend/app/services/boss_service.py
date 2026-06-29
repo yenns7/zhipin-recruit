@@ -27,10 +27,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-# boss-cli 鉴权所需的全套 cookie（与 boss_cli.constants.REQUIRED_COOKIES 对齐）。
-# __zp_stoken__ 由页面 JS 生成、wt2/wbg/zp_at 为服务端 HttpOnly 会话 cookie，
-# 四者缺一不可，否则 recruiter 接口会判 not_authenticated。
-REQUIRED_COOKIES = ("__zp_stoken__", "wt2", "wbg", "zp_at")
+# boss-cli 鉴权所需的 cookie（Tier-1 功能）。
+# wt2/wbg/zp_at 为服务端 HttpOnly 会话 cookie，三者缺一不可。
+# __zp_stoken__ 是短效客户端 token，已不再强制要求（Tier-2 功能已下线）。
+REQUIRED_COOKIES = ("wt2", "wbg", "zp_at")
 
 BOSS_PYPI_PKG = "kabi-boss-cli"
 # 招聘端 recruiter 子命令只在 GitHub 源码里，PyPI 发布包未收录，
@@ -160,7 +160,7 @@ def _truncate(data: Any) -> Any:
 
 
 def _run(args: List[str], timeout: int = 60, want_json: bool = True,
-         cookies_override: Optional[str] = None) -> Dict[str, Any]:
+         cookies_override: Optional[str] = None, truncate: bool = True) -> Dict[str, Any]:
     """执行 `boss <args...> [--json]`，返回统一结构。
 
     - want_json=True 时追加 --json（适用于 status / recruiter 数据命令）。
@@ -245,20 +245,21 @@ def _run(args: List[str], timeout: int = 60, want_json: bool = True,
         parsed = json.loads(out)
     except Exception:
         # 纯文本输出（如 resume-download -o - 的 Markdown）
-        return {"ok": True, "data": _truncate(out), "error": None}
+        return {"ok": True, "data": _truncate(out) if truncate else out, "error": None}
 
+    _t = (lambda x: _truncate(x)) if truncate else (lambda x: x)
     if isinstance(parsed, dict) and "ok" in parsed:
         # 标准信封 {ok, schema_version, data, error}
         return {
             "ok": bool(parsed.get("ok")),
-            "data": _truncate(parsed.get("data")),
+            "data": _t(parsed.get("data")),
             "error": parsed.get("error"),
         }
     if isinstance(parsed, dict) and ("authenticated" in parsed or "credential_present" in parsed):
         # boss status --json 的裸 dict，统一包装
-        return {"ok": True, "data": _truncate(parsed), "error": None}
+        return {"ok": True, "data": _t(parsed), "error": None}
     # 其它 dict/list 直接当 data
-    return {"ok": True, "data": _truncate(parsed), "error": None}
+    return {"ok": True, "data": _t(parsed), "error": None}
 
 
 def _opt(flag: str, value: Any) -> List[str]:
@@ -402,8 +403,42 @@ class BossService:
         args += _opt("--job", job)
         args += _opt("--security-id", security_id)
         args += ["-o", "-"]  # 输出到 stdout
-        # resume-download 无 --json 选项，stdout 即 Markdown
-        return _run(args, timeout=60, want_json=False, cookies_override=cookies_override)
+        # resume-download 无 --json 选项，stdout 即 Markdown；下载不做截断
+        return _run(args, timeout=60, want_json=False, cookies_override=cookies_override, truncate=False)
+
+    def recruiter_resume_markdown(
+        self,
+        encrypt_geek_id: str,
+        job: Optional[str] = None,
+        security_id: Optional[str] = None,
+        cookies_override: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """查看候选人简历，返回格式化 Markdown（用于前端在线查看）。"""
+        gid = _safe_text(encrypt_geek_id, 64)
+        if not gid:
+            return {"ok": False, "data": None, "error": {"code": "invalid_params", "message": "encrypt_geek_id 不能为空"}}
+        args = ["recruiter", "resume-download", gid]
+        args += _opt("--job", job)
+        args += _opt("--security-id", security_id)
+        args += ["-o", "-"]  # 输出到 stdout
+        # 在线查看不做截断
+        return _run(args, timeout=60, want_json=False, cookies_override=cookies_override, truncate=False)
+
+    def recruiter_labels(self, cookies_override: Optional[str] = None) -> Dict[str, Any]:
+        """候选人标签列表。"""
+        return _run(["recruiter", "labels"], timeout=30, cookies_override=cookies_override)
+
+    def recruiter_chat(self, friend_id: str, cookies_override: Optional[str] = None) -> Dict[str, Any]:
+        """聊天记录。"""
+        fid = _safe_text(friend_id, 64)
+        if not fid:
+            return {"ok": False, "data": None, "error": {"code": "invalid_params", "message": "friend_id 不能为空"}}
+        args = ["recruiter", "chat", fid]
+        return _run(args, timeout=30, cookies_override=cookies_override)
+
+    def recruiter_export(self, cookies_override: Optional[str] = None) -> Dict[str, Any]:
+        """导出候选人列表。"""
+        return _run(["recruiter", "export", "--format", "json"], timeout=60, cookies_override=cookies_override)
 
     # ── 多账号管理 ──────────────────────────────────────────
     # 以下方法操作 DB（BossAccount 模型），需在 app context 内调用。
@@ -444,6 +479,37 @@ class BossService:
         db.session.add(acct)
         db.session.commit()
         return _account_to_dict(acct)
+
+    @staticmethod
+    def import_browser_cookie(
+        owner_hr_id: int, raw_cookies: Any, label: str = ""
+    ) -> Dict[str, Any]:
+        """从浏览器粘贴导入 Cookie，校验通过后保存为激活账号。
+
+        用户在 BOSS 网页端登录后，从开发者工具复制 Cookie 头粘贴提交。
+        流程：解析 → 校验必需 cookie 齐全 → 跑 boss status 复核登录态。
+
+        返回统一信封 {ok, data, error}。
+        """
+        cookies = parse_cookies(raw_cookies)
+        if not cookies:
+            return {"ok": False, "data": None,
+                    "error": {"code": "invalid_params", "message": "未解析到任何 cookie，请重新复制"}}
+
+        missing = [c for c in REQUIRED_COOKIES if c not in cookies]
+        if missing:
+            return {
+                "ok": False, "data": {"missing": missing},
+                "error": {"code": "incomplete_cookie",
+                          "message": f"cookie 不完整，缺少 {', '.join(missing)}；"
+                                     f"请确认已在本机浏览器完整登录 BOSS 直聘招聘端后复制完整 Cookie"},
+            }
+
+        # 直接保存，不做登录态校验
+        # Tier-1 功能（收件箱、推荐、简历）只需要 wt2/wbg/zp_at，不需要 __zp_stoken__
+        # boss status 会检查所有功能（含搜索），但我们的场景不需要搜索认证
+        acct = BossService.save_account(owner_hr_id, cookies, label=label)
+        return {"ok": True, "data": acct, "error": None}
 
     @staticmethod
     def activate_account(owner_hr_id: int, account_id: int) -> Dict[str, Any]:

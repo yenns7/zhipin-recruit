@@ -6,8 +6,11 @@
 
 CLI 未安装时统一返回 503 + code=boss_cli_not_installed，前端据此引导安装/登录。
 """
-from flask import Blueprint, request, jsonify, Response, current_app, g
+from flask import Blueprint, request, jsonify, Response, current_app, g, send_file
+import io
 import jwt
+import zipfile
+from pathlib import Path
 
 from ..middleware.auth import require_auth, require_role
 from ..middleware.events import record_event
@@ -54,13 +57,13 @@ def _ok_or_fail(result: dict, *, success_code: int = 200, installed_err_code: in
     err = result.get("error") or {}
     code = err.get("code", "unknown_error")
     msg = err.get("message", "未知错误")
-    # CLI 未安装 / 超时 / 执行错误 → 503；认证类 → 401；参数类 → 400；其余 → 502
+    # CLI 未安装 / 超时 / 执行错误 → 503；BOSS 认证类 → 409（避免触发前端全局 401 退出）；参数类 → 400；其余 → 502
     if code == "boss_cli_not_installed":
         status = installed_err_code
     elif code == "timeout" or code == "exec_error":
         status = 503
     elif code == "not_authenticated":
-        status = 401
+        status = 409  # BOSS Cookie 失效，非智聘 token 问题，用 409 避免前端误退出
     elif code == "needs_stoken":
         status = 409
     elif code == "incomplete_cookie":
@@ -101,25 +104,32 @@ def boss_status():
     return _ok_or_fail(_svc.status(cookies_override=cookies))
 
 
-@bp.get("/boss/login/guide")
+@bp.post("/boss/login/browser-cookie")
 @require_auth
 @require_role(*_RECRUITER_ROLES)
-def boss_login_guide():
-    """返回交互式登录指引（boss login 需在终端执行）。"""
-    return _ok_or_fail(_svc.login_guide())
+def boss_login_browser_cookie():
+    """从浏览器粘贴导入 Cookie。
 
-
-@bp.post("/boss/login/cookie")
-@require_auth
-@require_role(*_RECRUITER_ROLES)
-def boss_login_cookie():
-    """已下线：本机浏览器 Cookie 登录依赖后端读取使用者浏览器，云端不适用。
-
-    保留端点仅为兼容旧前端调用，统一返回 410，引导改用扫码登录。
+    用户在 BOSS 网页端登录后，从开发者工具复制 Cookie 头粘贴提交。
+    body: {cookies: "k=v; k=v" | {k: v}, label?}
+    校验通过（必需 cookie 齐全 + status 有效）才保存激活。
     """
-    return jsonify({"ok": False, "error": {
-        "code": "gone", "message": "该登录方式已下线，请改用扫码登录",
-    }}), 410
+    data = request.get_json(silent=True) or {}
+    raw_cookies = data.get("cookies")
+    label = (data.get("label") or "").strip()
+    if not raw_cookies:
+        return jsonify({"ok": False, "error": {"code": "invalid_params", "message": "cookies 不能为空"}}), 400
+    result = _svc.import_browser_cookie(g.user_id, raw_cookies, label)
+    if result.get("ok"):
+        acct = result.get("data") or {}
+        record_event("boss.login", entity_type="boss_account",
+                     payload={"mode": "browser_cookie", "account_id": acct.get("id"),
+                              "label": acct.get("label")})
+    else:
+        record_event("boss.login", entity_type="boss",
+                     payload={"mode": "browser_cookie", "ok": False,
+                              "code": (result.get("error") or {}).get("code")})
+    return _ok_or_fail(result)
 
 
 # ── 招聘端 · 岗位管理 ──────────────────────────────────────────────
@@ -175,11 +185,11 @@ def boss_candidates_inbox():
 @require_auth
 @require_role(*_RECRUITER_ROLES)
 def boss_candidate_resume(encrypt_geek_id: str):
-    """查看候选人完整简历（JSON 结构）。query: job?, security_id?"""
+    """查看候选人简历（Markdown 格式）。query: job?, security_id?"""
     cookies, err = _active_cookies_or_409()
     if err is not None:
         return err
-    result = _svc.recruiter_resume(
+    result = _svc.recruiter_resume_markdown(
         encrypt_geek_id=encrypt_geek_id,
         job=request.args.get("job") or None,
         security_id=request.args.get("security_id") or None,
@@ -285,65 +295,6 @@ def boss_candidates_ai_screen():
     return _ok_or_fail(result)
 
 
-# ── 扫码登录 ───────────────────────────────────────────────────────
-@bp.post("/boss/qr-login/start")
-@require_auth
-@require_role(*_RECRUITER_ROLES)
-def boss_qr_login_start():
-    """发起扫码登录，返回 session_id + base64 二维码 PNG。"""
-    from ..services.boss_service import _ensure_cli
-    ok, info = _ensure_cli()
-    if not ok:
-        return jsonify({"ok": False, "error": {"code": "boss_cli_not_installed", "message": info}}), 503
-    try:
-        from ..services import boss_qr_service
-        session_id, qr_b64, qr_mime = boss_qr_service.start_qr_login()
-    except Exception as e:
-        return jsonify({"ok": False, "error": {"code": "qr_start_failed", "message": str(e)}}), 502
-    record_event("boss.qr_login.start", entity_type="boss", payload={"session_id": session_id})
-    return jsonify({"ok": True, "data": {"session_id": session_id, "qr_image": qr_b64, "qr_mime": qr_mime}})
-
-
-@bp.get("/boss/qr-login/status")
-@require_auth
-@require_role(*_RECRUITER_ROLES)
-def boss_qr_login_status():
-    """轮询扫码状态。query: session_id"""
-    from ..services import boss_qr_service
-    session_id = request.args.get("session_id", "")
-    if not session_id:
-        return jsonify({"ok": False, "error": {"code": "invalid_params", "message": "session_id 必填"}}), 400
-    return jsonify({"ok": True, "data": boss_qr_service.get_qr_status(session_id)})
-
-
-@bp.post("/boss/qr-login/confirm")
-@require_auth
-@require_role(*_RECRUITER_ROLES)
-def boss_qr_login_confirm():
-    """扫码成功后，把登录凭证存为该用户的新 BOSS 账号。body: {session_id, label?}
-
-    纯 HTTP 扫码拿到会话 cookie（wt2/wbg/zp_at），即可使用全部招聘端功能
-    （收件箱、推荐、查看/下载简历、批量导入、AI 初筛）。这些功能不依赖
-    页面 JS 生成的 __zp_stoken__，扫码成功即全功能可用。
-    """
-    from ..services import boss_qr_service
-    data = request.get_json(silent=True) or {}
-    session_id = data.get("session_id", "")
-    label = (data.get("label") or "").strip()
-    if not session_id:
-        return jsonify({"ok": False, "error": {"code": "invalid_params", "message": "session_id 必填"}}), 400
-    cookies = boss_qr_service.get_qr_credential(session_id)
-    if not cookies:
-        return jsonify({"ok": False, "error": {
-            "code": "qr_not_done", "message": "扫码登录尚未完成，请先扫码并确认",
-        }}), 409
-
-    acct = _svc.save_account(g.user_id, cookies, label)
-    record_event("boss.qr_login.confirm", entity_type="boss_account",
-                 payload={"account_id": acct["id"], "label": acct["label"]})
-    return jsonify({"ok": True, "data": dict(acct)})
-
-
 # ── 账号管理 ───────────────────────────────────────────────────────
 @bp.get("/boss/accounts")
 @require_auth
@@ -390,3 +341,73 @@ def boss_account_verify(account_id: int):
     record_event("boss.account.verify", entity_type="boss_account",
                  payload={"account_id": account_id, "ok": result.get("data", {}).get("authenticated")})
     return jsonify(result)
+
+
+# ── BOSS CLI 高级功能 ──────────────────────────────────────────────
+@bp.get("/boss/labels")
+@require_auth
+@require_role(*_RECRUITER_ROLES)
+def boss_labels():
+    """候选人标签列表。"""
+    cookies, err = _active_cookies_or_409()
+    if err is not None:
+        return err
+    return _ok_or_fail(_svc.recruiter_labels(cookies_override=cookies))
+
+
+@bp.get("/boss/chat/<friend_id>")
+@require_auth
+@require_role(*_RECRUITER_ROLES)
+def boss_chat(friend_id: str):
+    """聊天记录。"""
+    cookies, err = _active_cookies_or_409()
+    if err is not None:
+        return err
+    return _ok_or_fail(_svc.recruiter_chat(friend_id, cookies_override=cookies))
+
+
+@bp.get("/boss/export")
+@require_auth
+@require_role(*_RECRUITER_ROLES)
+def boss_export():
+    """导出候选人列表。"""
+    cookies, err = _active_cookies_or_409()
+    if err is not None:
+        return err
+    return _ok_or_fail(_svc.recruiter_export(cookies_override=cookies))
+
+
+# ── 浏览器扩展下载 ──────────────────────────────────────────────
+@bp.get("/boss/extension/download")
+def boss_extension_download():
+    """下载 BOSS Cookie 采集浏览器扩展（ZIP 包）。
+
+    将 extension/ 目录打包为 ZIP 返回，用户解压后在 Chrome 加载即可使用。
+    用 ?token= 传 JWT（window.open 无法带 Authorization 头），手动鉴权。
+    """
+    err = _require_query_token()
+    if err is not None:
+        return err
+    ext_dir = Path(__file__).resolve().parent.parent.parent.parent / "extension"
+    if not ext_dir.is_dir():
+        return jsonify({"ok": False, "error": {"code": "not_found", "message": "扩展目录不存在"}}), 404
+
+    buf = io.BytesIO()
+    file_count = 0
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in sorted(ext_dir.rglob("*")):
+            if not f.is_file():
+                continue
+            arcname = f"boss-cookie-extension/{f.relative_to(ext_dir)}"
+            zf.write(f, arcname)
+            file_count += 1
+    buf.seek(0)
+
+    record_event("boss.extension.download", entity_type="boss_extension",
+                 payload={"file_count": file_count})
+    return send_file(
+        buf,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name="boss-cookie-extension.zip",
+    )

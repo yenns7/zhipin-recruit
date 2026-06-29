@@ -1041,30 +1041,6 @@ export interface BossAccount {
   created_at: string | null;
 }
 
-// 扫码登录状态。纯 HTTP 扫码拿到会话 cookie 即登录完成，无 stoken 补全环节。
-export type BossQrStatus =
-  | 'pending'    // 已出码，等待扫码
-  | 'scanned'    // 已扫码，等待手机确认
-  | 'done'       // 登录成功
-  | 'expired'    // 二维码过期
-  | 'failed';    // 异常
-
-// 扫码登录启动返回
-export interface BossQrStartResult {
-  session_id: string;
-  qr_image: string;  // base64 图片
-  qr_mime: string;   // 图片 MIME（image/jpeg 或 image/png）
-}
-
-// 扫码状态查询返回
-export interface BossQrStatusResult {
-  status: BossQrStatus;
-  error: string;
-}
-
-// 扫码登录确认返回：成功即账号
-export type BossQrConfirmResult = BossAccount;
-
 // ── 招聘闭环：批量导入 / AI 初筛 ──────────────────────────────────
 // 批量导入单条入参（来自收件箱列表勾选）
 export interface BossImportItem {
