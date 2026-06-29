@@ -2,11 +2,21 @@
 
 > 版本：v1.0 | 日期：2026-06-27 | 状态：实施完成
 
+> **2026-06-29 重大更新：stoken 采集链路已全部移除**
+>
+> 经分析，`__zp_stoken__` 是短效 JS 指纹（数分钟有效），云端环境无法稳定持有。
+> 已删除 Tier-2 功能和整条 stoken 采集链路（Chrome 扩展、油猴脚本、browser-cookie 导入、supplement-cookie 补全、Camoufox 补全）。
+> 扫码登录成为唯一登录方式，登录后 Tier-1 功能全可用。
+> 下文 Tier-1/Tier-2 分层说明保留作为技术参考。
+
 ### 变更记录
 
 | 日期 | 变更 |
 |------|------|
 | 2026-06-27 | 初始版本：功能分层 + Chrome 扩展 + 实施 |
+| 2026-06-29 | 新增油猴脚本（Tampermonkey）采集路径，不连服务器、复制粘贴导入；规避 Chrome 扩展写死 localhost 的部署限制 |
+| 2026-06-29 | 扩展 v3.0.0：采集机制改为 `chrome.webRequest` 抓请求头（绕开受管控环境 `chrome.cookies` 失效问题），数据流改为复制到剪贴板、用户粘贴导入，不再连后端 |
+| 2026-06-29 | 收敛为单一采集路径：移除油猴脚本及其下载接口/前端入口，产品 UI 只保留 Chrome 扩展；前端导入弹窗简化为三步指引 |
 
 ## 1. 背景与问题
 
@@ -108,51 +118,50 @@ BOSS 直聘的反爬机制分两层：
 
 ## 3. 技术方案：Chrome 浏览器扩展
 
-### 3.1 为什么选择 Chrome 扩展
+> v3.0.0 起，扩展采集机制从 `chrome.cookies` 改为 `chrome.webRequest` 抓请求头，
+> 数据流从「POST 到后端」改为「复制到剪贴板，用户手动粘贴」。原因见 3.1。
+
+### 3.1 采集机制演进与选型
 
 | 方案 | 可行性 | 问题 |
 |------|--------|------|
 | camoufox 无头浏览器 | ❌ | BOSS 反爬检测，stoken 生成不稳定（已验证失败） |
-| Chrome DevTools Protocol | ⚠️ | 需要用户启动 `--remote-debugging-port`，门槛高 |
-| 本地 HTTP 代理 | ⚠️ | 需配置系统代理，侵入性强 |
-| **Chrome 扩展** | ✅ | **一键安装，chrome.cookies API 读取，用户已在登录态，最可靠** |
+| 油猴脚本 `GM_cookie` | ⚠️ | 读 HttpOnly 依赖脚本管理器权限，部分环境拿不到 wt2/wbg/zp_at（已验证失败） |
+| 扩展 `chrome.cookies.getAll` | ⚠️ | **部分环境（企业策略/安全管控）下 API 读不到任何 cookie，`getAll({})` 返回 0**（已在实测机器验证） |
+| **扩展 `chrome.webRequest` 抓请求头** | ✅ | **从页面发出的请求头里抓完整 Cookie（含 HttpOnly），是浏览器原生行为，不受 cookies API 限制，最可靠** |
 
-### 3.2 扩展架构
+关键认知：`wt2`/`wbg`/`zp_at` 是 HttpOnly 会话 cookie，网页脚本（`document.cookie`）读不到；而 `chrome.cookies` API 在受管控环境下可能整体失效。浏览器**发请求时请求头 `Cookie:` 里天然带全部 cookie**（否则无法维持登录），因此监听请求头是唯一不受这两类限制的采集方式。
+
+### 3.2 扩展架构（v3.0.0）
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                    Chrome 扩展 MV3                           │
 ├──────────────────────────────────────────────────────────────┤
-│                                                              │
-│  ┌─────────────┐     ┌──────────────┐     ┌──────────────┐ │
-│  │  Popup UI   │────>│ Background   │────>│ Content      │ │
-│  │  (点击图标) │     │ Service      │     │ Script       │ │
-│  └─────────────┘     │ Worker       │     │ (注入BOSS页) │ │
-│                      └──────┬───────┘     └──────┬───────┘ │
-│                             │                     │         │
-│              ┌──────────────┴─────────────────────┘         │
-│              ▼                                              │
-│  ┌───────────────────────┐     ┌──────────────────────┐   │
-│  │ chrome.cookies.getAll │     │ document.cookie /     │   │
-│  │ ({domain:zhipin.com}) │     │ 页面 JS 上下文        │   │
-│  │ → wt2, wbg, zp_at,   │     │ → __zp_stoken__      │   │
-│  │   __a, bst, ...       │     │   (页面 JS 生成)     │   │
-│  └───────────┬───────────┘     └──────────┬───────────┘   │
-│              │                             │                │
-│              └──────────┬──────────────────┘                │
-│                         ▼                                   │
-│              POST {cookies: "k=v; k=v"}                     │
-│              → localhost:5001/api/boss/login/browser-cookie  │
-│              → 后端校验 → 保存账号 → 全功能解锁             │
+│  ┌─────────────┐         ┌──────────────────────────────┐   │
+│  │  Popup UI   │────────>│ Background Service Worker     │   │
+│  │  (点击图标) │ 取缓存  │ webRequest.onBeforeSendHeaders│   │
+│  └──────┬──────┘         │ 监听 *.zhipin.com 请求        │   │
+│         │                │ → 抓 Cookie 请求头并缓存      │   │
+│         │                │   (含 HttpOnly wt2/wbg/zp_at) │   │
+│         │                └──────────────────────────────┘   │
+│         │                ┌──────────────────────────────┐   │
+│         │  stoken 兜底   │ content.js（注入 BOSS 页）    │   │
+│         │<───────────────│ document.cookie 读 stoken     │   │
+│         ▼                └──────────────────────────────┘   │
+│  校验 4 个必需 cookie → navigator.clipboard 复制到剪贴板    │
+│         │                                                    │
+│         ▼                                                    │
+│  用户粘贴到智聘「从浏览器导入账号」→ 后端校验 → 保存账号   │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 ### 3.3 核心技术点
 
-1. **`chrome.cookies.getAll({domain: '.zhipin.com'})`** — 读取**所有** cookie，包括 `HttpOnly` 的 `wt2`/`wbg`/`zp_at`
-2. **`__zp_stoken__`** — 由 BOSS 页面 JS 动态生成。如果 Chrome Cookie API 读不到，扩展通过 content script 注入 BOSS 页面，从 `document.cookie` 或页面 JS 上下文中提取
-3. **自动检测** — Background worker 监听 `chrome.tabs.onUpdated`，当用户打开 BOSS 页面时自动读取 Cookie 并尝试同步
-4. **安全约束** — 扩展仅访问 `*.zhipin.com` 域，仅 POST 到本地 `localhost:5001`
+1. **`chrome.webRequest.onBeforeSendHeaders`** + `['requestHeaders','extraHeaders']` — 抓发往 `*.zhipin.com` 请求的 `Cookie` 头，含 HttpOnly 的 `wt2`/`wbg`/`zp_at`。仅缓存含 `zp_at`/`wt2` 的请求头（确保是登录态）。
+2. **`__zp_stoken__`** — 由 BOSS 页面 JS 动态生成，请求头里通常已带；缺失时由 content.js 从 `document.cookie`/页面 JS 上下文兜底提取。
+3. **不连服务器** — 采集结果经 `navigator.clipboard` 复制到剪贴板，由用户粘贴到智聘平台，扩展不发任何网络请求。因此 host_permissions 仅用于「读 cookie/监听请求」授权，与后端地址无关，**任意部署环境通用**。
+4. **触发要求** — webRequest 靠截获页面请求工作，用户需在 BOSS 页面刷新或点开「推荐/沟通」产生请求，扩展才能抓到 Cookie 头。
 
 ### 3.4 文件结构
 
@@ -169,6 +178,16 @@ extension/
     ├── icon48.png
     └── icon128.png
 ```
+
+---
+
+## 3.5 备选采集方式
+
+产品 UI 只保留 Chrome 扩展一条采集路径（已实测最稳）。极端情况下（如插件实在无法加载）可手动兜底：
+
+- **DevTools 手动复制**：BOSS 页面按 F12 → Network → 点任一请求 → 复制请求头 `Cookie:` 整行（含 `__zp_stoken__`），粘贴到「从浏览器导入账号」。门槛较高，仅作应急。
+
+> 历史方案说明：曾实现过油猴脚本（Tampermonkey `GM_cookie`）采集路径，但实测在受管控环境下 `GM_cookie` 读不到 HttpOnly 会话 cookie，且用户门槛高于扩展，已移除，统一以扩展 webRequest 方案为准。
 
 ---
 

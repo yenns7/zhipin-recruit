@@ -199,15 +199,39 @@ def _run(args: List[str], timeout: int = 60, want_json: bool = True,
     out = (proc.stdout or "").strip()
     err = (proc.stderr or "").strip()
 
-    # 退出码非 0 → 失败（取 stderr 末段作为提示）；登录/频控等归类
+    # 退出码非 0 → 失败。boss-cli 把结构化错误写进 stdout（JSON 信封），
+    # 优先解析 stdout JSON；解析失败再做文本关键字归类。
     if proc.returncode != 0:
+        # 先尝试从 stdout 解析标准信封 {ok:false, error:{code,message}}
+        if out:
+            try:
+                parsed_err = json.loads(out)
+                if isinstance(parsed_err, dict) and "error" in parsed_err:
+                    inner = parsed_err.get("error") or {}
+                    inner_code = inner.get("code", "unknown_error")
+                    inner_msg = inner.get("message", out)
+                    # api_error + "失效"/"code=7"/"登录" → not_authenticated
+                    if inner_code == "api_error" and (
+                        "失效" in inner_msg or "code=7" in inner_msg
+                        or "not_authenticated" in inner_msg or "未登录" in inner_msg
+                    ):
+                        inner_code = "not_authenticated"
+                    elif inner_code == "api_error" and (
+                        "code=37" in inner_msg or "环境异常" in inner_msg or "stoken" in inner_msg.lower()
+                    ):
+                        inner_code = "needs_stoken"
+                    return {"ok": False, "data": None, "error": {"code": inner_code, "message": inner_msg[:500]}}
+            except Exception:
+                pass
+
+        # 回退：文本关键字归类（stderr 或 stdout 原文）
         msg = err or out or f"boss 命令退出码 {proc.returncode}，无输出"
         code = "unknown_error"
-        if "not_authenticated" in msg or "未登录" in msg or "凭证" in msg:
+        if "not_authenticated" in msg or "未登录" in msg or "凭证" in msg or "失效" in msg or "code=7" in msg:
             code = "not_authenticated"
         elif "rate_limited" in msg or "频控" in msg or "429" in msg:
             code = "rate_limited"
-        elif "stoken" in msg.lower() or "环境异常" in msg:
+        elif "stoken" in msg.lower() or "环境异常" in msg or "code=37" in msg:
             code = "needs_stoken"
         return {"ok": False, "data": None, "error": {"code": code, "message": msg[:500]}}
 
@@ -308,63 +332,11 @@ class BossService:
             "error": None,
         }
 
-    def login_cookie(self, browser: str = "chrome") -> Dict[str, Any]:
-        """尝试从浏览器提取 Cookie 登录（非交互，可 Web 触发）。"""
-        browser = _safe_text(browser, 30) or "chrome"
-        # 不加 --json（login 命令无该选项）；登录是否成功靠后续 status 校验
-        result = _run(["login", "--cookie-source", browser], timeout=60, want_json=False)
-        if result["ok"]:
-            # 用 status 复核登录态
-            st = self.status()
-            return st
-        return result
-
     # ── 招聘端 · 岗位 ──────────────────────────────────────
     def recruiter_jobs(self, cookies_override: Optional[str] = None) -> Dict[str, Any]:
         return _run(["recruiter", "jobs"], timeout=30, cookies_override=cookies_override)
 
-    def recruiter_job_close(self, encrypt_job_id: str, cookies_override: Optional[str] = None) -> Dict[str, Any]:
-        jid = _safe_text(encrypt_job_id, 64)
-        if not jid:
-            return {"ok": False, "data": None, "error": {"code": "invalid_params", "message": "encrypt_job_id 不能为空"}}
-        # job-close 无 --json 选项，靠退出码判成功
-        return _run(["recruiter", "job-close", jid, "-y"], timeout=30, want_json=False, cookies_override=cookies_override)
-
-    def recruiter_job_reopen(self, encrypt_job_id: str, cookies_override: Optional[str] = None) -> Dict[str, Any]:
-        jid = _safe_text(encrypt_job_id, 64)
-        if not jid:
-            return {"ok": False, "data": None, "error": {"code": "invalid_params", "message": "encrypt_job_id 不能为空"}}
-        # job-reopen 无 --json 选项，靠退出码判成功
-        return _run(["recruiter", "job-reopen", jid, "-y"], timeout=30, want_json=False, cookies_override=cookies_override)
-
-    # ── 招聘端 · 候选人搜索/推荐/收件箱 ────────────────────
-    def recruiter_search(
-        self,
-        keyword: str,
-        city: Optional[str] = None,
-        exp: Optional[str] = None,
-        degree: Optional[str] = None,
-        salary: Optional[str] = None,
-        job: Optional[str] = None,
-        page: int = 1,
-        cookies_override: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        kw = _safe_text(keyword, 80)
-        if not kw:
-            return {"ok": False, "data": None, "error": {"code": "invalid_params", "message": "keyword 不能为空"}}
-        try:
-            page = max(1, int(page))
-        except (TypeError, ValueError):
-            page = 1
-        args = ["recruiter", "search", kw]
-        args += _opt("-c", city)
-        args += _opt("--exp", exp)
-        args += _opt("--degree", degree)
-        args += _opt("--salary", salary)
-        args += _opt("--job", job)
-        args += ["-p", str(page)]
-        return _run(args, timeout=45, cookies_override=cookies_override)
-
+    # ── 招聘端 · 候选人推荐/收件箱 ─────────────────────────
     def recruiter_recommend(
         self,
         job: Optional[str] = None,
@@ -433,61 +405,6 @@ class BossService:
         # resume-download 无 --json 选项，stdout 即 Markdown
         return _run(args, timeout=60, want_json=False, cookies_override=cookies_override)
 
-    # ── 招聘端 · 沟通动作 ──────────────────────────────────
-    def recruiter_greet(self, encrypt_geek_id: str, job: Optional[str] = None,
-                        cookies_override: Optional[str] = None) -> Dict[str, Any]:
-        gid = _safe_text(encrypt_geek_id, 64)
-        if not gid:
-            return {"ok": False, "data": None, "error": {"code": "invalid_params", "message": "encrypt_geek_id 不能为空"}}
-        args = ["recruiter", "greet", gid]
-        args += _opt("--job", job)
-        return _run(args, timeout=30, cookies_override=cookies_override)
-
-    def recruiter_invite_interview(
-        self,
-        encrypt_geek_id: str,
-        job: str,
-        time: Optional[str] = None,
-        address: Optional[str] = None,
-        desc: Optional[str] = None,
-        cookies_override: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """向候选人发送 BOSS 面试邀请。
-
-        对应 `boss recruiter invite-interview ENCRYPT_GEEK_ID --job ... -y`。
-        --job（关联职位 encryptJobId）为 CLI 必填项，缺失直接 invalid_params。
-        time/address/desc 可空；-y 跳过 CLI 二次确认（人工确认在系统侧完成）。
-        """
-        gid = _safe_text(encrypt_geek_id, 64)
-        if not gid:
-            return {"ok": False, "data": None, "error": {"code": "invalid_params", "message": "encrypt_geek_id 不能为空"}}
-        jid = _safe_text(job, 64)
-        if not jid:
-            return {"ok": False, "data": None, "error": {"code": "invalid_params", "message": "job（BOSS encryptJobId）不能为空"}}
-        args = ["recruiter", "invite-interview", gid, "--job", jid]
-        args += _opt("--time", _safe_text(time, 64) if time else None)
-        args += _opt("--address", _safe_text(address, 200) if address else None)
-        args += _opt("--desc", _safe_text(desc, 500) if desc else None)
-        args += ["-y"]
-        return _run(args, timeout=45, cookies_override=cookies_override)
-
-    def recruiter_request_resume(self, friend_id: int, cookies_override: Optional[str] = None) -> Dict[str, Any]:
-        try:
-            fid = int(friend_id)
-        except (TypeError, ValueError):
-            return {"ok": False, "data": None, "error": {"code": "invalid_params", "message": "friend_id 必须为整数"}}
-        return _run(["recruiter", "request-resume", str(fid), "-y"], timeout=30, cookies_override=cookies_override)
-
-    def recruiter_reply(self, friend_id: int, message: str, cookies_override: Optional[str] = None) -> Dict[str, Any]:
-        try:
-            fid = int(friend_id)
-        except (TypeError, ValueError):
-            return {"ok": False, "data": None, "error": {"code": "invalid_params", "message": "friend_id 必须为整数"}}
-        msg = _safe_text(message, 500)
-        if not msg:
-            return {"ok": False, "data": None, "error": {"code": "invalid_params", "message": "message 不能为空"}}
-        return _run(["recruiter", "reply", str(fid), msg, "-y"], timeout=30, cookies_override=cookies_override)
-
     # ── 多账号管理 ──────────────────────────────────────────
     # 以下方法操作 DB（BossAccount 模型），需在 app context 内调用。
     # cookies 经 Fernet 加密存储；切换账号靠注入 BOSS_COOKIES env，不动全局文件。
@@ -515,7 +432,6 @@ class BossService:
         import json as _json
 
         cookies_json = _json.dumps(cookies, ensure_ascii=False)
-        has_stoken = "__zp_stoken__" in cookies
         # 该用户其他账号取消激活
         BossAccount.query.filter_by(owner_hr_id=owner_hr_id).update({"is_active": False})
         acct = BossAccount(
@@ -523,55 +439,11 @@ class BossService:
             label=(label or "")[:100],
             cookies_encrypted=encrypt(cookies_json),
             cookie_count=len(cookies),
-            has_stoken=has_stoken,
             is_active=True,
         )
         db.session.add(acct)
         db.session.commit()
         return _account_to_dict(acct)
-
-    @staticmethod
-    def import_browser_cookie(
-        owner_hr_id: int, raw_cookies: Any, label: str = ""
-    ) -> Dict[str, Any]:
-        """从浏览器扩展/手动粘贴导入完整 cookie，校验通过后保存为激活账号。
-
-        云部署下后端读不到使用者本机浏览器，cookie 必须由客户端（扩展或粘贴）
-        提交。流程：解析 → 校验必需 cookie 齐全 → 跑 boss status 复核登录态，
-        仅当含 __zp_stoken__ 且 authenticated 才落库激活，否则不保存并回 needs_stoken。
-
-        返回统一信封 {ok, data, error}。
-        """
-        cookies = parse_cookies(raw_cookies)
-        if not cookies:
-            return {"ok": False, "data": None,
-                    "error": {"code": "invalid_params", "message": "未解析到任何 cookie，请重新采集"}}
-
-        missing = [c for c in REQUIRED_COOKIES if c not in cookies]
-        if missing:
-            # 缺 __zp_stoken__ 单独给 needs_stoken（前端据此引导改用扩展），
-            # 其余缺失统一提示重新登录采集。
-            code = "needs_stoken" if "__zp_stoken__" in missing else "incomplete_cookie"
-            return {
-                "ok": False, "data": {"missing": missing},
-                "error": {"code": code,
-                          "message": f"cookie 不完整，缺少 {', '.join(missing)}；"
-                                     f"请确认已在本机浏览器完整登录 BOSS 直聘招聘端后用扩展重新采集"},
-            }
-
-        # 用提交的 cookie 真实复核登录态，避免存入失效凭证
-        cookie_header = "; ".join(f"{k}={v}" for k, v in cookies.items())
-        st = _run(["status"], timeout=30, cookies_override=cookie_header)
-        authenticated = bool(st.get("ok") and st.get("data", {}).get("authenticated"))
-        if not authenticated:
-            return {
-                "ok": False, "data": st.get("data"),
-                "error": {"code": "not_authenticated",
-                          "message": "cookie 校验未通过（可能已过期），请在浏览器重新登录后再采集"},
-            }
-
-        acct = BossService.save_account(owner_hr_id, cookies, label=label)
-        return {"ok": True, "data": acct, "error": None}
 
     @staticmethod
     def activate_account(owner_hr_id: int, account_id: int) -> Dict[str, Any]:
@@ -628,7 +500,6 @@ class BossService:
         acct.last_verified_at = utc_now()
         acct.last_verified_ok = authenticated
         acct.cookie_count = len(cookies)
-        acct.has_stoken = "__zp_stoken__" in cookies
         db.session.commit()
         return {"ok": True, "data": {"authenticated": authenticated, "status": result.get("data")}}
 
@@ -657,7 +528,6 @@ def _account_to_dict(acct) -> Dict[str, Any]:
         "id": acct.id,
         "label": acct.label or "",
         "cookie_count": acct.cookie_count or 0,
-        "has_stoken": bool(acct.has_stoken),
         "is_active": bool(acct.is_active),
         "last_verified_at": acct.last_verified_at.isoformat() if acct.last_verified_at else None,
         "last_verified_ok": acct.last_verified_ok,

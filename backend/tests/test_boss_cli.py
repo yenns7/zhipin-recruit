@@ -56,7 +56,6 @@ def _seed_account(owner_hr_id: int, cookies: dict = None, label: str = "test"):
         label=label,
         cookies_encrypted=encrypt(json.dumps(cookies)),
         cookie_count=len(cookies),
-        has_stoken="__zp_stoken__" in cookies,
         is_active=True,
     )
     db.session.add(acct)
@@ -143,18 +142,61 @@ def test_run_nonzero_exit_classifies_not_authenticated(monkeypatch):
     assert r["error"]["code"] == "not_authenticated"
 
 
+def test_run_api_error_code7_maps_to_not_authenticated(monkeypatch):
+    """非零退出 + stdout 含 api_error/code=7 信封 → 映射为 not_authenticated。"""
+    _patch_cli_ok(monkeypatch)
+    payload = {
+        "ok": False,
+        "data": None,
+        "error": {"code": "api_error", "message": "登录态失效，code=7"},
+    }
+    _patch_run(monkeypatch, stdout=json.dumps(payload), returncode=1)
+    r = _run(["recruiter", "jobs"])
+    assert r["ok"] is False
+    assert r["error"]["code"] == "not_authenticated"
+    assert "code=7" in r["error"]["message"]
+
+
+def test_run_api_error_shixiao_maps_to_not_authenticated(monkeypatch):
+    """非零退出 + stdout api_error 含"失效" → not_authenticated。"""
+    _patch_cli_ok(monkeypatch)
+    payload = {
+        "ok": False,
+        "data": None,
+        "error": {"code": "api_error", "message": "cookie 已失效，请重新登录"},
+    }
+    _patch_run(monkeypatch, stdout=json.dumps(payload), returncode=1)
+    r = _run(["recruiter", "inbox"])
+    assert r["ok"] is False
+    assert r["error"]["code"] == "not_authenticated"
+
+
+def test_run_api_error_code37_maps_to_needs_stoken(monkeypatch):
+    """非零退出 + stdout api_error/code=37 → needs_stoken。"""
+    _patch_cli_ok(monkeypatch)
+    payload = {
+        "ok": False,
+        "data": None,
+        "error": {"code": "api_error", "message": "环境异常，code=37，需要 stoken"},
+    }
+    _patch_run(monkeypatch, stdout=json.dumps(payload), returncode=1)
+    r = _run(["recruiter", "recommend"])
+    assert r["ok"] is False
+    assert r["error"]["code"] == "needs_stoken"
+
+
 def test_run_nonzero_exit_rate_limited(monkeypatch):
     _patch_cli_ok(monkeypatch)
     _patch_run(monkeypatch, stdout="", stderr="rate_limited: 429 频控", returncode=1)
-    r = _run(["recruiter", "search", "x"])
+    r = _run(["recruiter", "inbox"])
     assert r["error"]["code"] == "rate_limited"
 
 
 def test_run_action_command_no_stdout_success(monkeypatch):
-    """job-close 无 --json，成功时 stdout 空 → 视为成功（退出码 0）。"""
+    """动作型命令无 stdout，成功时退出码 0 → 视为成功。"""
     _patch_cli_ok(monkeypatch)
-    _patch_run(monkeypatch, stdout="", stderr="职位已关闭: ABC123", returncode=0)
-    r = _run(["recruiter", "job-close", "ABC123", "-y"], want_json=False)
+    _patch_run(monkeypatch, stdout="", stderr="done", returncode=0)
+    r = _run(["some", "action"], want_json=False)
     assert r["ok"] is True
     assert r["data"]["status"] == "ok"
 
@@ -179,38 +221,6 @@ def test_run_non_json_text(monkeypatch):
 
 
 # ── 服务层：argv 拼装 ─────────────────────────────────────────────
-def test_search_argv_assembly(monkeypatch):
-    """搜索：keyword/city/exp/.../page 正确拼到 argv，并追加 --json。"""
-    _patch_cli_ok(monkeypatch)
-    captured = []
-    _patch_run(monkeypatch, stdout=json.dumps({"ok": True, "data": {}, "error": None}), capture=captured)
-    s = BossService()
-    s.recruiter_search(keyword="golang", city="上海", exp="3-5年", degree="本科",
-                       salary="20-30K", job="JOB123", page=2)
-    cmd = captured[0]
-    assert cmd[0] == "/usr/local/bin/boss"
-    assert cmd[1:4] == ["recruiter", "search", "golang"]
-    assert "-c" in cmd and "上海" in cmd
-    assert "--exp" in cmd and "3-5年" in cmd
-    assert "--degree" in cmd and "本科" in cmd
-    assert "--salary" in cmd and "20-30K" in cmd
-    assert "--job" in cmd and "JOB123" in cmd
-    assert "-p" in cmd and "2" in cmd
-    assert cmd[-1] == "--json"  # 追加 --json
-
-
-def test_job_close_no_json_flag(monkeypatch):
-    """job-close 不应追加 --json（该命令无此选项）。"""
-    _patch_cli_ok(monkeypatch)
-    captured = []
-    _patch_run(monkeypatch, stdout="", stderr="职位已关闭", returncode=0, capture=captured)
-    BossService().recruiter_job_close("JOB123")
-    cmd = captured[0]
-    assert "--json" not in cmd
-    assert cmd[-2:] == ["JOB123", "-y"]
-    assert cmd[1:3] == ["recruiter", "job-close"]
-
-
 def test_resume_download_uses_stdout_dash(monkeypatch):
     """resume-download 用 -o - 输出到 stdout，且不追加 --json。"""
     _patch_cli_ok(monkeypatch)
@@ -222,14 +232,6 @@ def test_resume_download_uses_stdout_dash(monkeypatch):
     assert "-o" in cmd and "-" in cmd
     assert "--job" in cmd and "JOB1" in cmd
     assert r["ok"] is True
-
-
-def test_search_empty_keyword_rejected(monkeypatch):
-    """空关键词 → invalid_params，不调用 CLI。"""
-    _patch_cli_ok(monkeypatch)
-    r = BossService().recruiter_search(keyword="   ")
-    assert r["ok"] is False
-    assert r["error"]["code"] == "invalid_params"
 
 
 # ── CLI 未安装降级 ─────────────────────────────────────────────────
@@ -314,19 +316,6 @@ def test_resume_download_rejects_wrong_role(client, make_user, monkeypatch):
     _, token = make_user("iv_dl@x.com", role="interviewer")
     r = client.get(f"/api/boss/candidates/GID123/resume/download?token={token}")
     assert r.status_code == 403
-
-
-def test_search_endpoint_passes_params(client, make_user, monkeypatch):
-    """搜索接口把 query 参数透传给服务层 argv。"""
-    _patch_cli_ok(monkeypatch)
-    captured = []
-    _patch_run(monkeypatch, stdout=json.dumps({"ok": True, "data": {}, "error": None}), capture=captured)
-    uid, token = make_user("hr5@x.com", role="recruiter")
-    _seed_account(uid)
-    r = client.get("/api/boss/candidates/search?keyword=golang&city=上海&page=2", headers=_auth(token))
-    assert r.status_code == 200
-    cmd = captured[0]
-    assert "golang" in cmd and "上海" in cmd and "2" in cmd
 
 
 # ── 多账号管理 ─────────────────────────────────────────────────────
@@ -425,112 +414,35 @@ def test_crypto_roundtrip():
     assert decrypt(ct) == plaintext
 
 
-# ── 浏览器 cookie 导入（方案 B：扩展采集 + 粘贴）────────────────────
-_FULL_COOKIES = "__zp_stoken__=stok123; wt2=w1; wbg=g1; zp_at=at1"
+def test_login_cookie_gone_returns_410(client, make_user):
+    """login/cookie 端点已下线，返回 410。"""
+    _, token = make_user("gone@x.com", role="recruiter")
+    r = client.post("/api/boss/login/cookie", headers=_auth(token))
+    assert r.status_code == 410
+    assert r.get_json()["error"]["code"] == "gone"
 
 
-def test_import_browser_cookie_missing_stoken_not_saved(client, make_user, monkeypatch):
-    """缺 __zp_stoken__ → 409 needs_stoken，且不落库。"""
+def test_qr_confirm_saves_account(client, make_user, monkeypatch):
+    """扫码 confirm 拿到会话 cookie → 200 已保存，无需 stoken。"""
     _patch_cli_ok(monkeypatch)
-    uid, token = make_user("imp1@x.com", role="recruiter")
-    r = client.post("/api/boss/login/browser-cookie",
-                    json={"cookies": "wt2=w1; wbg=g1; zp_at=at1", "label": "无stoken"},
-                    headers=_auth(token))
-    assert r.status_code == 409
-    assert r.get_json()["error"]["code"] == "needs_stoken"
-    # 不应保存任何账号
-    r2 = client.get("/api/boss/accounts", headers=_auth(token))
-    assert r2.get_json()["data"] == []
-
-
-def test_import_browser_cookie_incomplete_cookie(client, make_user, monkeypatch):
-    """有 stoken 但缺会话 cookie → 409 incomplete_cookie，不落库。"""
-    _patch_cli_ok(monkeypatch)
-    uid, token = make_user("imp2@x.com", role="recruiter")
-    r = client.post("/api/boss/login/browser-cookie",
-                    json={"cookies": "__zp_stoken__=stok123; wt2=w1"},
-                    headers=_auth(token))
-    assert r.status_code == 409
-    assert r.get_json()["error"]["code"] == "incomplete_cookie"
-    assert client.get("/api/boss/accounts", headers=_auth(token)).get_json()["data"] == []
-
-
-def test_import_browser_cookie_not_authenticated_not_saved(client, make_user, monkeypatch):
-    """cookie 齐全但 status 校验失败 → 401 not_authenticated，不落库。"""
-    _patch_cli_ok(monkeypatch)
-    _patch_run(monkeypatch, stdout=json.dumps({"authenticated": False, "credential_present": True}))
-    uid, token = make_user("imp3@x.com", role="recruiter")
-    r = client.post("/api/boss/login/browser-cookie",
-                    json={"cookies": _FULL_COOKIES}, headers=_auth(token))
-    assert r.status_code == 401
-    assert r.get_json()["error"]["code"] == "not_authenticated"
-    assert client.get("/api/boss/accounts", headers=_auth(token)).get_json()["data"] == []
-
-
-def test_import_browser_cookie_full_saved_and_active(client, make_user, monkeypatch):
-    """cookie 齐全 + status 通过 → 保存并激活，含 stoken。"""
-    _patch_cli_ok(monkeypatch)
-    _patch_run(monkeypatch, stdout=json.dumps({"authenticated": True, "credential_present": True}))
-    uid, token = make_user("imp4@x.com", role="recruiter")
-    r = client.post("/api/boss/login/browser-cookie",
-                    json={"cookies": _FULL_COOKIES, "label": "浏览器导入"},
-                    headers=_auth(token))
-    assert r.status_code == 200
-    data = r.get_json()["data"]
-    assert data["label"] == "浏览器导入"
-    assert data["is_active"] is True
-    assert data["has_stoken"] is True
-    assert "cookies" not in data  # 明文不回传
-    accts = client.get("/api/boss/accounts", headers=_auth(token)).get_json()["data"]
-    assert len(accts) == 1 and accts[0]["is_active"] is True
-
-
-def test_import_browser_cookie_accepts_dict(client, make_user, monkeypatch):
-    """cookies 也支持 JSON dict 形式提交。"""
-    _patch_cli_ok(monkeypatch)
-    _patch_run(monkeypatch, stdout=json.dumps({"authenticated": True}))
-    uid, token = make_user("imp5@x.com", role="recruiter")
-    r = client.post("/api/boss/login/browser-cookie",
-                    json={"cookies": {"__zp_stoken__": "s", "wt2": "w", "wbg": "g", "zp_at": "a"}},
-                    headers=_auth(token))
-    assert r.status_code == 200
-    assert r.get_json()["data"]["has_stoken"] is True
-
-
-def test_import_browser_cookie_requires_recruiter(client, make_user, monkeypatch):
-    """非 recruiter 角色无权导入 → 403。"""
-    _patch_cli_ok(monkeypatch)
-    uid, token = make_user("imp6@x.com", role="interviewer")
-    r = client.post("/api/boss/login/browser-cookie",
-                    json={"cookies": _FULL_COOKIES}, headers=_auth(token))
-    assert r.status_code == 403
-
-
-def test_qr_confirm_missing_stoken_degraded(client, make_user, monkeypatch):
-    """扫码 confirm 拿到的 cookie 缺 __zp_stoken__ → 200 已保存 + warning 引导安装扩展。"""
-    _patch_cli_ok(monkeypatch)
-    uid, token = make_user("qrdeg@x.com", role="recruiter")
-    # 模拟扫码已完成但缺 stoken（纯 HTTP 扫码的真实情况）。
-    # confirm 端点内部 `from ..services import boss_qr_service`，故 patch 源模块。
+    uid, token = make_user("qr1@x.com", role="recruiter")
     from app.services import boss_qr_service as qr_mod
     monkeypatch.setattr(qr_mod, "get_qr_credential",
                         lambda sid: {"wt2": "w1", "wbg": "g1", "zp_at": "at1"})
     r = client.post("/api/boss/qr-login/confirm",
                     json={"session_id": "sess", "label": "扫码"}, headers=_auth(token))
     data = r.get_json()
-    # 功能分层：缺 stoken 也保存账号（has_stoken=False），返回 200 + warning
     assert r.status_code == 200
     assert data["ok"] is True
-    assert data["data"]["has_stoken"] is False
-    assert "warning" in data
-    assert "浏览器扩展" in data["warning"]
+    assert data["data"]["is_active"] is True
+    assert "warning" not in data  # 不再有 stoken warning
 
 
 def test_parse_cookies_header_and_dict():
     """parse_cookies 兼容 Cookie 头字符串与 dict，且值含 = 不被切坏。"""
     from app.services.boss_service import parse_cookies
     d = parse_cookies("__zp_stoken__=a=b=c; wt2=v1")
-    assert d["__zp_stoken__"] == "a=b=c"  # 值里的 = 保留
+    assert d["__zp_stoken__"] == "a=b=c"
     assert d["wt2"] == "v1"
     assert parse_cookies({"wt2": 123}) == {"wt2": "123"}
     assert parse_cookies("") == {}
@@ -545,14 +457,13 @@ def test_field_encryption_key_fixed_survives_restart(monkeypatch):
     crypto._reset_cipher_for_test() if hasattr(crypto, "_reset_cipher_for_test") else None
     f1 = Fernet(key.encode())
     ct = f1.encrypt(b'{"wt2":"x"}')
-    # 用同一固定 key 新建（模拟进程重启）→ 仍可解密
     f2 = Fernet(key.encode())
     assert f2.decrypt(ct) == b'{"wt2":"x"}'
 
 
 def test_qr_status_unknown_session(client, make_user):
     """未知 session_id 查状态 → expired。"""
-    uid, token = make_user("qr1@x.com", role="recruiter")
+    uid, token = make_user("qr2@x.com", role="recruiter")
     r = client.get("/api/boss/qr-login/status?session_id=nonexistent",
                    headers=_auth(token))
     assert r.status_code == 200
