@@ -38,7 +38,7 @@ def test_agent_call_log_creates_and_persists(app, make_user):
         db.session.add(log)
         db.session.commit()
 
-        fetched = models.AgentCallLog.query.get(log.id)
+        fetched = db.session.get(models.AgentCallLog, log.id)
         assert fetched is not None
         assert fetched.conversation_id == conv.id
         assert fetched.message_id == msg.id
@@ -75,7 +75,7 @@ def test_agent_call_log_nullable_fields_can_be_empty(app, make_user):
         db.session.add(log)
         db.session.commit()
 
-        fetched = models.AgentCallLog.query.get(log.id)
+        fetched = db.session.get(models.AgentCallLog, log.id)
         assert fetched.conversation_id is None
         assert fetched.message_id is None
         assert fetched.input_text is None
@@ -99,7 +99,7 @@ def test_conversation_archived_and_title_source_defaults(app, make_user):
         db.session.add(conv)
         db.session.commit()
 
-        fetched = models.Conversation.query.get(conv.id)
+        fetched = db.session.get(models.Conversation, conv.id)
         assert fetched.archived is False
         assert fetched.title_source == "auto_first"
 
@@ -108,6 +108,6 @@ def test_conversation_archived_and_title_source_defaults(app, make_user):
         db.session.add(conv2)
         db.session.commit()
 
-        fetched2 = models.Conversation.query.get(conv2.id)
+        fetched2 = db.session.get(models.Conversation, conv2.id)
         assert fetched2.archived is True
         assert fetched2.title_source == "manual"

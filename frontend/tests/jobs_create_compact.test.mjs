@@ -18,7 +18,7 @@ assert.match(
 
 assert.match(
   source,
-  /<PageHeader[\s\S]*actions=\{/,
+  /<EnterpriseHero[\s\S]*actions=\{/,
   'JobsPage should expose create-job as a header action instead of a full-width default form',
 );
 

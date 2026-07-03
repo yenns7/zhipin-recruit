@@ -1,5 +1,5 @@
-// Authenticated layout: Apple-style sidebar nav + compact top-bar account menu.
-// 毛玻璃侧边栏、渐变 Logo、GSAP 克制动效。
+// Authenticated layout: 主数据系统式企业后台壳子 + compact account menu.
+// 保留现有路由权限，只统一展示层结构与视觉。
 
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -73,6 +73,10 @@ export function AppShell() {
     '/admin/settings',
   ]);
   const isTopLevel = TOP_LEVEL_PATHS.has(location.pathname);
+  const activeNavItem = items.find((item) =>
+    isNavItemActive(item, location.pathname, isPathActive(location.pathname, item.to)),
+  );
+  const activeTabLabel = activeNavItem ? navLabelForRole(activeNavItem, role) : '工作台';
 
   useEffect(() => {
     const sidebar = sidebarScope.current;
@@ -171,30 +175,25 @@ export function AppShell() {
   }
 
   return (
-    <div className="flex h-screen bg-surface-soft">
-      {/* Sidebar — glass effect */}
-      <aside
-        ref={sidebarScope}
-        className="flex w-60 flex-col border-r border-glass-border"
-        style={{
-          background: 'rgba(255,255,255,0.85)',
-          backdropFilter: 'blur(20px) saturate(180%)',
-          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-        }}
-      >
-        <div className="flex h-16 items-center gap-2 px-5" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-          <div
-            data-shell="logo"
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold text-white shadow-apple-sm"
-            style={{ background: 'linear-gradient(135deg, #007AFF, #5856D6)' }}
-          >
-            智
+    <div className="enterprise-shell">
+      <aside ref={sidebarScope} className="enterprise-sidebar">
+        <div className="enterprise-brand">
+          <div data-shell="logo" className="enterprise-brand-mark" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+            <span />
+            <span />
+            <span />
+            <span />
+            <span />
+            <span />
           </div>
-          <span className="text-lg font-semibold tracking-tight text-ink">
+          <span className="enterprise-brand-name">
             智聘
           </span>
         </div>
-        <nav className="flex-1 space-y-1 px-3 py-4">
+        <nav className="enterprise-nav" aria-label="主导航">
           {items.map((item) => (
             <NavLink
               key={item.to}
@@ -204,91 +203,83 @@ export function AppShell() {
               className={({ isActive }) => {
                 const active = isNavItemActive(item, location.pathname, isActive);
                 return cn(
-                  'group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-200',
-                  active
-                    ? 'bg-surface-card text-ink font-semibold shadow-apple-xs'
-                    : 'text-muted hover:bg-surface-soft hover:text-ink hover:translate-x-0.5',
+                  'enterprise-nav-item',
+                  active && 'enterprise-nav-item-active',
                 );
               }}
             >
-              {({ isActive }) => {
-                const active = isNavItemActive(item, location.pathname, isActive);
+              {() => {
                 const label = navLabelForRole(item, role);
                 return (
                   <>
-                    <span
-                      className={cn(
-                        'absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full transition-all duration-300',
-                        active ? 'opacity-100' : 'opacity-0',
-                      )}
-                      style={{ background: 'linear-gradient(180deg, #007AFF, #5856D6)' }}
-                    />
                     <item.icon
-                      className="h-[18px] w-[18px] transition-transform duration-200 group-hover:scale-110"
+                      className="enterprise-nav-icon h-[18px] w-[18px]"
                       strokeWidth={2}
                     />
-                    {label}
+                    <span className="enterprise-nav-label">{label}</span>
                   </>
                 );
               }}
             </NavLink>
           ))}
         </nav>
+        <div className="enterprise-sidebar-footer">
+          主数据系统式招聘工作台<br />
+          当前角色：{role ? ROLE_LABELS[role] : '未识别'}
+        </div>
       </aside>
 
-      {/* Main column */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <header
-          className="flex h-16 items-center justify-between bg-canvas px-6"
-          style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}
-        >
-          <div className="flex items-center">
+      <div className="enterprise-main-column">
+        <header className="enterprise-topbar">
+          <div className="enterprise-topbar-context">
             {!isTopLevel && (
               <button
                 onClick={() => navigate(-1)}
-                className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-surface-soft hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                className="flex items-center gap-1.5 rounded px-2 py-1 text-sm font-medium text-muted transition-colors hover:bg-surface-soft hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                 aria-label="返回上一页"
               >
                 <ArrowLeft className="h-4 w-4" />
                 返回
               </button>
             )}
+            {isTopLevel && <span>招聘业务展示环境 · UI 统一版</span>}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="enterprise-topbar-actions">
+            <span className="enterprise-topbar-chip">
+              <span className="enterprise-flag-cn" aria-hidden="true" />
+              中国
+            </span>
+            <span className="enterprise-topbar-chip">中文 ▾</span>
             <NavLink
               to="/notifications"
               title="通知中心"
               aria-label="通知中心"
               className={({ isActive }) =>
                 cn(
-                  'flex h-9 w-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-soft hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500',
-                  isActive && 'bg-surface-card text-ink shadow-apple-xs',
+                  'enterprise-topbar-chip enterprise-topbar-chip-hide-mobile rounded px-1.5 py-1 transition-colors hover:bg-surface-soft hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500',
+                  isActive && 'text-ink',
                 )
               }
             >
               <Bell className="h-4 w-4" aria-hidden="true" />
+              消息
             </NavLink>
 
             <div ref={accountMenuRef} data-shell="account-menu" className="relative">
               <button
                 type="button"
                 onClick={() => setShowAccountMenu((open) => !open)}
-                className="flex h-10 items-center gap-2 rounded-lg px-2 text-sm font-medium text-muted transition-colors hover:bg-surface-soft hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                className="enterprise-topbar-chip rounded px-1.5 py-1 transition-colors hover:bg-surface-soft hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                 aria-haspopup="menu"
                 aria-expanded={showAccountMenu}
                 aria-label="账户菜单"
               >
-                <span
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
-                  style={{ background: 'linear-gradient(135deg, #007AFF, #5856D6)' }}
-                  aria-hidden="true"
-                >
+                <span className="enterprise-avatar" aria-hidden="true">
                   {initials(name ?? '')}
                 </span>
                 <span className="hidden max-w-36 min-w-0 items-center gap-2 sm:flex">
                   <span className="truncate text-ink">{name}</span>
-                  {role && <Badge tone="glass">{ROLE_LABELS[role]}</Badge>}
                 </span>
                 <ChevronDown
                   className={cn('h-4 w-4 shrink-0 text-muted-soft transition-transform', showAccountMenu && 'rotate-180')}
@@ -299,13 +290,13 @@ export function AppShell() {
               {showAccountMenu && (
                 <div
                   role="menu"
-                  className="absolute right-0 top-12 z-50 w-56 rounded-lg border border-glass-border bg-canvas p-2 shadow-apple-md"
+                  className="absolute right-0 top-10 z-50 w-56 rounded-lg border border-hairline bg-canvas p-2 shadow-card-lg"
                 >
                   <div className="border-b border-glass-border px-2 pb-2 pt-1">
                     <div className="truncate text-sm font-medium text-ink">{name}</div>
                     {role && (
                       <div className="mt-1">
-                        <Badge tone="glass">{ROLE_LABELS[role]}</Badge>
+                        <Badge tone="success">{ROLE_LABELS[role]}</Badge>
                       </div>
                     )}
                   </div>
@@ -336,10 +327,15 @@ export function AppShell() {
           </div>
         </header>
 
+        <div className="enterprise-tabs">
+          <div className="enterprise-tab">Home</div>
+          <div className="enterprise-tab enterprise-tab-active">{activeTabLabel}</div>
+        </div>
+
         {showAccount && <AccountSettings onClose={() => setShowAccount(false)} />}
 
-        <main className="flex-1 overflow-y-auto p-6">
-          <div ref={mainScope} className="mx-auto max-w-7xl">
+        <main className="enterprise-content">
+          <div ref={mainScope} className="w-full">
             <AgentChatProvider>
               <Outlet />
             </AgentChatProvider>

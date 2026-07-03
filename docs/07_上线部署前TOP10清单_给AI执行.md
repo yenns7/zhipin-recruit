@@ -46,9 +46,9 @@
 - **验收**：启动后访问不存在路由返回标准 401/404 JSON，不出现 Werkzeug 调试页。
 - **依赖**：设 false 会激活生产安全校验，须确保第 1、4 项已达标，否则启动报 RuntimeError（预期行为）。
 
-### 3. 切换 PostgreSQL + 定时备份〔部署 · 对应 C3 · 🧑 HUMAN 协同 IT〕
+### 3. 切换 MySQL/PostgreSQL + 定时备份〔部署 · 对应 C3 · 🧑 HUMAN 协同 IT〕
 - **为什么**：SQLite 单文件且指向本地 Desktop，无法搬到服务器、无并发与备份保障。
-- **AI 动作**：`backend/.env` 设 `DATABASE_URL=postgresql://<user>:<pass>@<host>:5432/<db>`（连接串由 IT 提供）；配 `BACKUP_DIR=/var/backups/zhipin` 并交付一个每日 `pg_dump` 的 cron/systemd-timer 示例。
+- **AI 动作**：`backend/.env` 设 `DATABASE_URL=mysql+pymysql://<user>:<pass>@<host>:3306/<db>?charset=utf8mb4`（连接串由 IT 提供；如走 PostgreSQL 则使用 `postgresql://<user>:<pass>@<host>:5432/<db>`）；配 `BACKUP_DIR=/var/backups/zhipin` 并交付一个每日 `mysqldump`/`pg_dump` 的 cron/systemd-timer 示例。
 - **验收**：`python3 -c "from backend.app import create_app; create_app()"` 正常建表；`/api/jobs` 读写正常；备份目录出现当日 dump。
 - **红线**：仅引擎切换，不改 schema 结构（R4）。
 

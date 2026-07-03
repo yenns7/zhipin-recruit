@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.app.json"
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "test": "for f in tests/*.test.mjs; do node \"$f\" || exit $?; done"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

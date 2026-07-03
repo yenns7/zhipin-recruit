@@ -19,8 +19,8 @@ const base =
   'active:scale-[0.97] transition-all duration-150';
 
 const variants: Record<Variant, string> = {
-  primary: 'rounded-md bg-brand-600 text-on-primary hover:bg-brand-700',
-  accent: 'rounded-md bg-accent-blue text-white hover:brightness-110 shadow-apple-sm',
+  primary: 'rounded-md bg-[var(--enterprise-brand)] text-on-primary hover:bg-[var(--enterprise-brand-dark)]',
+  accent: 'rounded-md bg-[var(--enterprise-brand)] text-white hover:bg-[var(--enterprise-brand-dark)] shadow-apple-sm',
   secondary:
     'rounded-md bg-canvas text-ink border border-hairline hover:bg-surface-soft hover:border-surface-strong',
   ghost:

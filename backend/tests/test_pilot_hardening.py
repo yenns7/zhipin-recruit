@@ -63,6 +63,12 @@ def test_postgres_url_uses_psycopg_driver():
     assert _normalize_database_url("sqlite:///hireinsight.db") == "sqlite:///hireinsight.db"
 
 
+def test_mysql_url_uses_pymysql_driver():
+    assert _normalize_database_url("mysql://user:pass@db:3306/zhipin") == (
+        "mysql+pymysql://user:pass@db:3306/zhipin"
+    )
+
+
 def test_dev_mode_skips_enforcement():
     app = _mk(FLASK_DEBUG=True, JWT_SECRET="dev-secret", CORS_ORIGINS=[])
     _enforce_production_security(app)  # 开发模式放行

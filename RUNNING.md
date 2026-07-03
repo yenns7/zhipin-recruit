@@ -17,6 +17,47 @@ PORT=5001 python run.py
 
 开发联调后端固定使用 http://localhost:5001，前端开发服务会代理到这个端口。
 
+## 公司 MySQL 测试库试用
+
+当前试用环境的完整交接说明见 [`docs/当前试用环境交接说明.md`](docs/当前试用环境交接说明.md)。新开 Codex 对话时，先读这份文档可以快速恢复上下文。
+
+### 公司测试域名（2026-07-03）
+
+同事已提供公司测试环境地址：
+
+```text
+智聘测试环境：https://test-zhipin.yimidida.com/login
+PGS 测试环境：https://test-pgs.yimidida.com/
+```
+
+已做基础连通性验证：
+
+- `https://test-zhipin.yimidida.com/login` 返回 HTTP 200，页面标题为“智聘 · 招聘管理系统”，加载的是当前智聘前端构建包。
+- `https://test-pgs.yimidida.com/` 返回 HTTP 200，页面为另一个 Nuxt 应用，`NUXT_ENV=sit`。
+
+PGS 相关代码不在当前智聘仓库中。它和智聘的关系（是否用于统一入口、账号登录、数据跳转或上下游流程）需要向公司同事确认后再写入正式集成说明。
+
+当前公司测试库使用 MySQL 8.0.32，项目通过 SQLAlchemy 的 `mysql+pymysql://` 驱动连接。给同事临时试用时，`backend/.env` 至少需要包含：
+
+```env
+FLASK_DEBUG=false
+DATABASE_URL=mysql+pymysql://<user>:<password>@<host>:3306/<database>?charset=utf8mb4
+CORS_ORIGINS=http://localhost:5000,http://127.0.0.1:5000,http://<本机局域网IP>:5000
+ALLOW_PUBLIC_REGISTRATION=false
+SECURITY_HEADERS_ENABLED=true
+RATE_LIMIT_ENABLED=true
+BACKUP_DIR=../backups
+```
+
+首次接入空库时，启动后端会自动创建业务表。需要演示数据时执行：
+
+```bash
+cd backend
+python seed_dev.py
+```
+
+对外临时试用可访问 `http://<本机局域网IP>:5000`。如果换了网络或本机 IP，记得同步更新 `CORS_ORIGINS` 并重启后端。
+
 ---
 
 ## MVP 内部试用账号
@@ -106,13 +147,21 @@ python backend/scripts/cleanup_demo_data.py --confirm
 
 该脚本会先备份，再删除 `@mvp.local` demo 账号及其关联业务数据，并清空 `backend/uploads/`、`uploads/` 文件。
 
+MySQL 试用库备份 dry-run：
+
+```bash
+python backend/scripts/backup_pilot_data.py --dry-run
+```
+
+脚本会使用 `mysqldump --single-transaction` 导出数据库，并打包上传目录；正式备份前确保服务器安装了 `mysqldump` 客户端。
+
 ---
 
 ## BOSS 直聘集成（boss-cli，必须配置）
 
-`/boss` 页面（含「收件箱·闭环」工作台：拉取已沟通候选人 → 批量导入 → AI 简历初筛 → 面试邀请）通过外部命令行工具 `boss` 接入 BOSS 直聘招聘端。**boss-cli 是该模块的硬性前置依赖，未正确安装时 `/boss` 全部功能不可用**（接口返回 503 `boss_cli_not_installed`）。
+`/boss` 页面（含「收件箱·闭环」工作台：拉取已沟通候选人 → 批量导入 → AI 简历初筛）通过外部命令行工具 `boss` 接入 BOSS 直聘招聘端。**boss-cli 是该模块的硬性前置依赖，未正确安装时 `/boss` 全部功能不可用**（接口返回 503 `boss_cli_not_installed`）。
 
-> 重点：本系统用到的招聘端命令（`recruiter inbox / resume / invite-interview` 等）**只存在于 GitHub 源码版**，PyPI 包 `kabi-boss-cli` 未收录。因此**必须从 GitHub 源码安装**，不能只 `pip install kabi-boss-cli`。
+> 重点：本系统用到的招聘端命令（`recruiter inbox / resume / recommend / jobs` 等）**只存在于 GitHub 源码版**，PyPI 包 `kabi-boss-cli` 未收录。因此**必须从 GitHub 源码安装**，不能只 `pip install kabi-boss-cli`。
 
 ### 1. 安装（必须，二选一）
 
@@ -129,7 +178,7 @@ pip install git+https://github.com/jackwener/boss-cli.git --break-system-package
 
 ```bash
 boss --help                 # 能打印帮助即二进制就位
-boss recruiter --help       # 必须能看到 inbox / resume / invite-interview，否则是 PyPI 版，需改用 GitHub 源码版
+boss recruiter --help       # 必须能看到 inbox / resume / recommend / jobs，否则是 PyPI 版，需改用 GitHub 源码版
 ```
 
 ### 3. 后端二进制查找顺序
@@ -147,20 +196,29 @@ boss recruiter --help       # 必须能看到 inbox / resume / invite-interview�
 
 ### 5. BOSS 账号登录（必须，运行期配置）
 
-CLI 装好后还需绑定 BOSS 账号。**本系统部署在云服务器，后端读不到使用者本机浏览器的登录态**，而 BOSS 招聘端鉴权需要一组完整 Cookie：`__zp_stoken__`（页面 JS 生成）+ `wt2` / `wbg` / `zp_at`（服务端 HttpOnly 会话 Cookie）。其中 HttpOnly Cookie 无法被网页脚本读取，因此必须用浏览器扩展采集。
+CLI 装好后还需绑定 BOSS 账号。本系统部署在云服务器，后端读不到使用者本机浏览器的登录态，因此采用**浏览器 Cookie 导入**方式：试点人员在本机浏览器登录 BOSS 直聘招聘端后，通过 Chrome 扩展或开发者工具复制 Cookie，粘贴到 `/boss` 页面「从浏览器导入」。
 
-**推荐方式 —— 从浏览器导入账号：**
+**浏览器导入操作步骤：**
 
-1. 在本机浏览器登录 BOSS 直聘招聘端（zhipin.com）。
-2. 安装 `browser-extension/`（智聘 · BOSS Cookie 采集器）：Chrome/Edge 打开 `chrome://extensions` → 开启「开发者模式」→「加载已解压的扩展程序」→ 选择 `browser-extension` 目录。
-3. 点击扩展「一键采集并复制」，把完整 Cookie 复制到剪贴板。
-4. 进入 `/boss` 页面 → 顶部「BOSS 账号管理」→「从浏览器导入账号」→ 粘贴 Cookie → 保存。后端校验必需 Cookie 齐全且登录态有效后，加密保存并激活，支持多账号切换。
+1. 进入 `/boss` 页面 → 顶部「BOSS 账号管理」→ 点击「从浏览器导入」。
+2. 推荐下载页面提供的 Chrome 扩展，按提示在 Chrome 扩展页加载。
+3. 在本机浏览器打开 BOSS 直聘招聘端并登录，使用扩展一键发送到智聘；或从开发者工具 Network 请求中复制 `Cookie` 值手动粘贴。
+4. 输入账号别名后保存。系统自动加密存储会话 Cookie。
 
-接口 `POST /api/boss/login/browser-cookie` 会校验：缺 `__zp_stoken__` → 409 `needs_stoken`；缺其他必需 Cookie → 409 `incomplete_cookie`；Cookie 失效 → 401 `not_authenticated`；**只有校验通过才落库激活**。
+**导入账号后可用功能（Tier-1，无需 `__zp_stoken__`）：**
+- 收件箱/沟通列表、推荐候选人列表
+- 查看候选人简历详情、下载简历 Markdown
+- 批量导入候选人到系统候选人库
+- AI 简历初筛
+- 职位列表查看
+- 多账号管理（切换/校验/删除）
 
-**扫码登录（实验性，已降级）：** 纯 HTTP 扫码拿不到页面 JS 生成的 `__zp_stoken__`，confirm 时若缺失会返回 409 `needs_stoken` 并提示改用浏览器导入，不会保存为可用账号。仅作兼容入口保留。
+**已下线功能（原 Tier-2，依赖短效 `__zp_stoken__`，云端无法稳定持有）：**
+- 搜索候选人、打招呼、发消息、请求简历
+- 通过 BOSS 系统发送面试邀请（改为系统内安排）
+- 关闭/开启职位
 
-> 安全提示：导入的 Cookie 等同 BOSS 登录态。请全程通过 HTTPS 提交；后端仅 Fernet 加密落库、不写日志。请告知试点人员用途与留存期限。
+> 安全提示：Cookie 等同 BOSS 登录态。请全程通过 HTTPS 提交；后端仅 Fernet 加密落库、不写日志。请告知试点人员用途与留存期限。
 
 ### 6. 找不到 `boss` 时的排障
 
@@ -179,9 +237,13 @@ export BOSS_CLI_BIN=/path/to/bin/boss
 
 ### 7. 状态码对照
 
-`/api/boss/status` 在 BOSS 账号未绑定时返回 409 `no_active_account` 属正常业务响应（去 `/boss` 页面「从浏览器导入账号」即可）；返回 401 `not_authenticated` 表示账号 Cookie 失效需重新导入；只有返回 503 `boss_cli_not_installed` 才是 CLI 未就绪，需回到第 1 步。
+`/api/boss/status` 在 BOSS 账号未绑定时返回 409 `no_active_account` 属正常业务响应（去 `/boss` 页面扫码登录即可）；返回 401 `not_authenticated` 表示账号 Cookie 失效需重新扫码；只有返回 503 `boss_cli_not_installed` 才是 CLI 未就绪，需回到第 1 步。
 
-导入账号（`POST /api/boss/login/browser-cookie`）的状态码：409 `needs_stoken`（缺 `__zp_stoken__`，请用浏览器扩展采集）、409 `incomplete_cookie`（缺 `wt2`/`wbg`/`zp_at`）、401 `not_authenticated`（Cookie 失效）。
+浏览器 Cookie 导入（`POST /api/boss/login/browser-cookie`）：200 保存成功，全功能可用。
+
+`POST /api/boss/login/cookie` 已下线，返回 410 `gone`。
+
+`POST /api/boss/candidates/invite-interview` 已下线，返回 410 `gone`；请改用系统内面试安排流程。
 
 ---
 
@@ -218,6 +280,20 @@ npm run build    # 重新构建后提交 frontend/dist/
 ```
 
 开发时只保留一个前端地址：`http://localhost:5173`。如果 5173 被占用，Vite 会直接报错，不会自动跳到 5174/5175。
+
+### 前端质量门禁
+
+前端有一套基于 Node 原生 `assert` 的契约测试（`frontend/tests/*.test.mjs`，覆盖流水线、候选人、面试、BI、权限等模块），改动前端代码后按需运行：
+
+```bash
+cd frontend
+npm run typecheck   # TypeScript 类型检查
+npm run lint        # ESLint
+npm test            # 运行全部 tests/*.test.mjs 契约测试
+npm run build       # 生产构建（产出 dist/）
+```
+
+`npm test` 逐个执行 `tests/*.test.mjs`，任一失败即整体失败。这些测试读取 `src/` 源码做断言，不启动浏览器，主要用于防止组件契约和路由/权限边界回归。
 
 ## 临时外链试用
 

@@ -12,9 +12,11 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 
 def _normalize_database_url(url: str) -> str:
-    """Use psycopg v3 for PostgreSQL while accepting the common postgresql:// form."""
+    """Normalize common database URLs to the SQLAlchemy driver URLs this app uses."""
     if url.startswith("postgresql://"):
         return "postgresql+psycopg://" + url[len("postgresql://"):]
+    if url.startswith("mysql://"):
+        return "mysql+pymysql://" + url[len("mysql://"):]
     return url
 
 
@@ -51,7 +53,7 @@ class Config:
     WEAK_SECRETS = {"dev-secret-change-in-prod", "dev-secret", "test-secret", "change-me-in-production", ""}
     MIN_SECRET_LENGTH = 32
 
-    # 数据库：开发用 SQLite（绝对路径，避免 CWD 不同导致建出空库），生产换 PostgreSQL URL
+    # 数据库：开发用 SQLite（绝对路径，避免 CWD 不同导致建出空库），试点/生产换 MySQL 或 PostgreSQL URL
     _default_db = "sqlite:///" + str(Path(__file__).resolve().parent.parent / "hireinsight.db")
     DATABASE_URL = _normalize_database_url(os.environ.get("DATABASE_URL", _default_db))
     SQLALCHEMY_DATABASE_URI = DATABASE_URL

@@ -66,20 +66,14 @@ import type {
   TalentMapPersonInput,
   TalentMapSummary,
   BossStatus,
-  BossLoginGuide,
   BossJob,
-  BossSearchParams,
   BossRecommendParams,
   BossInboxParams,
   BossAccount,
-  BossQrStartResult,
-  BossQrStatusResult,
   BossBatchImportParams,
   BossBatchImportResult,
   BossAiScreenParams,
   BossAiScreenResult,
-  BossInviteInterviewParams,
-  BossInviteInterviewResult,
   ConversationListResponse,
   ConversationDetail,
   CreateConversationResponse,
@@ -107,10 +101,12 @@ export function clearToken(): void {
 // Error surfaced to callers; carries HTTP status and any backend message.
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  code?: string;
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -188,6 +184,12 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
       rawError && typeof rawError === 'object' && 'message' in rawError
         ? String((rawError as Record<string, unknown>).message)
         : null;
+    // boss 蓝图错误体为 { ok:false, error:{ code, message } }，提取 code 供上层
+    // 按 code（如 needs_stoken）分支处理，而不止依赖 message 文本。
+    const nestedErrorCode =
+      rawError && typeof rawError === 'object' && 'code' in rawError
+        ? String((rawError as Record<string, unknown>).code)
+        : undefined;
     const message =
       nestedErrorMessage ||
       (typeof rawError === 'string' ? rawError : null) ||
@@ -195,7 +197,7 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
         ? String((data as Record<string, unknown>).message)
         : null) ||
       `Request failed with status ${res.status}`;
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, nestedErrorCode);
   }
 
   return data as T;
@@ -205,7 +207,7 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
 async function bossRequest<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const res = await request<{ ok: boolean; data: T; error?: { code: string; message: string } }>(path, opts);
   if (!res.ok) {
-    throw new ApiError(0, res.error?.message ?? 'BOSS 接口错误');
+    throw new ApiError(0, res.error?.message ?? 'BOSS 接口错误', res.error?.code);
   }
   return res.data;
 }
@@ -586,27 +588,8 @@ export const api = {
   bossStatus(): Promise<BossStatus> {
     return bossRequest('/boss/status');
   },
-  bossLoginGuide(): Promise<BossLoginGuide> {
-    return bossRequest('/boss/login/guide');
-  },
-  bossLoginCookie(browser = 'chrome'): Promise<BossStatus> {
-    return bossRequest('/boss/login/cookie', { method: 'POST', body: { browser } });
-  },
   bossJobs(): Promise<BossJob[]> {
     return bossRequest('/boss/jobs');
-  },
-  bossJobClose(encryptJobId: string): Promise<{ status: string }> {
-    return bossRequest(`/boss/jobs/${encodeURIComponent(encryptJobId)}/close`, { method: 'POST' });
-  },
-  bossJobReopen(encryptJobId: string): Promise<{ status: string }> {
-    return bossRequest(`/boss/jobs/${encodeURIComponent(encryptJobId)}/reopen`, { method: 'POST' });
-  },
-  bossSearchCandidates(params: BossSearchParams): Promise<unknown> {
-    const qs = new URLSearchParams();
-    Object.entries(params).forEach(([k, v]) => {
-      if (v !== undefined && v !== '') qs.set(k, String(v));
-    });
-    return bossRequest(`/boss/candidates/search?${qs}`);
   },
   bossRecommendCandidates(params: BossRecommendParams): Promise<unknown> {
     const qs = new URLSearchParams();
@@ -632,23 +615,8 @@ export const api = {
     });
     return bossRequest(`/boss/candidates/${encodeURIComponent(encryptGeekId)}/resume?${qs}`);
   },
-  bossGreet(encryptGeekId: string, body?: { job?: string }): Promise<unknown> {
-    return bossRequest(`/boss/candidates/${encodeURIComponent(encryptGeekId)}/greet`, {
-      method: 'POST',
-      body: body ?? {},
-    });
-  },
-  bossRequestResume(encryptGeekId: string, friendId: number): Promise<unknown> {
-    return bossRequest(`/boss/candidates/${encodeURIComponent(encryptGeekId)}/request-resume`, {
-      method: 'POST',
-      body: { friend_id: friendId },
-    });
-  },
-  bossReply(friendId: number, message: string): Promise<unknown> {
-    return bossRequest(`/boss/chat/${friendId}/reply`, { method: 'POST', body: { message } });
-  },
 
-  // ---- 招聘闭环：批量导入 / AI 初筛 / 面试邀请 ----
+  // ---- 招聘闭环：批量导入 / AI 初筛 ----
   // 批量下载并导入收件箱候选人简历到候选人库（限量+间隔+去重）。
   bossBatchImport(params: BossBatchImportParams): Promise<BossBatchImportResult> {
     return bossRequest('/boss/candidates/batch-import', { method: 'POST', body: params });
@@ -656,10 +624,6 @@ export const api = {
   // 对已导入候选人做 AI 简历初筛（LLM 评估 + 写 Interview + 推进 ai_screen）。
   bossAiScreen(params: BossAiScreenParams): Promise<BossAiScreenResult> {
     return bossRequest('/boss/candidates/ai-screen', { method: 'POST', body: params });
-  },
-  // 发送面试邀请（BOSS invite-interview + 系统双写），需前端人工确认后调用。
-  bossInviteInterview(params: BossInviteInterviewParams): Promise<BossInviteInterviewResult> {
-    return bossRequest('/boss/candidates/invite-interview', { method: 'POST', body: params });
   },
   // 简历下载走专用 URL（返回 text/markdown），由调用方用 window.open 触发；
   // ?token= 让后端做查询参数鉴权（无法带 Authorization 头）。
@@ -673,20 +637,17 @@ export const api = {
     return `${API_BASE}/boss/candidates/${encodeURIComponent(encryptGeekId)}/resume/download?${qs}`;
   },
 
-  // ---- BOSS 账号管理 + 扫码登录 ----
-  bossQrLoginStart(): Promise<BossQrStartResult> {
-    return bossRequest('/boss/qr-login/start', { method: 'POST' });
-  },
-  bossQrLoginStatus(sessionId: string): Promise<BossQrStatusResult> {
-    return bossRequest(`/boss/qr-login/status?session_id=${encodeURIComponent(sessionId)}`);
-  },
-  bossQrLoginConfirm(sessionId: string, label: string): Promise<BossAccount> {
-    return bossRequest('/boss/qr-login/confirm', { method: 'POST', body: { session_id: sessionId, label } });
-  },
-  // 从本机浏览器导入完整 cookie（扩展采集后粘贴，或手动粘贴 Cookie 头）。
-  // 后端校验必需 cookie 齐全 + status 有效才保存激活。
+  // ---- BOSS 账号管理 ----
+  // 从浏览器粘贴 Cookie 导入（招聘端 Web API 需要浏览器 cookie，QR 扫码无效）。
   bossImportBrowserCookie(cookies: string, label = ''): Promise<BossAccount> {
     return bossRequest('/boss/login/browser-cookie', { method: 'POST', body: { cookies, label } });
+  },
+  // 浏览器扩展下载走专用 URL（返回 ZIP），window.open 触发。
+  bossExtensionDownloadUrl(): string {
+    const qs = new URLSearchParams();
+    const token = getToken();
+    if (token) qs.set('token', token);
+    return `${API_BASE}/boss/extension/download?${qs}`;
   },
   bossAccounts(): Promise<BossAccount[]> {
     return bossRequest('/boss/accounts');
@@ -699,5 +660,19 @@ export const api = {
   },
   bossVerifyAccount(accountId: number): Promise<{ authenticated: boolean; status: unknown }> {
     return bossRequest(`/boss/accounts/${accountId}/verify`, { method: 'POST' });
+  },
+
+  // ---- BOSS CLI 高级功能 ----
+  // 候选人标签列表
+  bossLabels(): Promise<unknown> {
+    return bossRequest('/boss/labels');
+  },
+  // 聊天记录
+  bossChat(friendId: string): Promise<unknown> {
+    return bossRequest(`/boss/chat/${encodeURIComponent(friendId)}`);
+  },
+  // 导出候选人列表
+  bossExport(): Promise<unknown> {
+    return bossRequest('/boss/export');
   },
 };

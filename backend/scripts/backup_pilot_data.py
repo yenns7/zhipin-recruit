@@ -2,7 +2,7 @@
 """Back up pilot database data and uploaded resume files.
 
 Environment:
-  DATABASE_URL   PostgreSQL URL or sqlite:/// file URL
+  DATABASE_URL   MySQL, PostgreSQL, or sqlite:/// file URL
   UPLOAD_FOLDER  Directory containing uploaded resume files
   BACKUP_DIR     Destination directory for backup artifacts
 """
@@ -16,8 +16,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+from dotenv import load_dotenv
+
 
 ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(ROOT / "backend" / ".env")
 
 
 def _env_path(name, default):
@@ -55,7 +58,40 @@ def _postgres_env(database_url):
     return env
 
 
+def _mysql_env(database_url):
+    normalized = database_url.replace("mysql+pymysql://", "mysql://", 1)
+    parsed = urlparse(normalized)
+    env = os.environ.copy()
+    if parsed.password:
+        env["MYSQL_PWD"] = unquote(parsed.password)
+    return parsed, env
+
+
 def _backup_database(database_url, target_dir, dry_run=False):
+    if database_url.startswith(("mysql://", "mysql+pymysql://")):
+        dump_path = target_dir / "database.sql"
+        parsed, env = _mysql_env(database_url)
+        database = unquote(parsed.path.lstrip("/"))
+        command = [
+            "mysqldump",
+            "-h", parsed.hostname or "",
+            "-P", str(parsed.port or 3306),
+            "-u", unquote(parsed.username or ""),
+            "--single-transaction",
+            "--routines",
+            "--triggers",
+            database,
+        ]
+        if dry_run:
+            print(
+                "mysqldump --single-transaction --routines --triggers "
+                f"--result-file {dump_path} (MYSQL_HOST={parsed.hostname or ''} MYSQL_DATABASE={database})"
+            )
+            return
+        with dump_path.open("w", encoding="utf-8") as output:
+            subprocess.run(command, env=env, stdout=output, check=True)
+        return
+
     if database_url.startswith(("postgresql://", "postgresql+psycopg://")):
         dump_path = target_dir / "database.dump"
         command = ["pg_dump", "--format=custom", "--file", str(dump_path)]
@@ -79,7 +115,7 @@ def _backup_database(database_url, target_dir, dry_run=False):
             shutil.copy2(source, target)
         return
 
-    raise SystemExit("Unsupported DATABASE_URL. Use PostgreSQL or sqlite:/// path.")
+    raise SystemExit("Unsupported DATABASE_URL. Use MySQL, PostgreSQL, or sqlite:/// path.")
 
 
 def _backup_uploads(upload_folder, target_dir, dry_run=False):

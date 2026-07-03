@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=360">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">🔗</div>
+      <div>
+        <h1 class="title">智聘 · Cookie 采集</h1>
+        <p class="subtitle">采集 BOSS 直聘 Cookie，一键发送到智聘</p>
+      </div>
+    </div>
+
+    <div id="status-box" class="status-box status-loading">
+      <span id="status-icon">⏳</span>
+      <div>
+        <div id="status-title" class="status-title">正在检测 BOSS 登录状态…</div>
+        <div id="status-detail" class="status-detail"></div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="btn-send" class="btn btn-primary" disabled>
+        <span class="btn-icon">🚀</span> 一键发送到智聘
+      </button>
+      <button id="btn-collect" class="btn btn-secondary">
+        <span class="btn-icon">📋</span> 复制到剪贴板
+      </button>
+      <button id="btn-refresh" class="btn btn-ghost">
+        <span class="btn-icon">🔄</span> 刷新状态
+      </button>
+    </div>
+
+    <div id="hint-box" class="hint" style="display:none"></div>
+
+    <div class="settings-toggle" id="settings-toggle">
+      <span>⚙️</span> 服务器设置
+    </div>
+
+    <div id="settings-panel" class="settings-panel" style="display:none">
+      <div class="form-group">
+        <label class="form-label">智聘平台地址</label>
+        <div class="input-group">
+          <input type="text" id="server-url" class="form-input" placeholder="http://localhost:5000">
+          <button id="btn-save-url" class="btn btn-sm">保存</button>
+        </div>
+        <div class="form-hint">本地开发通常为 http://localhost:5000</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">登录 Token</label>
+        <div class="input-group">
+          <input type="password" id="auth-token" class="form-input" placeholder="从智聘平台复制">
+          <button id="btn-save-token" class="btn btn-sm">保存</button>
+        </div>
+        <div class="form-hint">在智聘平台登录后，从浏览器开发者工具复制</div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <span>仅访问 zhipin.com · Cookie 仅发送到您配置的智聘平台</span>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
