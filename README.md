@@ -71,7 +71,7 @@
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  前端 SPA  (React 18 + Vite 8 + TS + Tailwind + GSAP)    │
-│  12 页面 · recharts 图表 · 近黑 Cal.com 设计语言           │
+│  12 页面 · recharts 图表 · 企业后台统一风格组件             │
 └──────────────────────────┬──────────────────────────────┘
                            │ /api (Vite 代理 / Flask 同源托管)
 ┌──────────────────────────▼──────────────────────────────┐
@@ -92,9 +92,9 @@
 | 层 | 技术 |
 |----|------|
 | 前端 | React 18.3 · Vite 8 · TypeScript 5.9 · Tailwind 3.4 · GSAP 3.15 · recharts 3.8 · React Router 6 |
-| 后端 | Flask 3.1 · SQLAlchemy 2.0 · SQLite/PostgreSQL · PyJWT |
+| 后端 | Flask 3.1 · SQLAlchemy 2.0 · SQLite/MySQL/PostgreSQL · PyJWT |
 | AI | LangGraph 1.2 · DeepSeek v4 (OpenAI 兼容) · pdfplumber · python-docx |
-| 数据 | SQLite（开发）/ PostgreSQL（生产） |
+| 数据 | SQLite（开发）/ MySQL（公司试点）/ PostgreSQL（兼容） |
 
 ## 🚀 快速开始
 
@@ -167,6 +167,9 @@ npm run dev                   # http://localhost:5173，代理到 :5001
 ├── README.md
 └── DEPLOYMENT.md     部署文档
 ```
+
+前端企业后台风格的范围、组件约束和验收截图见
+[docs/12_前端企业后台统一风格说明.md](docs/12_前端企业后台统一风格说明.md)。
 
 ## 🤖 AI 助手用法示例
 

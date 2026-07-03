@@ -2,7 +2,7 @@
 
 > **版本**：2026-06-22
 > **适用环境**：Windows 10/11、Linux（Ubuntu 20.04+）、macOS 13+  
-> **架构**：Flask 单进程 + SQLite（开发）/ PostgreSQL（生产）+ Vite React SPA
+> **架构**：Flask 单进程 + SQLite（开发）/ MySQL（公司试点）/ PostgreSQL（兼容）+ Vite React SPA
 
 ---
 
@@ -40,7 +40,7 @@
     └── /api/agent         LangGraph AI 助手 (SSE 流式)
     │
     ├── base_agent/        LLM 客户端 / 简历解析 / 匹配算法
-    └── hireinsight.db     SQLite 数据库 (生产换 PostgreSQL)
+    └── hireinsight.db     SQLite 数据库 (试点/生产换 MySQL 或 PostgreSQL)
 ```
 
 **角色权限**：
@@ -91,7 +91,7 @@ python -m pip install -r requirements.txt
 > boss recruiter --help   # 能看到 inbox / resume / invite-interview 即正确
 > ```
 >
-> 后端默认 `BOSS_CLI_AUTO_INSTALL=true`，缺失时会自动从上述源码地址安装；生产建议设 `false` 并手动安装。可用 `BOSS_CLI_BIN` 指定 `boss` 绝对路径。详见 `RUNNING.md` 的「BOSS 直聘集成（boss-cli，必须配置）」一节。CLI 装好后还需在 `/boss` 页面「从浏览器导入账号」绑定 BOSS 账号（云部署下后端读不到使用者本机浏览器，需用 `browser-extension/` 扩展采集完整 Cookie 后粘贴导入；扫码登录因拿不到 `__zp_stoken__` 已降级为实验性）。
+> 后端默认 `BOSS_CLI_AUTO_INSTALL=true`，缺失时会自动从上述源码地址安装；生产建议设 `false` 并手动安装。可用 `BOSS_CLI_BIN` 指定 `boss` 绝对路径。详见 `RUNNING.md` 的「BOSS 直聘集成（boss-cli，必须配置）」一节。CLI 装好后还需在 `/boss` 页面「从浏览器导入账号」绑定 BOSS 账号（云部署下后端读不到使用者本机浏览器，需用 `browser-extension/` 扩展采集完整 Cookie 后粘贴导入）。扫码登录也支持：装 `kabi-boss-cli[browser]` + `python -m camoufox fetch` 后，扫码流程会用 Camoufox 无头浏览器自动补全 `__zp_stoken__`；Camoufox 受 BOSS 反爬影响并非 100% 成功，补不出时引导改用浏览器导入，故「从浏览器导入账号」仍是最稳路径。
 
 ### 3.3 配置环境变量
 
@@ -236,7 +236,7 @@ npm run build    # 生成 frontend/dist/
 FLASK_DEBUG=false
 JWT_SECRET=your-strong-random-secret-here
 JWT_EXPIRY_HOURS=8
-DATABASE_URL=postgresql://user:pass@host:5432/zhipin
+DATABASE_URL=mysql+pymysql://user:pass@host:3306/zhipin?charset=utf8mb4
 CORS_ORIGINS=https://zhipin.内网域名
 SECURITY_HEADERS_ENABLED=true
 RATE_LIMIT_ENABLED=true
@@ -246,6 +246,8 @@ RATE_LIMIT_RESUME_UPLOAD=8
 BACKUP_DIR=/var/backups/zhipin
 ALLOW_PUBLIC_REGISTRATION=false
 ```
+
+公司 MySQL 试用环境建议使用 InnoDB、`utf8mb4` 字符集、专用库和专用账号。当前代码也兼容 PostgreSQL，连接串可写为 `postgresql://user:pass@host:5432/zhipin`，会自动转为 `postgresql+psycopg://`。
 
 3. 启动前自检（只读检查，不打印密钥）：
 ```bash

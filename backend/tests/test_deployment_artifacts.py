@@ -47,6 +47,29 @@ def test_backup_script_dry_run_lists_database_and_uploads_targets(tmp_path):
     assert str(tmp_path / "backups") in result.stdout
 
 
+def test_backup_script_dry_run_supports_mysql(tmp_path):
+    script = ROOT / "backend" / "scripts" / "backup_pilot_data.py"
+    env = os.environ.copy()
+    env.update({
+        "DATABASE_URL": "mysql+pymysql://user:pass@db:3306/zhipin?charset=utf8mb4",
+        "UPLOAD_FOLDER": str(tmp_path / "uploads"),
+        "BACKUP_DIR": str(tmp_path / "backups"),
+    })
+    result = subprocess.run(
+        [sys.executable, str(script), "--dry-run"],
+        cwd=str(ROOT),
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "mysqldump" in result.stdout
+    assert "MYSQL_DATABASE=zhipin" in result.stdout
+    assert "pass" not in result.stdout
+
+
 def test_pilot_readiness_check_fails_without_required_production_env(tmp_path):
     script = ROOT / "backend" / "scripts" / "check_pilot_readiness.py"
     env_file = tmp_path / "backend" / ".env"

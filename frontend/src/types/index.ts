@@ -208,6 +208,7 @@ export interface CreateJobResponse {
   city: string;
   department: string;
   job_code: string;
+  status: string;
   structured: JobStructured;
 }
 
@@ -985,13 +986,6 @@ export interface BossStatus {
   reason?: string | null;
 }
 
-export interface BossLoginGuide {
-  installed: boolean;
-  bin: string | null;
-  interactive: boolean;
-  instructions: string[];
-}
-
 // 招聘端在招职位条目（字段来自 boss-cli recruiter jobs）
 export interface BossJob {
   jobName?: string;
@@ -1023,16 +1017,6 @@ export interface BossCandidate {
   [k: string]: unknown;
 }
 
-export interface BossSearchParams {
-  keyword: string;
-  city?: string;
-  exp?: string;
-  degree?: string;
-  salary?: string;
-  job?: string;
-  page?: number;
-}
-
 export interface BossRecommendParams {
   job?: string;
   limit?: number;
@@ -1051,35 +1035,13 @@ export interface BossAccount {
   id: number;
   label: string;
   cookie_count: number;
-  has_stoken: boolean;
   is_active: boolean;
   last_verified_at: string | null;
   last_verified_ok: boolean | null;
   created_at: string | null;
 }
 
-// 扫码登录状态
-export type BossQrStatus =
-  | 'pending'    // 已出码，等待扫码
-  | 'scanned'    // 已扫码，等待手机确认
-  | 'done'       // 登录成功
-  | 'expired'    // 二维码过期
-  | 'failed';    // 异常
-
-// 扫码登录启动返回
-export interface BossQrStartResult {
-  session_id: string;
-  qr_image: string;  // base64 图片
-  qr_mime: string;   // 图片 MIME（image/jpeg 或 image/png）
-}
-
-// 扫码状态查询返回
-export interface BossQrStatusResult {
-  status: BossQrStatus;
-  error: string;
-}
-
-// ── 招聘闭环：批量导入 / AI 初筛 / 面试邀请 ──────────────────────
+// ── 招聘闭环：批量导入 / AI 初筛 ──────────────────────────────────
 // 批量导入单条入参（来自收件箱列表勾选）
 export interface BossImportItem {
   geek_id: string;
@@ -1137,25 +1099,6 @@ export interface BossAiScreenResult {
   screened: number;
   failed: number;
   results: BossScreenResultItem[];
-}
-
-export interface BossInviteInterviewParams {
-  candidate_id: number;
-  job_id: number;
-  boss_job?: string;
-  interviewer_id?: number;
-  round?: string;
-  time?: string;
-  address?: string;
-  desc?: string;
-}
-
-export interface BossInviteInterviewResult {
-  candidate_id: number;
-  job_id: number;
-  assignment_id: number;
-  boss: unknown;
-  stage: string;
 }
 
 // ---- AI 助手会话与调用日志 ----

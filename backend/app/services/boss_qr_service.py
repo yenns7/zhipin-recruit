@@ -7,6 +7,10 @@ _dispatch_login）是 async，且 _dispatch_login 依赖同一个 httpx.AsyncCli
 拿码 → 轮询扫码 → 轮询确认 → 派发拿 cookies。
 
 前端三次请求：start（拿二维码图）→ 轮询 status → confirm（存账号）。
+
+纯 HTTP 扫码拿到会话 cookie（wt2/wbg/zp_at），即可使用本系统保留的全部招聘端
+功能（收件箱、推荐、查看/下载简历、批量导入、AI 初筛）。这些功能不依赖页面 JS
+生成的 __zp_stoken__，扫码成功即全功能可用，无需浏览器扩展或 Camoufox 补全。
 """
 from __future__ import annotations
 
@@ -68,7 +72,7 @@ async def _async_qr_flow(session: _QrSession) -> None:
     """
     # 延迟导入：boss-cli 可能未安装，调用方已在更上层做 _ensure_cli 校验
     from boss_cli.auth import (
-        _get_qr_session, _wait_for_scan, _wait_for_confirm, _dispatch_login,
+        _wait_for_scan, _wait_for_confirm, _dispatch_login,
     )
     from boss_cli.constants import BASE_URL, HEADERS
 
@@ -106,15 +110,17 @@ async def _async_qr_flow(session: _QrSession) -> None:
             session.error = "确认超时，请重新扫码"
             return
 
-        # 步骤5：派发拿 cookies
+        # 步骤5：派发拿会话 cookies（wt2/wbg/zp_at），即登录完成
         try:
             credential = await _dispatch_login(client, qr_id)
             session.credential_cookies = credential.cookies
-            session.status = STATUS_DONE
         except Exception as e:
             logger.exception("QR dispatch_login 失败")
             session.status = STATUS_FAILED
             session.error = f"获取登录凭证失败：{e}"
+            return
+
+        session.status = STATUS_DONE
 
 
 def _poll_thread(session: _QrSession) -> None:
@@ -186,7 +192,10 @@ def get_qr_status(session_id: str) -> dict:
         session = _SESSIONS.get(session_id)
     if not session:
         return {"status": STATUS_EXPIRED, "error": "会话不存在或已过期"}
-    return {"status": session.status, "error": session.error}
+    return {
+        "status": session.status,
+        "error": session.error,
+    }
 
 
 def get_qr_credential(session_id: str) -> Optional[dict]:

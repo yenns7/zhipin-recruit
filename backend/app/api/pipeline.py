@@ -93,6 +93,8 @@ def move_stage():
         return jsonify({"error": "岗位不存在"}), 404
     if not can_access_candidate(g.user_id, g.role, candidate_id, job_id):
         return jsonify({"error": "Forbidden"}), 403
+    if (job.status or "active") != "active":
+        return jsonify({"error": "岗位已关闭，请先恢复岗位"}), 400
 
     # 当前阶段（用于事件记录与返回，便于前端给出"从 X 到 Y"的反馈）
     prev = (
@@ -102,6 +104,18 @@ def move_stage():
         .first()
     )
     from_stage = normalize_pipeline_stage(prev.stage) if prev else None
+
+    # 阶段回退校验：禁止从靠后阶段回退到靠前阶段。
+    # 例外1：首次进入流程（无前置阶段，from_stage 为 None）放行，目标可为任意非 rejected 阶段。
+    # 例外2：目标是 rejected（淘汰终态）放行，淘汰可从任意阶段发生。
+    if (
+        from_stage is not None
+        and to_stage != "rejected"
+        and from_stage in STAGE_ORDER
+        and to_stage in STAGE_ORDER
+        and STAGE_ORDER.index(from_stage) > STAGE_ORDER.index(to_stage)
+    ):
+        return jsonify({"error": "不允许回退阶段，如需修正请联系管理员"}), 400
 
     ps = PipelineStage(
         candidate_id=candidate_id,

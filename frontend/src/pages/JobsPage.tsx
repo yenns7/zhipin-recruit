@@ -15,10 +15,18 @@ import {
   CardTitle,
   Input,
   Spinner,
-  EmptyState,
   ErrorState,
-  PageHeader,
 } from '../components/ui';
+import {
+  EnterpriseDescriptionSection,
+  EnterpriseDetailPanel,
+  EnterpriseEmptyState,
+  EnterpriseHero,
+  EnterpriseMetric,
+  EnterprisePage,
+  EnterpriseSearchPanel,
+  EnterpriseTableCard,
+} from '../components/enterprise';
 import type {
   CreateJobResponse,
   JobListItem,
@@ -151,6 +159,60 @@ function StructuredResult({ structured }: { structured: JobStructured }) {
         );
       })}
     </dl>
+  );
+}
+
+function JobDetailSummary({ job }: { job: JobListItem | null }) {
+  if (!job) {
+    return (
+      <EnterpriseDetailPanel title="岗位详情">
+        <EnterpriseEmptyState
+          icon={Briefcase}
+          title="暂无岗位可展示"
+          description="创建岗位或切换筛选条件后，这里会展示当前列表中的岗位概要。"
+          className="min-h-[420px]"
+        />
+      </EnterpriseDetailPanel>
+    );
+  }
+
+  const statusLabel = job.status === 'closed' ? '已关闭' : '招聘中';
+  const statusTone = job.status === 'closed' ? 'danger' : 'success';
+
+  return (
+    <EnterpriseDetailPanel title="岗位详情">
+      <EnterpriseDescriptionSection
+        title="基本信息"
+        items={[
+          { label: '岗位编号', value: job.job_code || `JOB-${job.id}` },
+          { label: '岗位名称', value: job.title },
+          { label: '招聘状态', value: <Badge tone={statusTone}>{statusLabel}</Badge> },
+          { label: '创建时间', value: formatDate(job.created_at) },
+        ]}
+      />
+      <EnterpriseDescriptionSection
+        title="岗位归属"
+        items={[
+          { label: '城市', value: job.city || '未设置' },
+          { label: '部门', value: job.department || '未设置' },
+          { label: '流程入口', value: <Link className="enterprise-row-title" to={`/pipeline?job=${job.id}`}>查看候选人流程</Link> },
+          { label: '匹配入口', value: <Link className="enterprise-row-title" to={`/jobs/${job.id}/match`}>匹配候选人</Link> },
+        ]}
+      />
+      <section className="enterprise-description-section">
+        <h3 className="enterprise-section-title">推荐动作</h3>
+        <div className="grid gap-3">
+          <div className="enterprise-recommendation-card">
+            <strong>先查看候选人流程</strong>
+            <p>确认当前岗位下是否有待筛选、业务待反馈、面试中或 Offer 阶段的候选人。</p>
+          </div>
+          <div className="enterprise-recommendation-card">
+            <strong>再运行岗位匹配</strong>
+            <p>从简历库中按技能命中、欠缺项和匹配分数筛出下一批推荐候选人。</p>
+          </div>
+        </div>
+      </section>
+    </EnterpriseDetailPanel>
   );
 }
 
@@ -539,170 +601,193 @@ export function JobsPage() {
   );
 
   return (
-    <div className="space-y-6">
-      {/* Page header */}
-      <PageHeader
-        title="岗位画像"
-        description="维护在招岗位画像、运行候选人匹配，必要时再新增岗位"
-        actions={
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => setShowCreateForm((v) => !v)}
-            variant={showCreateForm ? 'secondary' : 'primary'}
-          >
-            {showCreateForm ? (
+    <EnterprisePage>
+      <div className="enterprise-job-layout">
+        <div className="enterprise-page">
+          <EnterpriseHero
+            title="岗位画像"
+            description="维护在招岗位画像、运行候选人匹配，必要时再新增岗位"
+            metrics={
               <>
-                <X className="h-4 w-4" />
-                收起
+                <EnterpriseMetric label={jobStatus === 'active' ? '在招岗位' : '已关闭岗位'} value={jobs.length} tone="success" />
+                <EnterpriseMetric label="当前显示" value={filteredJobs.length} />
+                <EnterpriseMetric label="城市筛选" value={cityFilter || '全部'} />
+                <EnterpriseMetric label="部门筛选" value={departmentFilter || '全部'} />
               </>
-            ) : (
-              <>
-                <Plus className="h-4 w-4" />
-                新增岗位
-              </>
-            )}
-          </Button>
-        }
-      />
-
-      <RecruitmentManagementTabs />
-
-      {/* Create form */}
-      {showCreateForm && (
-        <CreateJobForm
-          onCreated={handleCreated}
-          onCancel={() => setShowCreateForm(false)}
-        />
-      )}
-
-      {/* AI 解析结果 after creation */}
-      {lastCreated && (
-        <Card variant="elevated">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>AI 解析结果</CardTitle>
-                <p className="mt-0.5 text-xs text-muted">
-                  岗位：{lastCreated.title}
-                  {lastCreated.city ? ` · ${lastCreated.city}` : ''}
-                  {lastCreated.department ? ` · ${lastCreated.department}` : ''}
-                </p>
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => setLastCreated(null)} aria-label="关闭解析结果">✕</Button>
-            </div>
-          </CardHeader>
-          <CardBody>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted">技能要求</p>
-            <StructuredResult structured={lastCreated.structured} />
-          </CardBody>
-        </Card>
-      )}
-
-      {/* Job list */}
-      <Card variant="elevated">
-        <CardHeader>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <CardTitle>岗位列表</CardTitle>
-              {!loading && (
-                <p className="mt-1 text-xs text-muted-soft">
-                  {hasActiveFilters
-                    ? `筛选后 ${filteredJobs.length} 个 / 共 ${jobs.length} 个岗位`
-                    : `共 ${jobs.length} 个岗位`}
-                </p>
-              )}
-            </div>
-            {!loading && jobs.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  value={cityFilter}
-                  onChange={(e) => setCityFilter(e.target.value)}
-                  className="h-9 rounded-md border border-hairline bg-canvas px-3 text-xs font-medium text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
-                  aria-label="按城市筛选岗位"
-                >
-                  <option value="">全部城市</option>
-                  {cityOptions.map((cityName) => (
-                    <option key={cityName} value={cityName}>
-                      {cityName}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={departmentFilter}
-                  onChange={(e) => setDepartmentFilter(e.target.value)}
-                  className="h-9 rounded-md border border-hairline bg-canvas px-3 text-xs font-medium text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
-                  aria-label="按部门筛选岗位"
-                >
-                  <option value="">全部部门</option>
-                  {departmentOptions.map((departmentName) => (
-                    <option key={departmentName} value={departmentName}>
-                      {departmentName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            {!loading && !error && (
-              <div className="flex rounded-md border border-hairline bg-canvas p-1">
-                {([
-                  ['active', '在招岗位'],
-                  ['closed', '已关闭岗位'],
-                ] as const).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => {
-                      setJobStatus(value);
-                      setCityFilter('');
-                      setDepartmentFilter('');
-                    }}
-                    className={[
-                      'h-8 rounded px-3 text-xs font-semibold transition-colors',
-                      jobStatus === value
-                        ? 'bg-ink text-canvas'
-                        : 'text-muted hover:bg-surface-soft hover:text-ink',
-                    ].join(' ')}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </CardHeader>
-
-        {loading ? (
-          <CardBody className="flex items-center justify-center py-16">
-            <Spinner size="lg" />
-          </CardBody>
-        ) : error ? (
-          <CardBody>
-            <ErrorState message={error.message} onRetry={reload} />
-          </CardBody>
-        ) : jobs.length === 0 ? (
-          <EmptyState
-            icon={Briefcase}
-            title={jobStatus === 'active' ? '暂无在招岗位' : '暂无已关闭岗位'}
-            description={
-              jobStatus === 'active'
-                ? '点击右上角「新增岗位」创建第一个招聘岗位'
-                : '已关闭岗位会保留在这里，误关闭时可恢复在招'
+            }
+            actions={
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setShowCreateForm((v) => !v)}
+                variant={showCreateForm ? 'secondary' : 'primary'}
+              >
+                {showCreateForm ? (
+                  <>
+                    <X className="h-4 w-4" />
+                    收起
+                  </>
+                ) : (
+                  <>
+                    <Plus className="h-4 w-4" />
+                    新增岗位
+                  </>
+                )}
+              </Button>
             }
           />
-        ) : filteredJobs.length === 0 ? (
-          <CardBody>
-            <EmptyState
-              icon={Briefcase}
-              title="没有符合筛选条件的岗位"
-              description="切换城市或部门筛选后再查看"
+
+          <RecruitmentManagementTabs />
+
+          {showCreateForm && (
+            <CreateJobForm
+              onCreated={handleCreated}
+              onCancel={() => setShowCreateForm(false)}
             />
-          </CardBody>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          )}
+
+          {lastCreated && (
+            <Card variant="elevated">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>AI 解析结果</CardTitle>
+                    <p className="mt-0.5 text-xs text-muted">
+                      岗位：{lastCreated.title}
+                      {lastCreated.city ? ` · ${lastCreated.city}` : ''}
+                      {lastCreated.department ? ` · ${lastCreated.department}` : ''}
+                    </p>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => setLastCreated(null)} aria-label="关闭解析结果">✕</Button>
+                </div>
+              </CardHeader>
+              <CardBody>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted">技能要求</p>
+                <StructuredResult structured={lastCreated.structured} />
+              </CardBody>
+            </Card>
+          )}
+
+          <EnterpriseSearchPanel>
+            <div className="enterprise-search-grid">
+              {!loading && jobs.length > 0 && (
+                <>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-ink" htmlFor="job-city-filter">城市</label>
+                    <select
+                      id="job-city-filter"
+                      value={cityFilter}
+                      onChange={(e) => setCityFilter(e.target.value)}
+                      className="h-10 w-full rounded-md border border-hairline bg-canvas px-3 text-sm text-ink focus:border-ink focus:outline-none focus:shadow-apple-focus"
+                      aria-label="按城市筛选岗位"
+                    >
+                      <option value="">全部城市</option>
+                      {cityOptions.map((cityName) => (
+                        <option key={cityName} value={cityName}>
+                          {cityName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-ink" htmlFor="job-department-filter">部门</label>
+                    <select
+                      id="job-department-filter"
+                      value={departmentFilter}
+                      onChange={(e) => setDepartmentFilter(e.target.value)}
+                      className="h-10 w-full rounded-md border border-hairline bg-canvas px-3 text-sm text-ink focus:border-ink focus:outline-none focus:shadow-apple-focus"
+                      aria-label="按部门筛选岗位"
+                    >
+                      <option value="">全部部门</option>
+                      {departmentOptions.map((departmentName) => (
+                        <option key={departmentName} value={departmentName}>
+                          {departmentName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
+              {!loading && !error && (
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-ink">岗位状态</label>
+                  <div className="flex rounded-md border border-hairline bg-canvas p-1">
+                    {([
+                      ['active', '在招岗位'],
+                      ['closed', '已关闭岗位'],
+                    ] as const).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => {
+                          setJobStatus(value);
+                          setCityFilter('');
+                          setDepartmentFilter('');
+                        }}
+                        className={[
+                          'h-8 rounded px-3 text-xs font-semibold transition-colors',
+                          jobStatus === value
+                            ? 'bg-[var(--enterprise-brand)] text-white'
+                            : 'text-muted hover:bg-surface-soft hover:text-ink',
+                        ].join(' ')}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="enterprise-field-actions">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setCityFilter('');
+                    setDepartmentFilter('');
+                  }}
+                >
+                  Reset
+                </Button>
+              </div>
+            </div>
+          </EnterpriseSearchPanel>
+
+          <EnterpriseTableCard
+            title="岗位列表"
+            summary={
+              !loading
+                ? hasActiveFilters
+                  ? `筛选后 ${filteredJobs.length} 个 / 共 ${jobs.length} 个岗位`
+                  : `共 ${jobs.length} 个岗位`
+                : undefined
+            }
+          >
+            {loading ? (
+              <div className="flex items-center justify-center py-16">
+                <Spinner size="lg" />
+              </div>
+            ) : error ? (
+              <ErrorState message={error.message} onRetry={reload} />
+            ) : jobs.length === 0 ? (
+              <EnterpriseEmptyState
+                icon={Briefcase}
+                title={jobStatus === 'active' ? '暂无在招岗位' : '暂无已关闭岗位'}
+                description={
+                  jobStatus === 'active'
+                    ? '点击右上角「新增岗位」创建第一个招聘岗位'
+                    : '已关闭岗位会保留在这里，误关闭时可恢复在招'
+                }
+              />
+            ) : filteredJobs.length === 0 ? (
+              <EnterpriseEmptyState
+                icon={Briefcase}
+                title="没有符合筛选条件的岗位"
+                description="切换城市或部门筛选后再查看"
+              />
+            ) : (
+            <table className="enterprise-table enterprise-jobs-table">
               <thead>
-                <tr className="border-b border-hairline-soft bg-surface-soft text-left text-xs font-medium uppercase tracking-wide text-muted">
+                <tr>
                   <th className="px-5 py-3">岗位编号</th>
                   <th className="px-5 py-3">岗位名称</th>
                   <th className="px-5 py-3">城市</th>
@@ -774,7 +859,7 @@ export function JobsPage() {
                       {formatDate(job.created_at)}
                     </td>
                     <td className="px-5 py-3.5 text-right">
-                      <div className="flex items-center justify-end gap-3">
+                      <div className="enterprise-table-actions">
                         {editingJobId === job.id ? (
                           <>
                             <button
@@ -839,9 +924,11 @@ export function JobsPage() {
                 ))}
               </Reveal>
             </table>
-          </div>
-        )}
-      </Card>
-    </div>
+            )}
+          </EnterpriseTableCard>
+        </div>
+        <JobDetailSummary job={filteredJobs[0] ?? jobs[0] ?? null} />
+      </div>
+    </EnterprisePage>
   );
 }

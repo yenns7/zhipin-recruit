@@ -1,21 +1,18 @@
-// BOSS 直聘集成页 —— 通过 boss-cli（kabi-boss-cli）操作招聘端：
-// 登录态检测、搜索/推荐候选人、查看/下载简历、岗位上下线、沟通动作。
+// BOSS 直聘集成页 —— 通过 boss-cli 操作招聘端：
+// 收件箱闭环、推荐候选人、查看/下载简历、岗位列表。
 //
-// 后端 /api/boss/* 蓝图封装 boss 命令；CLI 未安装时接口返回 503，本页据此引导。
-import { useCallback, useEffect, useState } from 'react';
+// 通过浏览器 Cookie 导入 BOSS 账号；不采集 __zp_stoken__，不暴露依赖 stoken 的写操作。
+import { Component, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Badge,
   Button,
   Card,
   CardBody,
-  ConfirmDialog,
   EmptyState,
   ErrorState,
   Input,
-  Pagination,
   PageHeader,
   SegmentedControl,
-  Select,
   Skeleton,
   Spinner,
   TableSkeleton,
@@ -30,15 +27,43 @@ import type {
 import { BossAccountManager } from './BossAccountManager';
 import { BossInboxWorkbench } from './BossInboxWorkbench';
 
-type TabKey = 'inbox' | 'search' | 'recommend' | 'jobs';
+// 错误边界组件，防止白屏
+interface ErrorBoundaryProps { children: ReactNode }
+interface ErrorBoundaryState { hasError: boolean; error: Error | null }
 
-const CITY_OPTIONS = [
-  '全国', '北京', '上海', '杭州', '深圳', '广州', '成都', '南京',
-  '苏州', '武汉', '西安', '厦门', '长沙', '重庆', '天津',
-];
-const EXP_OPTIONS = ['', '不限', '在校/应届', '1年以内', '1-3年', '3-5年', '5-10年', '10年以上'];
-const DEGREE_OPTIONS = ['', '不限', '大专', '本科', '硕士', '博士'];
-const SALARY_OPTIONS = ['', '3K以下', '3-5K', '5-10K', '10-15K', '15-20K', '20-30K', '30-50K', '50K以上'];
+class BossPageErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="space-y-6">
+          <PageHeader title="BOSS 直聘" description="加载出错，请刷新页面重试。" />
+          <Card>
+            <CardBody className="space-y-4">
+              <div className="text-body-sm text-red-600">
+                ⚠️ 页面加载出错：{this.state.error?.message || '未知错误'}
+              </div>
+              <Button onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload(); }}>
+                刷新页面
+              </Button>
+            </CardBody>
+          </Card>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+type TabKey = 'inbox' | 'recommend' | 'jobs';
 
 // 从 boss-cli 返回结构里抽取候选人列表（字段名随接口，做兼容）。
 function extractCandidates(data: unknown): BossCandidate[] {
@@ -65,21 +90,19 @@ function errMsg(e: unknown, fallback: string): string {
   return fallback;
 }
 
-// 503 = boss-cli 未安装；401 = BOSS 未登录；409 = 无激活账号或需 stoken。
+// 503 = boss-cli 未安装；401 = BOSS 未登录；409 = 无激活账号。
 function classifyError(e: unknown): string | null {
   if (e instanceof ApiError) {
     if (e.status === 503) return 'boss_cli_not_installed';
     if (e.status === 401) return 'not_authenticated';
-    if (e.status === 409) {
-      return e.message.includes('账号') ? 'no_active_account' : 'needs_stoken';
-    }
+    if (e.status === 409) return 'no_active_account';
   }
   return null;
 }
 
 export function BossPage() {
   const toast = useToast();
-  const [tab, setTab] = useState<TabKey>('search');
+  const [tab, setTab] = useState<TabKey>('inbox');
 
   // ── 登录态 ─────────────────────────────────────────────
   const [status, setStatus] = useState<BossStatus | null>(null);
@@ -109,45 +132,6 @@ export function BossPage() {
   useEffect(() => {
     refreshStatus();
   }, [refreshStatus]);
-
-  // ── 搜索候选人 ─────────────────────────────────────────
-  const [keyword, setKeyword] = useState('golang');
-  const [city, setCity] = useState('上海');
-  const [exp, setExp] = useState('');
-  const [degree, setDegree] = useState('');
-  const [salary, setSalary] = useState('');
-  const [page, setPage] = useState(1);
-  const [searchResults, setSearchResults] = useState<BossCandidate[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const [searched, setSearched] = useState(false);
-
-  const runSearch = useCallback(async (p: number) => {
-    if (!keyword.trim()) {
-      toast.error('请输入搜索关键词');
-      return;
-    }
-    setSearchLoading(true);
-    setSearchError(null);
-    setSearched(true);
-    try {
-      const data = await api.bossSearchCandidates({
-        keyword: keyword.trim(), city, exp, degree, salary, page: p,
-      });
-      setSearchResults(extractCandidates(data));
-      setPage(p);
-    } catch (e) {
-      const kind = classifyError(e);
-      setSearchError(
-        kind === 'boss_cli_not_installed' ? 'boss_cli_not_installed'
-        : kind === 'not_authenticated' ? 'not_authenticated'
-        : errMsg(e, '搜索失败'),
-      );
-      setSearchResults([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  }, [keyword, city, exp, degree, salary, toast]);
 
   // ── 推荐候选人 ─────────────────────────────────────────
   const [recJob, setRecJob] = useState('');
@@ -180,13 +164,11 @@ export function BossPage() {
     if (tab === 'recommend' && !recLoaded) runRecommend();
   }, [tab, recLoaded, runRecommend]);
 
-  // ── 岗位管理 ───────────────────────────────────────────
+  // ── 岗位管理（只读） ────────────────────────────────────
   const [jobs, setJobs] = useState<BossJob[]>([]);
   const [jobsLoading, setJobsLoading] = useState(false);
   const [jobsError, setJobsError] = useState<string | null>(null);
   const [jobsLoaded, setJobsLoaded] = useState(false);
-  const [confirmJob, setConfirmJob] = useState<{ id: string; action: 'close' | 'reopen'; name: string } | null>(null);
-  const [jobActionLoading, setJobActionLoading] = useState(false);
 
   const runJobs = useCallback(async () => {
     setJobsLoading(true);
@@ -212,22 +194,6 @@ export function BossPage() {
     if (tab === 'jobs' && !jobsLoaded) runJobs();
   }, [tab, jobsLoaded, runJobs]);
 
-  const doJobAction = useCallback(async () => {
-    if (!confirmJob) return;
-    setJobActionLoading(true);
-    try {
-      if (confirmJob.action === 'close') await api.bossJobClose(confirmJob.id);
-      else await api.bossJobReopen(confirmJob.id);
-      toast.success(confirmJob.action === 'close' ? '岗位已下线' : '岗位已重新上线');
-      setConfirmJob(null);
-      runJobs();
-    } catch (e) {
-      toast.error(errMsg(e, '操作失败'));
-    } finally {
-      setJobActionLoading(false);
-    }
-  }, [confirmJob, toast, runJobs]);
-
   // ── 简历查看/下载 ──────────────────────────────────────
   const [resumeOpen, setResumeOpen] = useState(false);
   const [resumeLoading, setResumeLoading] = useState(false);
@@ -246,7 +212,7 @@ export function BossPage() {
     setResumeText('');
     try {
       const data = await api.bossResume(gid);
-      // boss recruiter resume 返回结构化 JSON；展示为格式化文本
+      // 后端返回格式化 Markdown 文本
       setResumeText(typeof data === 'string' ? data : JSON.stringify(data, null, 2));
     } catch (e) {
       setResumeText('加载失败：' + errMsg(e, '未知错误'));
@@ -261,58 +227,35 @@ export function BossPage() {
       toast.error('该候选人缺少 encryptGeekId，无法下载简历');
       return;
     }
+    const name = candidateName(c);
     const url = api.bossResumeDownloadUrl(gid);
-    window.open(url, '_blank');
-  }, [toast]);
-
-  // ── 沟通动作 ───────────────────────────────────────────
-  const greet = useCallback(async (c: BossCandidate) => {
-    const gid = c.encryptGeekId ?? c.encryptUid ?? '';
-    if (!gid) {
-      toast.error('该候选人缺少 encryptGeekId');
-      return;
-    }
-    try {
-      await api.bossGreet(gid);
-      toast.success(`已向 ${candidateName(c)} 发起沟通`);
-    } catch (e) {
-      toast.error(errMsg(e, '打招呼失败'));
-    }
-  }, [toast]);
-
-  const requestResume = useCallback(async (c: BossCandidate) => {
-    const fid = c.friendId;
-    if (!fid) {
-      toast.error('该候选人缺少 friendId，无法请求简历');
-      return;
-    }
-    const gid = c.encryptGeekId ?? c.encryptUid ?? '';
-    try {
-      await api.bossRequestResume(gid ?? String(fid), fid);
-      toast.success(`已向 ${candidateName(c)} 请求简历`);
-    } catch (e) {
-      toast.error(errMsg(e, '请求简历失败'));
-    }
+    // 创建隐藏 a 标签触发下载，指定文件名
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${name}_resume.md`;
+    a.click();
+    toast.success(`${name} 简历下载中…`);
   }, [toast]);
 
   // ── 渲染 ───────────────────────────────────────────────
-  const authenticated = !!status?.authenticated;
+  // 只要 credential_present 为 true 就认为已导入可用账号；当前页面只保留无 stoken 的 Tier-1 能力。
+  const authenticated = !!status?.credential_present;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="BOSS 直聘"
-        description="通过 boss-cli 接入招聘端：搜候选人、查看/下载简历、岗位上下线、沟通动作。"
+        description="浏览器导入账号后可用：收件箱闭环、推荐候选人、查看/下载简历、岗位列表。"
       />
 
-      {/* BOSS 账号管理区：扫码登录 + 多账号切换 */}
+      {/* BOSS 账号管理区：浏览器导入 + 多账号切换 */}
       <BossAccountManager onChanged={refreshStatus} />
 
       {/* 功能区入口（未登录时仍可见，但操作会提示） */}
       {!authenticated && !statusLoading && statusError !== 'boss_cli_not_installed' && (
         <Card>
           <CardBody className="text-body-sm text-text-muted">
-            当前 BOSS 账号未登录，下列功能将无法使用。请先「去登录」并刷新登录态。
+            当前 BOSS 账号未登录，请先从浏览器导入账号后使用。
           </CardBody>
         </Card>
       )}
@@ -322,74 +265,13 @@ export function BossPage() {
         onChange={setTab}
         options={[
           { value: 'inbox', label: '收件箱·闭环' },
-          { value: 'search', label: '搜候选人' },
           { value: 'recommend', label: '推荐候选人' },
-          { value: 'jobs', label: '岗位管理' },
+          { value: 'jobs', label: '岗位列表' },
         ]}
       />
 
-      {/* 收件箱招聘闭环：拉取→批量导入→AI初筛→面试邀请（人工确认） */}
+      {/* 收件箱招聘闭环：拉取→批量导入→AI初筛 */}
       {tab === 'inbox' && <BossInboxWorkbench />}
-
-      {/* 搜候选人 */}
-      {tab === 'search' && (
-        <div className="space-y-4">
-          <Card>
-            <CardBody className="space-y-3">
-              <div className="flex flex-wrap items-end gap-3">
-                <div className="flex-1 min-w-[200px]">
-                  <Input
-                    label="关键词"
-                    placeholder="如 golang / 前端 / 产品经理"
-                    value={keyword}
-                    onChange={(e) => setKeyword(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') runSearch(1); }}
-                  />
-                </div>
-                <Select label="城市" value={city} onChange={(e) => setCity(e.target.value)}>
-                  {CITY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-                </Select>
-                <Select label="经验" value={exp} onChange={(e) => setExp(e.target.value)}>
-                  {EXP_OPTIONS.map((o, i) => <option key={i} value={o}>{o || '不限'}</option>)}
-                </Select>
-                <Select label="学历" value={degree} onChange={(e) => setDegree(e.target.value)}>
-                  {DEGREE_OPTIONS.map((o, i) => <option key={i} value={o}>{o || '不限'}</option>)}
-                </Select>
-                <Select label="薪资" value={salary} onChange={(e) => setSalary(e.target.value)}>
-                  {SALARY_OPTIONS.map((o, i) => <option key={i} value={o}>{o || '不限'}</option>)}
-                </Select>
-                <Button onClick={() => runSearch(1)} disabled={searchLoading}>
-                  {searchLoading ? '搜索中…' : '搜索'}
-                </Button>
-              </div>
-            </CardBody>
-          </Card>
-
-          {searchLoading && <CandidateListSkeleton />}
-          {!searchLoading && searchError && (
-            <ErrorState
-              message={
-                searchError === 'boss_cli_not_installed' ? 'boss-cli 未安装，请联系管理员安装 kabi-boss-cli'
-                : searchError === 'not_authenticated' ? 'BOSS 未登录，请先在「去登录」完成登录'
-                : searchError
-              }
-              onRetry={() => runSearch(1)}
-            />
-          )}
-          {!searchLoading && !searchError && searched && searchResults.length === 0 && (
-            <EmptyState title="未找到匹配候选人" description="可调整关键词/城市/筛选条件后重试（部分结果需要 __zp_stoken__）。" />
-          )}
-          {!searchLoading && !searchError && searchResults.length > 0 && (
-            <CandidateList
-              candidates={searchResults}
-              onViewResume={viewResume}
-              onDownloadResume={downloadResume}
-              onGreet={greet}
-              onRequestResume={requestResume}
-            />
-          )}
-        </div>
-      )}
 
       {/* 推荐候选人 */}
       {tab === 'recommend' && (
@@ -415,7 +297,7 @@ export function BossPage() {
             <ErrorState
               message={
                 recError === 'boss_cli_not_installed' ? 'boss-cli 未安装，请联系管理员安装 kabi-boss-cli'
-                : recError === 'not_authenticated' ? 'BOSS 未登录，请先在「去登录」完成登录'
+                : recError === 'not_authenticated' ? 'BOSS 未登录，请先从浏览器导入账号'
                 : recError
               }
               onRetry={runRecommend}
@@ -429,14 +311,12 @@ export function BossPage() {
               candidates={recResults}
               onViewResume={viewResume}
               onDownloadResume={downloadResume}
-              onGreet={greet}
-              onRequestResume={requestResume}
             />
           )}
         </div>
       )}
 
-      {/* 岗位管理 */}
+      {/* 岗位列表（只读） */}
       {tab === 'jobs' && (
         <div className="space-y-4">
           <div className="flex justify-end">
@@ -447,7 +327,7 @@ export function BossPage() {
             <ErrorState
               message={
                 jobsError === 'boss_cli_not_installed' ? 'boss-cli 未安装，请联系管理员安装 kabi-boss-cli'
-                : jobsError === 'not_authenticated' ? 'BOSS 未登录，请先在「去登录」完成登录'
+                : jobsError === 'not_authenticated' ? 'BOSS 未登录，请先从浏览器导入账号'
                 : jobsError
               }
               onRetry={runJobs}
@@ -466,60 +346,22 @@ export function BossPage() {
                       <th className="px-4 py-3 font-medium">薪资</th>
                       <th className="px-4 py-3 font-medium">地区</th>
                       <th className="px-4 py-3 font-medium">encJobId</th>
-                      <th className="px-4 py-3 text-right font-medium">操作</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {jobs.map((j, i) => {
-                      const jid = j.encryptJobId ?? '';
-                      return (
-                        <tr key={jid || i} className="border-b border-hairline last:border-0">
-                          <td className="px-4 py-3 font-medium text-text-primary">{j.jobName ?? '—'}</td>
-                          <td className="px-4 py-3 text-text-secondary">{j.salaryDesc ?? '—'}</td>
-                          <td className="px-4 py-3 text-text-secondary">{j.address ?? '—'}</td>
-                          <td className="px-4 py-3 text-caption text-text-muted">{jid || '—'}</td>
-                          <td className="px-4 py-3 text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setConfirmJob({ id: jid, action: 'close', name: j.jobName ?? jid })}
-                            >
-                              下线
-                            </Button>{' '}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setConfirmJob({ id: jid, action: 'reopen', name: j.jobName ?? jid })}
-                            >
-                              重新上线
-                            </Button>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {jobs.map((j, i) => (
+                      <tr key={j.encryptJobId || i} className="border-b border-hairline last:border-0">
+                        <td className="px-4 py-3 font-medium text-text-primary">{j.jobName ?? '—'}</td>
+                        <td className="px-4 py-3 text-text-secondary">{j.salaryDesc ?? '—'}</td>
+                        <td className="px-4 py-3 text-text-secondary">{j.address ?? '—'}</td>
+                        <td className="px-4 py-3 text-caption text-text-muted">{j.encryptJobId || '—'}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </CardBody>
             </Card>
           )}
-        </div>
-      )}
-
-      {/* 岗位操作确认 */}
-      <ConfirmDialog
-        open={!!confirmJob}
-        title={confirmJob?.action === 'close' ? '下线岗位' : '重新上线岗位'}
-        description={
-          confirmJob
-            ? `确认${confirmJob.action === 'close' ? '下线' : '重新上线'}岗位「${confirmJob.name}」？`
-            : undefined
-        }
-        onCancel={() => setConfirmJob(null)}
-        onConfirm={doJobAction}
-      />
-      {confirmJob && jobActionLoading && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-          <Spinner />
         </div>
       )}
 
@@ -536,7 +378,7 @@ export function BossPage() {
                 {resumeLoading ? (
                   <div className="flex justify-center py-10"><Spinner /></div>
                 ) : (
-                  <pre className="whitespace-pre-wrap break-words text-body-sm text-text-secondary">{resumeText}</pre>
+                  <ResumeContent markdown={resumeText} />
                 )}
               </div>
             </CardBody>
@@ -544,10 +386,6 @@ export function BossPage() {
         </div>
       )}
 
-      {/* 分页（搜索结果）—— boss-cli 单页返回，这里保留翻页入口 */}
-      {tab === 'search' && !searchLoading && !searchError && searchResults.length > 0 && (
-        <Pagination page={page} totalPages={Math.max(page + 1, 1)} onChange={(p) => runSearch(p)} />
-      )}
     </div>
   );
 }
@@ -571,14 +409,10 @@ function CandidateList({
   candidates,
   onViewResume,
   onDownloadResume,
-  onGreet,
-  onRequestResume,
 }: {
   candidates: BossCandidate[];
   onViewResume: (c: BossCandidate) => void;
   onDownloadResume: (c: BossCandidate) => void;
-  onGreet: (c: BossCandidate) => void;
-  onRequestResume: (c: BossCandidate) => void;
 }) {
   return (
     <div className="space-y-3">
@@ -603,15 +437,89 @@ function CandidateList({
               <div className="flex flex-wrap items-center gap-2">
                 <Button variant="ghost" size="sm" onClick={() => onViewResume(c)}>查看简历</Button>
                 <Button variant="ghost" size="sm" onClick={() => onDownloadResume(c)}>下载简历</Button>
-                <Button variant="ghost" size="sm" onClick={() => onGreet(c)}>打招呼</Button>
-                {c.friendId != null && (
-                  <Button variant="ghost" size="sm" onClick={() => onRequestResume(c)}>请求简历</Button>
-                )}
               </div>
             </CardBody>
           </Card>
         );
       })}
     </div>
+  );
+}
+
+// 简历内容渲染器：把 Markdown 转为结构化 HTML
+function ResumeContent({ markdown }: { markdown: string }) {
+  const html = useMemo(() => {
+    if (!markdown) return '';
+    const lines = markdown.split('\n');
+    const parts: string[] = [];
+    let inList = false;
+
+    for (const line of lines) {
+      const trimmed = line.trimEnd();
+
+      // 空行
+      if (!trimmed) {
+        if (inList) { parts.push('</ul>'); inList = false; }
+        continue;
+      }
+
+      // H1: 姓名
+      if (trimmed.startsWith('# ') && !trimmed.startsWith('## ')) {
+        if (inList) { parts.push('</ul>'); inList = false; }
+        parts.push(`<h1 class="text-xl font-bold text-text-primary mb-1">${esc(trimmed.slice(2))}</h1>`);
+        continue;
+      }
+
+      // H2: 章节标题
+      if (trimmed.startsWith('## ') && !trimmed.startsWith('### ')) {
+        if (inList) { parts.push('</ul>'); inList = false; }
+        parts.push(`<h2 class="text-title-sm font-semibold text-text-primary mt-4 mb-2 border-b border-hairline pb-1">${esc(trimmed.slice(3))}</h2>`);
+        continue;
+      }
+
+      // H3: 公司/学校/项目
+      if (trimmed.startsWith('### ')) {
+        if (inList) { parts.push('</ul>'); inList = false; }
+        parts.push(`<h3 class="text-body-sm font-semibold text-text-primary mt-3">${esc(trimmed.slice(4))}</h3>`);
+        continue;
+      }
+
+      // **bold:** value
+      const boldMatch = trimmed.match(/^\*\*(.+?)\*\*(.*)$/);
+      if (boldMatch) {
+        if (inList) { parts.push('</ul>'); inList = false; }
+        const value = boldMatch[2].replace(/^\s*-\s*/, '').trim();
+        parts.push(`<p class="text-body-sm text-text-secondary mt-1"><span class="font-semibold text-text-primary">${esc(boldMatch[1])}</span>${value ? ': ' + esc(value) : ''}</p>`);
+        continue;
+      }
+
+      // 列表项
+      if (trimmed.startsWith('- ')) {
+        if (!inList) { parts.push('<ul class="list-disc list-inside text-body-sm text-text-secondary space-y-0.5 mt-1">'); inList = true; }
+        parts.push(`<li>${esc(trimmed.slice(2))}</li>`);
+        continue;
+      }
+
+      // 普通文本
+      if (inList) { parts.push('</ul>'); inList = false; }
+      parts.push(`<p class="text-body-sm text-text-secondary mt-1">${esc(trimmed)}</p>`);
+    }
+    if (inList) parts.push('</ul>');
+    return parts.join('');
+  }, [markdown]);
+
+  return <div dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+function esc(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// 带错误边界的导出组件
+export function BossPageWithBoundary() {
+  return (
+    <BossPageErrorBoundary>
+      <BossPage />
+    </BossPageErrorBoundary>
   );
 }

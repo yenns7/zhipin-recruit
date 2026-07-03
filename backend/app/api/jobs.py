@@ -164,6 +164,7 @@ def create_job():
         "city": job.city or "",
         "department": job.department or "",
         "job_code": job.job_code or "",
+        "status": job.status or "active",
         "structured": structured,
     }), 201
 

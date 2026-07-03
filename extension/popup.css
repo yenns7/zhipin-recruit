@@ -1,0 +1,133 @@
+/* ── 智聘 BOSS Cookie 采集扩展样式 (v4.0.0) ───────────────── */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+  font-size: 13px; color: #1a1a1a; background: #fafafa;
+  width: 380px; min-height: 200px;
+}
+
+.container { padding: 16px; }
+
+/* 头部 */
+.header {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 14px; padding-bottom: 12px;
+  border-bottom: 1px solid #e5e5e5;
+}
+.logo {
+  font-size: 24px; width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 8px; color: white;
+}
+.title { font-size: 15px; font-weight: 600; }
+.subtitle { font-size: 11px; color: #888; margin-top: 2px; }
+
+/* 状态区 */
+.status-box {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 10px 12px; border-radius: 8px; font-size: 12px; line-height: 1.5;
+  margin-bottom: 12px;
+}
+.status-loading { background: #f5f5f5; color: #666; }
+.status-success { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.status-warning { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+.status-error   { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+
+#status-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.status-title { font-weight: 600; }
+.status-detail {
+  font-size: 11px; opacity: 0.85; margin-top: 2px;
+  white-space: pre-line; word-break: break-all;
+}
+
+/* 按钮 */
+.actions { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px 16px; border: none; border-radius: 8px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: all 0.15s ease; width: 100%;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5a6fd6 0%, #6a4190 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+.btn-secondary { background: #f3f4f6; color: #374151; font-weight: 500; }
+.btn-secondary:hover { background: #e5e7eb; }
+.btn-ghost { background: transparent; color: #6b7280; font-weight: 500; font-size: 12px; }
+.btn-ghost:hover { background: #f3f4f6; }
+.btn-sm { padding: 6px 12px; font-size: 12px; width: auto; }
+.btn-icon { font-size: 14px; }
+
+/* 提示区 */
+.hint {
+  padding: 10px 12px; border-radius: 8px;
+  font-size: 12px; line-height: 1.6; margin-bottom: 12px;
+}
+.hint-success { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.hint-warning { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+.hint-error   { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+
+/* 设置区 */
+.settings-toggle {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: #6b7280; cursor: pointer;
+  padding: 6px 0; margin-bottom: 8px;
+  transition: color 0.15s ease;
+}
+.settings-toggle:hover { color: #374151; }
+.settings-toggle.active { color: #667eea; }
+
+.settings-panel {
+  background: #f9fafb; border-radius: 8px; padding: 12px;
+  margin-bottom: 12px; border: 1px solid #e5e7eb;
+}
+
+.form-group { margin-bottom: 12px; }
+.form-group:last-child { margin-bottom: 0; }
+.form-label {
+  display: block; font-size: 12px; font-weight: 600;
+  color: #374151; margin-bottom: 6px;
+}
+.input-group {
+  display: flex; gap: 8px;
+}
+.form-input {
+  flex: 1; padding: 8px 10px; border: 1px solid #d1d5db;
+  border-radius: 6px; font-size: 12px; font-family: monospace;
+  transition: border-color 0.15s ease;
+}
+.form-input:focus {
+  outline: none; border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+.form-hint {
+  font-size: 11px; color: #9ca3af; margin-top: 4px;
+}
+
+/* 底部 */
+.footer {
+  text-align: center; font-size: 10px; color: #aaa;
+  padding-top: 8px; border-top: 1px solid #eee;
+}
+
+/* 手动复制框 */
+textarea#manual-copy {
+  width: 100%; margin-top: 8px; padding: 8px;
+  border: 1px solid #d1d5db; border-radius: 6px;
+  font-family: monospace; font-size: 11px;
+  resize: vertical;
+}
+textarea#manual-copy:focus {
+  outline: none; border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}

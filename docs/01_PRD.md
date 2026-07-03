@@ -96,18 +96,18 @@ BI 页面必须用白话解释协同归属：HR 负责候选人推进，推进�
 
 ### 模块 G：BOSS 直聘招聘闭环 ★新增
 
-依赖外部 CLI `boss`（boss-cli，从 GitHub 源码安装，必须配置；详见 `RUNNING.md`/`DEPLOYMENT.md`）。`/boss` 页面在原有「搜候选人/推荐候选人/岗位管理」基础上新增「收件箱·闭环」工作台，把外部招聘动作沉淀进本系统流水线。
+依赖外部 CLI `boss`（boss-cli，从 GitHub 源码安装，必须配置；详见 `RUNNING.md`/`DEPLOYMENT.md`）。`/boss` 页面在原有「推荐候选人/岗位管理」基础上新增「收件箱·闭环」工作台，把外部招聘动作沉淀进本系统流水线。
 
 | 子功能 | 复用/新增 | 落到代码 |
 |---|---|---|
 | G1 收件箱拉取 | 新增 | `boss recruiter inbox` → `/api/boss/inbox`，按 `label`（沟通中/新招呼/全部）+`limit` 拉取已沟通候选人 |
 | G2 批量导入候选人库 | 新增 | `BossPipelineService.batch_import`（`/api/boss/candidates/batch-import`）：勾选后按 geek_id 去重、限量+间隔下载完整简历原文，落 `Candidate.resume_json`（原文 + 解析基础字段），可绑定目标岗位入 `pending` 阶段；命中限流即停并回报 `stopped_reason` |
 | G3 AI 简历初筛 | 新增 | `PreScreenService.evaluate_resume` + `BossPipelineService.ai_screen`（`/api/boss/candidates/ai-screen`）：按岗位 JD 对简历 LLM 评估出分/建议，写 `Interview(ai_report.type=resume_screen)`，推进到 `ai_screen` 阶段 |
-| G4 面试邀请（人工确认+双写） | 新增 | `BossPipelineService.invite_interview`（`/api/boss/candidates/invite-interview`）：HR 手动确认后先调 `boss recruiter invite-interview`，成功才写系统 `InterviewAssignment` 并推进 `interview` 阶段；BOSS 失败不落系统脏数据 |
+| G4 面试安排承接 | 调整 | BOSS 面试邀请已下线（旧 `/api/boss/candidates/invite-interview` 返回 410）：AI 初筛后由 HR 在系统内面试安排流程创建 `InterviewAssignment` 并推进 `interview` 阶段 |
 
-**用户故事**：作为 HR 专员，我在 `/boss`「收件箱·闭环」里勾选几位已沟通的候选人一键导入候选人库，对照目标岗位让 AI 给出初筛分数和建议，再对通过的人逐个确认后发面试邀请——邀请同时同步到 BOSS 和本系统流水线，后续面试/反馈/Offer 沿用现有流程。
+**用户故事**：作为 HR 专员，我在 `/boss`「收件箱·闭环」里勾选几位已沟通的候选人一键导入候选人库，对照目标岗位让 AI 给出初筛分数和建议；对通过的人回到系统内面试安排流程分配面试官，后续面试/反馈/Offer 沿用现有流程。
 
-**验收**：导入按 geek_id 去重、限量+间隔执行、限流即停并回报原因；AI 初筛分数与建议落库且候选人进入 `ai_screen`；面试邀请需人工确认，BOSS 成功才双写、失败不落系统记录；面试官无权调用闭环写操作（403）；boss-cli 未安装时整组接口返回 503 并在前端引导安装。
+**验收**：导入按 geek_id 去重、限量+间隔执行、限流即停并回报原因；AI 初筛分数与建议落库且候选人进入 `ai_screen`；BOSS 面试邀请旧接口返回 410 并提示改用系统内面试安排；面试官无权调用 BOSS 闭环写操作（403）；boss-cli 未安装时整组接口返回 503 并在前端引导安装。
 
 ### 模块 H：AI 助手高可用增强 ★新增
 

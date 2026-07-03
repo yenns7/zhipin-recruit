@@ -58,6 +58,8 @@ def _is_positive_int(value: str | None) -> bool:
 def _database_kind(database_url: str) -> str:
     if database_url.startswith(("postgresql://", "postgresql+psycopg://")):
         return "postgresql"
+    if database_url.startswith(("mysql://", "mysql+pymysql://")):
+        return "mysql"
     if database_url.startswith("sqlite:///"):
         return "sqlite"
     if not database_url:
@@ -108,7 +110,7 @@ def run_checks(values: dict[str, str], project_root: Path, env_file: Path) -> li
         ),
         CheckResult("JWT_EXPIRY_HOURS", _is_positive_int(values.get("JWT_EXPIRY_HOURS")), "需配置为正整数"),
         CheckResult("FLASK_DEBUG", _is_false(values.get("FLASK_DEBUG")), "生产/试点必须为 false"),
-        CheckResult("DATABASE_URL", database_kind == "postgresql", f"生产/试点需使用 PostgreSQL，当前类型：{database_kind}"),
+        CheckResult("DATABASE_URL", database_kind in {"mysql", "postgresql"}, f"生产/试点需使用 MySQL 或 PostgreSQL，当前类型：{database_kind}"),
         CheckResult("CORS_ORIGINS", bool(values.get("CORS_ORIGINS", "").strip()), "生产/试点必须配置公司域名白名单"),
         CheckResult("SECURITY_HEADERS_ENABLED", _is_true(values.get("SECURITY_HEADERS_ENABLED")), "必须显式为 true"),
         CheckResult("RATE_LIMIT_ENABLED", _is_true(values.get("RATE_LIMIT_ENABLED")), "必须显式为 true"),

@@ -707,7 +707,7 @@ LLM_API_KEY=keychain:zhipin-deepseek-api-key
 |---|---|---|
 | 性能 | 中小规模内部工具可用；AI 请求同步等待 | 上传/AI 改为异步任务，前端轮询或 SSE |
 | 可用性 | 单进程/单机运行 | 生产使用 gunicorn + supervisor/systemd |
-| 数据可靠性 | SQLite 本地文件 | 生产换 PostgreSQL，增加备份 |
+| 数据可靠性 | SQLite 本地文件 | 试点/生产换 MySQL 或 PostgreSQL，增加备份 |
 | 安全 | JWT + RBAC + 密钥隐藏；弱 demo 密码 | 生产更换 JWT_SECRET、禁用弱密码、加 HTTPS |
 | 可观测性 | access log + events 表 | 增加结构化日志、错误监控、慢请求监控 |
 | 扩展性 | 模块清晰，但部分业务同步耦合 | AI 与批处理拆异步队列 |
@@ -804,7 +804,7 @@ LLM_API_KEY=keychain:zhipin-deepseek-api-key
 |---|---|---|
 | seed 文档、seed 脚本、当前 DB 数量不一致 | 新人部署可能拿不到预期演示数据 | 统一数据策略：提交 DB 或修正 seed |
 | 当前上传/AI 解析同步执行 | 批量简历或 LLM 慢时请求等待久 | 引入任务队列与进度接口 |
-| SQLite 用作演示库 | 并发和备份能力有限 | 生产使用 PostgreSQL |
+| SQLite 用作演示库 | 并发和备份能力有限 | 试点/生产使用 MySQL 或 PostgreSQL |
 | JWT_SECRET 默认值弱 | 生产安全风险 | 生产必须配置强随机密钥 |
 | demo 密码弱 | 公网演示风险 | 公网演示后关闭服务或强制改密 |
 | AI 面试会自动改流程状态 | 误判会影响主流程 | 保留人工确认或加规则开关 |

@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
-"""BOSS 招聘闭环（批量导入 / AI 初筛 / 面试邀请）测试。
+"""BOSS 招聘闭环（批量导入 / AI 初筛）测试。
 
 不依赖真实 boss 登录、网络或 LLM：通过 monkeypatch 替换
 BossPipelineService 内部依赖的 boss-cli 下载、PreScreenService.evaluate_resume。
-覆盖：批量导入去重/节流/限流即停、AI 初筛写库与推进、面试邀请 BOSS+系统双写、
+覆盖：批量导入去重/节流/限流即停、AI 初筛写库与推进、已下线的 BOSS 面试邀请端点、
 鉴权与状态码映射。
 """
 import json
+from pathlib import Path
 
 import pytest
 
@@ -15,7 +16,6 @@ from app.api import boss as boss_api
 from app.models import (
     Candidate,
     Interview,
-    InterviewAssignment,
     Job,
     PipelineStage,
     UploadBatch,
@@ -59,6 +59,19 @@ def _fake_download_ok(md="# 张三\n\n邮箱 zhangsan@example.com 电话 1380013
 
 
 # ── 服务层：批量导入 ───────────────────────────────────────────────
+def test_save_markdown_sanitizes_geek_id_path(app, tmp_path):
+    with app.app_context():
+        app.config["UPLOAD_FOLDER"] = str(tmp_path)
+        saved = BossPipelineService()._save_markdown(7, "../evil/../../G1?x", "# ok")
+
+        assert saved is not None
+        saved_path = Path(saved).resolve()
+        target_dir = (tmp_path / "boss" / "7").resolve()
+        assert target_dir in saved_path.parents
+        assert saved_path.name == "evil_G1_x.md"
+        assert saved_path.read_text(encoding="utf-8") == "# ok"
+
+
 def test_batch_import_basic_and_dedup(app, make_user, monkeypatch):
     """导入两条 + 重复一条；去重生效，入库 Candidate/UploadBatch/PipelineStage。"""
     with app.app_context():
@@ -176,62 +189,6 @@ def test_ai_screen_rejects_foreign_candidate(app, make_user, monkeypatch):
         assert Interview.query.count() == 0
 
 
-# ── 服务层：面试邀请双写 ───────────────────────────────────────────
-def test_invite_interview_dual_write(app, make_user, monkeypatch):
-    with app.app_context():
-        uid, _ = make_user("inv1@x.com", role="recruiter")
-        job = _seed_job()
-        c = _make_candidate(uid, "G9", job="BJOB9")
-        captured = {}
-
-        def _inv(self, encrypt_geek_id, job, time=None, address=None, desc=None, cookies_override=None):
-            captured.update({"gid": encrypt_geek_id, "job": job, "time": time})
-            return {"ok": True, "data": {"status": "ok"}, "error": None}
-
-        monkeypatch.setattr("app.services.boss_service.BossService.recruiter_invite_interview", _inv)
-        r = BossPipelineService().invite_interview(
-            uid, c.id, job.id, cookies_override="ck",
-            time_text="2026-07-01 10:00", address="线上", desc="一面",
-        )
-        assert r["ok"] is True
-        assert captured["gid"] == "G9"
-        assert captured["job"] == "BJOB9"
-        assert InterviewAssignment.query.filter_by(candidate_id=c.id).count() == 1
-        ia = InterviewAssignment.query.filter_by(candidate_id=c.id).first()
-        assert ia.status == "invited"
-        assert ia.interviewer_id == uid
-        assert PipelineStage.query.filter_by(candidate_id=c.id, stage="interview").count() == 1
-
-
-def test_invite_interview_boss_fail_no_system_write(app, make_user, monkeypatch):
-    """BOSS 调用失败 → 不写系统记录，透传错误。"""
-    with app.app_context():
-        uid, _ = make_user("inv2@x.com", role="recruiter")
-        job = _seed_job()
-        c = _make_candidate(uid, "G10", job="BJOB10")
-        monkeypatch.setattr(
-            "app.services.boss_service.BossService.recruiter_invite_interview",
-            lambda self, **k: {"ok": False, "data": None,
-                               "error": {"code": "rate_limited", "message": "429"}},
-        )
-        r = BossPipelineService().invite_interview(uid, c.id, job.id, cookies_override="ck")
-        assert r["ok"] is False
-        assert r["error"]["code"] == "rate_limited"
-        assert InterviewAssignment.query.count() == 0
-        assert PipelineStage.query.filter_by(stage="interview").count() == 0
-
-
-def test_invite_interview_missing_boss_job(app, make_user):
-    """候选人无 BOSS encryptJobId 且未传 boss_job → invalid_params。"""
-    with app.app_context():
-        uid, _ = make_user("inv3@x.com", role="recruiter")
-        job = _seed_job()
-        c = _make_candidate(uid, "G11", job=None)
-        r = BossPipelineService().invite_interview(uid, c.id, job.id, cookies_override="ck")
-        assert r["ok"] is False
-        assert r["error"]["code"] == "invalid_params"
-
-
 # ── API 鉴权 / 状态码 ──────────────────────────────────────────────
 def test_batch_import_api_requires_active_account(client, make_user, monkeypatch):
     """无激活账号 → 409 no_active_account。"""
@@ -240,6 +197,7 @@ def test_batch_import_api_requires_active_account(client, make_user, monkeypatch
                     json={"items": [{"geek_id": "G1"}]}, headers=_auth(token))
     assert r.status_code == 409
     assert r.get_json()["error"]["code"] == "no_active_account"
+    assert "从浏览器导入" in r.get_json()["error"]["message"]
 
 
 def test_batch_import_api_empty_items_400(client, make_user):
@@ -270,8 +228,19 @@ def test_ai_screen_api_validation(client, make_user):
     assert r.status_code == 400
 
 
+def test_invite_interview_api_removed_for_recruiter(client, make_user):
+    """BOSS 面试邀请依赖短效 stoken，已下线；旧客户端得到明确 410。"""
+    _, token = make_user("api5@x.com", role="recruiter")
+    r = client.post("/api/boss/candidates/invite-interview",
+                    json={"candidate_id": 1, "job_id": 1}, headers=_auth(token))
+    assert r.status_code == 410
+    body = r.get_json()
+    assert body["error"]["code"] == "gone"
+    assert "系统内面试安排" in body["error"]["message"]
+
+
 def test_invite_interview_api_forbidden_for_interviewer(client, make_user):
-    _, token = make_user("api5@x.com", role="interviewer")
+    _, token = make_user("api6@x.com", role="interviewer")
     r = client.post("/api/boss/candidates/invite-interview",
                     json={"candidate_id": 1, "job_id": 1}, headers=_auth(token))
     assert r.status_code == 403
