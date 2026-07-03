@@ -25,6 +25,9 @@ COPY base_agent /app/base_agent
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app/backend:/app
 ENV PORT=5000
+# Container builds must not depend on outbound GitHub access. If boss-cli is
+# preinstalled separately, set BOSS_CLI_BIN or enable BOSS_CLI_AUTO_INSTALL.
+ENV BOSS_CLI_AUTO_INSTALL=false
 
 EXPOSE 5000
 

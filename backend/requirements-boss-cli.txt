@@ -1,0 +1,6 @@
+# Optional BOSS CLI dependency.
+#
+# Do not include this file from backend/requirements.txt: CI/CD builders may not
+# have outbound GitHub access, while this package is only available with the
+# recruiter commands from the GitHub source tree.
+kabi-boss-cli @ git+https://github.com/jackwener/boss-cli.git

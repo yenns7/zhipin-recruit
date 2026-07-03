@@ -172,7 +172,11 @@ python backend/scripts/backup_pilot_data.py --dry-run
 ```bash
 # 必须从 GitHub 源码安装（含 recruiter 子命令）；macOS/外部管理环境加 --break-system-packages
 pip install git+https://github.com/jackwener/boss-cli.git --break-system-packages
+# 或使用项目内可选依赖文件
+pip install -r backend/requirements-boss-cli.txt --break-system-packages
 ```
+
+> CI/CD 容器镜像构建不会安装 `backend/requirements-boss-cli.txt`，避免构建机无法访问 GitHub 时阻断主系统发布。容器默认 `BOSS_CLI_AUTO_INSTALL=false`；如需在 SIT/生产启用 BOSS 功能，请先让运维预装 `boss` 并配置 `BOSS_CLI_BIN`，或确认运行环境可访问 GitHub 后再开启自动安装。
 
 ### 2. 验证安装
 
