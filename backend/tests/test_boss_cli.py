@@ -10,6 +10,8 @@ import subprocess
 
 import pytest
 
+from app import create_app, db
+from app.config import TestingConfig
 from app.services import boss_service
 from app.services.boss_service import BossService, _run, _ensure_cli
 
@@ -244,6 +246,33 @@ def test_not_installed_returns_503_at_api(client, make_user, monkeypatch):
     assert r.status_code == 503
     body = r.get_json()
     assert body["error"]["code"] == "boss_cli_not_installed"
+
+
+def test_browser_cookie_import_allows_chrome_extension_cors_preflight():
+    """生产白名单模式下，Chrome 扩展仍可预检 BOSS Cookie 导入接口。"""
+
+    class ExtensionCorsConfig(TestingConfig):
+        CORS_ORIGINS = ["https://test-zhipin.yimidida.com"]
+
+    app = create_app(ExtensionCorsConfig)
+    try:
+        client = app.test_client()
+        origin = "chrome-extension://abcdefghijklmnopabcdefghijklmnop"
+        r = client.options(
+            "/api/boss/login/browser-cookie",
+            headers={
+                "Origin": origin,
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "Authorization, Content-Type",
+            },
+        )
+        assert r.headers.get("Access-Control-Allow-Origin") == origin
+        assert "Authorization" in r.headers.get("Access-Control-Allow-Headers", "")
+    finally:
+        with app.app_context():
+            db.session.remove()
+            db.drop_all()
+            db.engine.dispose()
 
 
 # ── API 鉴权 ───────────────────────────────────────────────────────

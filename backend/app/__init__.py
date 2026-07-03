@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 from flask import Flask, send_from_directory
 from flask_cors import CORS
@@ -23,7 +24,7 @@ def create_app(config=None):
 
     _enforce_production_security(app)
 
-    cors_origins = app.config.get("CORS_ORIGINS") or []
+    cors_origins = _cors_origins_with_browser_extensions(app.config.get("CORS_ORIGINS") or [])
     if cors_origins:
         CORS(app, origins=cors_origins, supports_credentials=True)
     else:
@@ -46,6 +47,20 @@ def create_app(config=None):
     _register_frontend(app)
 
     return app
+
+
+def _cors_origins_with_browser_extensions(configured_origins):
+    """Extend production CORS allowlist for the BOSS Cookie Chrome extension.
+
+    The unpacked extension id can differ per install path, so a fixed
+    chrome-extension://<id> entry is too brittle. Endpoints still require JWT
+    auth; this only lets the browser deliver the request.
+    """
+    origins = list(configured_origins)
+    extension_origin_pattern = re.compile(r"^chrome-extension://[a-p]{32}$")
+    if not any(origin == extension_origin_pattern for origin in origins):
+        origins.append(extension_origin_pattern)
+    return origins
 
 
 def _register_security_headers(app):

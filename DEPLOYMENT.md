@@ -94,6 +94,8 @@ python -m pip install -r requirements.txt
 > Docker 镜像构建不再把 `boss-cli` 放进主依赖安装链路，避免公司 CI/CD 构建机因无法访问 GitHub 而失败。源码安装入口保留在 `backend/requirements-boss-cli.txt`；如试点环境必须启用 `/boss`，请由运维在可访问 GitHub 或内网镜像的环境预装该文件，或提供 `boss` 可执行文件并设置 `BOSS_CLI_BIN`。容器默认 `BOSS_CLI_AUTO_INSTALL=false`，缺失时 `/api/boss/*` 会返回 503 并提示 CLI 未就绪。
 >
 > 后端默认 `BOSS_CLI_AUTO_INSTALL=true`，缺失时会自动从上述源码地址安装；生产建议设 `false` 并手动安装。可用 `BOSS_CLI_BIN` 指定 `boss` 绝对路径。详见 `RUNNING.md` 的「BOSS 直聘集成（boss-cli，必须配置）」一节。CLI 装好后还需在 `/boss` 页面「从浏览器导入账号」绑定 BOSS 账号（云部署下后端读不到使用者本机浏览器，需用 `browser-extension/` 扩展采集完整 Cookie 后粘贴导入）。扫码登录也支持：装 `kabi-boss-cli[browser]` + `python -m camoufox fetch` 后，扫码流程会用 Camoufox 无头浏览器自动补全 `__zp_stoken__`；Camoufox 受 BOSS 反爬影响并非 100% 成功，补不出时引导改用浏览器导入，故「从浏览器导入账号」仍是最稳路径。
+>
+> Chrome 扩展一键发送 Cookie 时，请求来源是 `chrome-extension://<扩展ID>`。后端会自动允许合法 Chrome 扩展来源预检并访问 `/api/boss/login/browser-cookie`；生产 `CORS_ORIGINS` 仍只需配置智聘网页域名，无需为不同电脑生成的扩展 ID 单独加白名单。
 
 ### 3.3 配置环境变量
 
