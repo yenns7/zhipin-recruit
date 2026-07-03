@@ -2,7 +2,7 @@ FROM registry.ymdd.tech/library/python:3.12-uv
 
 WORKDIR /app
 
-# Install curl for utility/healthchecks if needed
+# Install curl for utility/healthchecks and git for pip git+ requirements
 RUN for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do \
         if [ -f "$f" ]; then \
             sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' "$f"; \
@@ -11,7 +11,7 @@ RUN for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sourc
             sed -i 's/security.debian.org/mirrors.aliyun.com/g' "$f"; \
         fi; \
     done && \
-    apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+    apt-get update && apt-get install -y curl git && rm -rf /var/lib/apt/lists/*
 
 # Copy backend requirements first to leverage Docker cache
 COPY backend/requirements.txt /app/backend/requirements.txt
