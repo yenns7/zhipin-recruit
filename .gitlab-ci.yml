@@ -1,0 +1,24 @@
+stages:
+  - build
+
+buildTest:
+  stage: build
+  variables:
+    rc_version: $PKG_TAG
+    projectid: $CI_PROJECT_ID
+    projectname: $CI_PROJECT_NAME
+    jobid: $CI_JOB_ID
+    pipelineid: $CI_PIPELINE_ID
+    commitid: $CI_COMMIT_SHA
+    envlabel: "new"
+    tagname: $TagName
+
+  script:
+    - echo ${PWD}
+    - make all PKG_TAG=$PKG_TAG PKG_VERSION=$PKG_VERSION
+    - /deploy/script/ci/package.py $projectname  $rc_version"_"$PKG_VERSION  $projectid $pipelineid $jobid ${PWD} ${commitid} $envlabel
+    
+  tags:
+    - t_FRONTEND
+  only:
+    - api
