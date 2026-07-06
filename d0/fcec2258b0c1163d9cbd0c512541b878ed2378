@@ -1,0 +1,37 @@
+.codegraph/.gitignore
+  s_a925877cee49cb::t_d99e1d16974e2c 1-16
+.codegraph/config.json
+  s_a925877cee49cb::t_fe3b48efa86b68 1-140
+.superpowers/sdd/review-task-1-rerun.diff
+  s_a925877cee49cb::t_051ecbc851ad46 1-255
+.superpowers/sdd/review-task-1.diff
+  s_a925877cee49cb::t_364a207bd849bd 1-208
+.superpowers/sdd/task-1-brief.md
+  s_a925877cee49cb::t_b6d82fdf3118e5 1-148
+docs/superpowers/plans/2026-07-06-java-springboot-vue-rebuild-implementation.md
+  s_a925877cee49cb::t_08c5c82e0c88bf 1-1740
+docs/superpowers/specs/2026-07-06-java-springboot-vue-rebuild-api.md
+  s_a925877cee49cb::t_bacd87a67d9f66 1-520
+docs/superpowers/specs/2026-07-06-java-springboot-vue-rebuild-design.md
+  s_a925877cee49cb::t_7f443d8e950547 1-684
+docs/superpowers/specs/2026-07-06-java-springboot-vue-rebuild-prd.md
+  s_a925877cee49cb::t_2956952adcd919 1-462
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "d0fcec2258b0c1163d9cbd0c512541b878ed2378",
+  "prompts": {},
+  "sessions": {
+    "s_a925877cee49cb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6919eeed-251d-4658-9e9d-b8bec1fa792a",
+        "model": "unknown"
+      },
+      "human_author": "yenns <1060203591@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
