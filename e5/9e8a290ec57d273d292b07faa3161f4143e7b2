@@ -1,0 +1,41 @@
+.superpowers/sdd/task-1-report.md
+  s_a925877cee49cb::t_f479b038833df1 1-40
+README.md
+  s_228547de952be3::t_3d1b03cba6dfbe 24-31
+rebuild/.env.example
+  s_228547de952be3::t_4963f748ac9dc5 1-10
+rebuild/.gitignore
+  s_228547de952be3::t_92187104263499 1-4
+rebuild/README.md
+  s_228547de952be3::t_298f1585ec6dcd 1-17
+rebuild/docker-compose.yml
+  s_228547de952be3::t_63f46fbc72e07c 1-32
+rebuild/nginx/default.conf
+  s_228547de952be3::t_78641d78247619 1-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "e59e8a290ec57d273d292b07faa3161f4143e7b2",
+  "prompts": {},
+  "sessions": {
+    "s_228547de952be3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a7b467cbda395d5ce",
+        "model": "unknown"
+      },
+      "human_author": "yenns <1060203591@qq.com>"
+    },
+    "s_a925877cee49cb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6919eeed-251d-4658-9e9d-b8bec1fa792a",
+        "model": "unknown"
+      },
+      "human_author": "yenns <1060203591@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
