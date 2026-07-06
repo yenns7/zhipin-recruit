@@ -37,6 +37,12 @@ const router = createRouter({
           meta: { title: '候选人', roles: ['recruiter', 'manager', 'admin'] },
         },
         {
+          path: 'candidates/:candidateId',
+          name: 'CandidateDetail',
+          component: () => import('@/views/candidates/CandidateDetailView.vue'),
+          meta: { title: '候选人详情', roles: ['recruiter', 'manager', 'admin'] },
+        },
+        {
           path: 'jobs',
           name: 'Jobs',
           component: () => import('@/views/jobs/JobListView.vue'),
@@ -49,10 +55,22 @@ const router = createRouter({
           meta: { title: '招聘流程', roles: ['recruiter', 'manager', 'admin'] },
         },
         {
+          path: 'talent-map',
+          name: 'TalentMap',
+          component: () => import('@/views/talent-map/TalentMapView.vue'),
+          meta: { title: '人才地图', roles: ['recruiter', 'manager', 'admin'] },
+        },
+        {
           path: 'interviews',
           name: 'Interviews',
           component: () => import('@/views/interviews/InterviewListView.vue'),
           meta: { title: 'AI 面试', roles: ['recruiter', 'interviewer', 'manager', 'admin'] },
+        },
+        {
+          path: 'interviews/:interviewId',
+          name: 'InterviewReport',
+          component: () => import('@/views/interviews/InterviewReportView.vue'),
+          meta: { title: '面试报告', roles: ['recruiter', 'interviewer', 'manager', 'admin'] },
         },
       ],
     },

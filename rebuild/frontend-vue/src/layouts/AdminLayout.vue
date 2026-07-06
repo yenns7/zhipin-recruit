@@ -13,6 +13,7 @@ const navItems = computed(() => {
     { to: '/candidates', label: '候选人', icon: 'people', roles: ['recruiter', 'manager', 'admin'] },
     { to: '/jobs', label: '岗位管理', icon: 'briefcase', roles: ['recruiter', 'manager', 'admin'] },
     { to: '/pipeline', label: '招聘流程', icon: 'kanban', roles: ['recruiter', 'manager', 'admin'] },
+    { to: '/talent-map', label: '人才地图', icon: 'map', roles: ['recruiter', 'manager', 'admin'] },
     { to: '/interviews', label: 'AI 面试', icon: 'clipboard', roles: ['recruiter', 'interviewer', 'manager', 'admin'] },
   ]
   return items.filter(i => i.roles.includes(auth.role || 'recruiter'))
