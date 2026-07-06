@@ -1,0 +1,65 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: hireinsight-api
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/hireinsight}
+    username: ${DATABASE_USER:hi}
+    password: ${DATABASE_PASSWORD:hipass}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: Asia/Shanghai
+  jackson:
+    default-property-inclusion: non_null
+    time-zone: Asia/Shanghai
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:change-me-in-prod}
+    expiry-hours: ${JWT_EXPIRY_HOURS:8}
+  upload:
+    max-file-size: 100MB
+    folder: ${UPLOAD_FOLDER:/tmp/hireinsight_uploads}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: test
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    database-platform: org.hibernate.dialect.H2Dialect
