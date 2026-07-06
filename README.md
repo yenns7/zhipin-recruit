@@ -162,6 +162,7 @@ npm run dev                   # http://localhost:5173，代理到 :5001
 │       ├── pages/    12 个页面
 │       ├── components/ UI 基元 + 业务组件
 │       └── lib/      api 客户端 / auth / agent 流式
+├── rebuild/          Java Spring Boot + Vue 重构 MVP（脚手架阶段）
 ├── base_agent/       复用的 LLM/解析/匹配模块
 ├── docs/             需求 / PRD / 设计文档
 ├── README.md
