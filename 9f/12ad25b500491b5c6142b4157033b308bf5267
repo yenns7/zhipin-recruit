@@ -1,0 +1,21 @@
+.superpowers/sdd/task-1-report.md
+  s_ca2d11e8a84835::t_dfad0c8d593945 41-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "9f12ad25b500491b5c6142b4157033b308bf5267",
+  "prompts": {},
+  "sessions": {
+    "s_ca2d11e8a84835": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a8432c4b32d3c8441",
+        "model": "unknown"
+      },
+      "human_author": "yenns <1060203591@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
