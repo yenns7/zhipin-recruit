@@ -1,139 +1,108 @@
 # 15 · Java Spring Boot + Vue 重构 MVP 状态报告
 
 > 日期：2026-07-06
-> 目标：记录 `rebuild/` 目录下以 Java + Spring Boot + Vue 技术栈重新实现智聘 MVP 的真实状态。
-> 适用对象：研发、技术决策者、需要判断"新栈重构做到哪了"的协作者。
+> 目标：记录 `rebuild/` 目录下 Java Spring Boot + Vue 重构版的当前真实状态，并修正“全部仅 demo / in-memory”的过时口径。
 
 ---
 
 ## 1. 结论先行
 
-当前 `rebuild/` 处于**项目脚手架阶段**：
+当前 `rebuild/` 已经不是“只有脚手架”的阶段，也不能被笼统写成“纯 in-memory demo”。
 
-- **技术基础设施骨架已完成**：Spring Boot 3.2.5 项目结构、Maven 配置、安全框架、JWT、全局异常处理、健康检查、JPA 配置三环境（dev/test/prod）已落地。
-- **产品代码尚未开始编写**：无业务实体（Entity）、无 Repository、无 Service、无 Controller、无数据库迁移脚本。
-- **前端路由/状态管理骨架已完成**：Vue 3 + Pinia + Vue Router + Tailwind 项目已初始化，登录态管理和 6 个页面路由定义就绪，但对应的视图组件（`views/`）尚未创建。
+- **后端已有一批真实可落库的本地能力**：默认数据源是本地 H2 文件库，且已有 JPA Entity、Repository、Controller、Flyway migration 与 Spring Boot 测试。
+- **部分演示壳层已写入本地 H2**：系统治理参数/模型/审计日志、通知待办覆盖状态、集成账号/扩展上下文/抓取任务、demo 登录会话都已持久化到本地 H2。
+- **同时仍保留明确限制**：这套重构版依旧是非生产壳层，未接真实第三方、未接真实配置中心；BI 仍是 rule-based 演示口径，Agent 会话仍是进程内存态，匹配推荐仍是 demo 数据。
+- **前端已不止“空骨架”**：现有 `views/`、`components/`、测试文件已经覆盖系统治理、通知待办、匹配推荐、管理员用户治理等页面壳层，但路由接线并未全部收口。
 
-**当前不适合宣称"MVP 已可运行"或"可以试点"，仅适合作为"新栈重构起点"。**
-
----
-
-## 2. 已完成
-
-### 2.1 后端 Java Spring Boot 骨架
-
-| 项目 | 证据 |
-|------|------|
-| Maven pom.xml | `rebuild/backend-java/pom.xml` — Spring Boot 3.2.5, Java 21, spring-boot-starter-web/data-jpa/security/validation, jjwt 0.12.5, springdoc 2.5.0, PostgreSQL/H2, Lombok |
-| 应用入口 | `HireInsightApplication.java` — `@SpringBootApplication` |
-| 安全配置 | `WebSecurityConfig.java` — Spring Security 配置, `JwtTokenProvider.java`, `JwtAuthenticationFilter.java`, `AuthException.java` |
-| 通用层 | `ApiResponse.java` — 统一响应体; `GlobalExceptionHandler.java` — `@RestControllerAdvice` |
-| 健康检查 | `HealthController.java` — `GET /health` |
-| 配置 | `application.yml` — 三环境（dev/test/prod）, 数据库/H2, JWT, 上传, 时区 |
-| JPA 配置 | `JpaConfig.java` — `@EnableJpaAuditing`; `AppConfig.java` — Jackson |
-
-### 2.2 前端 Vue 骨架
-
-| 项目 | 证据 |
-|------|------|
-| 项目配置 | `package.json` — Vue 3.4, Pinia 2.1, Vue Router 4.3, Vite 5.2, Tailwind 3.4, Vitest 1.4, TypeScript 5.4, vue-tsc 2.0 |
-| 构建工具 | `vite.config.ts`, `tsconfig.json`, `postcss.config.js`, `tailwind.config.js`, `index.html` |
-| 应用入口 | `main.ts` — createApp + Pinia + Router; `App.vue` — `<router-view />` |
-| 路由定义 | `router/index.ts` — 6 条路由: Login, Dashboard, Candidates, Jobs, Pipeline, Interviews; 含 beforeEach 鉴权守卫 |
-| 状态管理 | `stores/auth.ts` — token/setToken/logout |
-| API 层 | `api/http.ts` — axios 封装含拦截器 |
-| 类型定义 | `types/index.ts` — User/Role/LoginResponse/Candidate/Job/PipelineStage 等 |
-| 样式 | `styles/index.css` — Tailwind 指令 |
-| 类型补充 | `env.d.ts` — `/// <reference types="vite/client" />` |
+**更准确的结论是：重构版已经进入“本地可联调的演示壳层 / MVP 收口中”阶段，而不是“只有脚手架”，也还不是“可生产上线”。**
 
 ---
 
-## 3. 未完成
+## 2. 当前已实现的能力
 
-### 3.1 后端缺失清单
+### 2.1 后端基础与主流程
 
-| 模块 | 缺失内容 |
-|------|----------|
-| 数据模型 | **全部 Entity 未创建** — User, Candidate, Job, PipelineStage, Interview, Resume, Event/BILog 等均无 JPA @Entity |
-| Repository | 无 Spring Data JPA Repository 接口 |
-| 业务服务 | 无 Service 类 — 认证/候选人/岗位/流程/面试/BI/BOSS 等均未实现 |
-| 控制器 | 无业务 Controller — 只有 HealthController 一个非业务端点 |
-| 数据库迁移 | 无 Flyway/Liquibase 迁移脚本 |
-| DTO / 请求验证 | 无业务请求/响应对象 |
-| 测试 | 无测试代码 |
-| Docker | 无 `rebuild/` 下的 Dockerfile 或 docker-compose.yml |
-
-### 3.2 前端缺失清单
-
-| 模块 | 缺失内容 |
-|------|----------|
-| 页面视图 | 全部 `views/` 目录下视图组件未创建 — 路由指向 `@/views/login/LoginView.vue`、`@/views/dashboard/DashboardView.vue` 等但文件不存在 |
-| 布局组件 | `layouts/AdminLayout.vue` 未创建 — 路由引用但文件不存在 |
-| 业务组件 | 无表单、表格、流程看板、面试反馈、BI 图表等组件 |
-| 页面级组件 | 无 Candidates/Jobs/Pipeline/Interviews 功能页面 |
-| BOSS 集成 | 无 BOSS 模块相关代码 |
-| AI 助手 | 无 Agent/会话/流式对话相关代码 |
-| 测试 | 无测试代码 |
-
-### 3.3 基础设施缺失
-
-| 项目 | 状态 |
-|------|------|
-| Docker 构建 | `rebuild/` 下无 Dockerfile |
-| Docker Compose | `rebuild/` 下无 docker-compose.yml |
-| CI/CD 配置 | 无 |
-| 部署文档 | `rebuild/` 下无部署/运行说明 |
-| 环境变量模板 | 无 `.env.example` 在 `rebuild/` |
-
----
-
-## 4. 与主项目（Flask + React）的关系
-
-当前仓库维护两套技术栈：
-
-| | 主项目 | 重构 MVP |
+| 模块 | 当前状态 | 证据 |
 |---|---|---|
-| 路径 | `backend/` + `frontend/` | `rebuild/backend-java/` + `rebuild/frontend-vue/` |
-| 后端 | Flask 3.1 + SQLAlchemy + SQLite/PostgreSQL | Spring Boot 3.2.5 + JPA + PostgreSQL/H2 |
-| 前端 | React 18 + Vite 8 + TypeScript + Tailwind | Vue 3.4 + Vite 5 + TypeScript + Pinia + Tailwind |
-| 业务代码 | 完整（27+ API 路由，12 页面） | 骨架（仅基础设施） |
-| 测试 | backend + frontend 数百个测试 | 无 |
-| 适用阶段 | 当前内测/演示 | 新栈重构起点 |
+| Spring Boot 基础设施 | 已完成 | `rebuild/backend-java/pom.xml`、`HireInsightApplication.java`、`WebSecurityConfig.java`、`GlobalExceptionHandler.java` |
+| 默认数据源 | 已配置本地 H2 文件库 | `application.yml` 默认 `jdbc:h2:file:./data/hireinsight-demo`，`dev` 也为 file 模式；仅 `test` profile 为 `jdbc:h2:mem:testdb` |
+| 认证 | 已有 demo 账号、JWT、会话落库 | `AuthController.java`、`DemoAuthSessionService.java`、`V8__create_demo_auth_tables.sql` |
+| 候选人/岗位 | 已有 Entity + Repository + 最小读写接口 | `Candidate.java`、`Job.java`、`CandidateController.java`、`JobController.java` |
+| 流程推进 | 已有流程看板、推进/回退、历史接口 | `PipelineController.java`、`PipelineBoardService.java` |
+| 面试反馈 | 已有反馈提交与列表查询 | `InterviewController.java`、`InterviewFeedback.java` |
 
-主项目（Flask + React）是当前可运行版本；重构 MVP（Java + Vue）是技术栈迁移方向，当前尚不具备运行能力。
+### 2.2 已持久化到本地 H2 的演示壳层
+
+| 能力 | 当前状态 | 证据 |
+|---|---|---|
+| 系统治理参数/模型/审计日志 | **已持久化到本地 H2** | `SystemGovernanceService.java` + `V6__create_system_governance_tables.sql` |
+| 通知待办完成/归档状态 | **已持久化到本地 H2** | `NotificationTodoService.java` + `V7__create_notification_todo_status_overrides.sql` |
+| 集成账号/扩展上下文/抓取任务 | **已持久化到本地 H2** | `IntegrationDemoService.java` + `V5__integration_persistence.sql` |
+| Demo 登录会话 | **已持久化到本地 H2** | `DemoAuthSessionService.java` + `V8__create_demo_auth_tables.sql` |
+
+### 2.3 仍是演示口径而非真实生产能力
+
+| 能力 | 当前状态 | 证据 |
+|---|---|---|
+| BI 概览 | **rule-based 演示指标**，不是生产 BI | `BiOverviewService.java` 按角色与用户偏移量生成摘要值 |
+| Agent 工作台 | **进程内存态会话**，写操作只给确认卡片 | `AgentDemoService.java` 使用 `ConcurrentHashMap` |
+| 匹配推荐 | **demo 数据**，不是生产匹配流水 | `MatchDemoService.java`、`MatchRecommendationController.java` |
+| 系统治理配置中心 | **本地治理壳层**，非真实配置中心 | `SystemGovernanceService.java` 只读写本地参数/模型/审计表 |
+| 第三方集成 | **本地演示账户与任务状态**，非真实第三方联通 | `IntegrationDemoService.java` 的 seed 数据与本地表结构 |
+
+### 2.4 前端当前真实状态
+
+| 模块 | 当前状态 | 证据 |
+|---|---|---|
+| Vue 基础设施 | 已完成 | `rebuild/frontend-vue/package.json`、`main.ts`、`router/index.ts`、`stores/auth.ts` |
+| 页面壳层 | 已有一批视图与组件 | `views/admin/`、`views/match/`、`views/notifications/`、`components/admin/`、`components/notifications/` |
+| 前端测试 | 已存在多组 Vitest | `src/views/admin/SystemAdminView.test.ts`、`src/views/match/MatchRecommendationsView.test.ts`、`src/views/notifications/NotificationTodoView.test.ts` |
+| 路由收口 | **未全部接线** | 当前 router 只显式注册 Login / Dashboard / Candidates / Jobs / Pipeline / Interviews；Agent/Admin/Notifications/Match 视图与测试已存在，但路由尚未完全并入现有 `router/index.ts` |
 
 ---
 
-## 5. 剩余风险
+## 3. 本次重点修正的口径
 
-1. **技术选型差异待验证**：Spring Boot 3.2.5 + JPA 是否能完全承接 Flask + SQLAlchemy + DeepSeek LangGraph 的 AI 流程编排能力，尚未在代码层面验证。
-2. **前端 Vue 生态差异**：现有 React 页面（GSAP 动画、recharts 图表、SSE 流式 AI 对话）的 Vue 重新实现方案尚未评估。
-3. **AI 引擎复用路径**：`base_agent/`（Python LangGraph）与 Java 后端之间如何集成（HTTP 桥接？Python 子进程？）尚无设计。
-4. **数据库迁移**：从 SQLAlchemy 模型迁移到 JPA Entity 的数据结构和兼容性尚未评审。
-5. **资源投入**：从当前 Flake + React 主项目切换到新栈，需要完整的开发周期和验证，当前仅有基础设施。
+之前把重构版写成“项目脚手架阶段”“无 Entity/Repository/Service/Controller”“全部 demo / in-memory”，已经与当前代码事实不一致。本次统一改成以下口径：
 
----
-
-## 6. 下一步
-
-1. 确定新 MVP 的产品范围（与主项目一致，还是缩小范围仅覆盖招聘主流程？）
-2. 完成 ER 设计和 JPA Entity 建模
-3. 逐个实现后端业务模块（认证 → 候选人 → 岗位 → 流程 → 面试 → BI）
-4. 实现 Vue 视图组件（登录 → 工作台 → 候选人 → 岗位 → 流程 → 面试）
-5. 补 Docker 构建和 docker-compose 编排
-6. 补测试
+- **可以说**：`已持久化到本地 H2 的演示数据 / 本地重构库状态`
+- **可以说**：`非生产、非真实第三方、非真实配置中心`
+- **可以说**：`BI 为 rule-based 演示指标`
+- **可以说**：`Agent 会话仍是进程内存态`
+- **不要再笼统写**：`全部仅 demo / in-memory`
 
 ---
 
-## 7. 验证证据摘要
+## 4. 仍然存在的缺口与风险
+
+1. **不是生产可上线形态**：当前默认仍是本地 H2，未补齐生产数据库、备份、审计策略、监控和运维体系。
+2. **真实第三方未打通**：集成模块目前只证明“本地可存演示账号与任务状态”，不代表真实 BOSS/猎聘联通。
+3. **真实配置中心未接入**：系统治理页展示的是本地参数壳层，不代表已有 Nacos / Apollo / Consul 级别配置治理。
+4. **BI 口径仍偏演示**：`BiOverviewService` 当前不是从真实业务明细、真实归因和真实 BI 口径推导出的数据。
+5. **Agent 仍不落真实业务写入**：写操作统一改写为 confirm-first 建议，不直接推进候选人、岗位或流程。
+6. **前端接线未收口**：现有视图、测试与路由并非完全一致，存在“页面文件已做、路由尚未挂上”的状态。
+
+---
+
+## 5. 建议对外描述
+
+如果需要给协作者或评审同步当前状态，建议用下面这句话：
+
+> `rebuild/` 已经具备本地可联调的 Java + Vue 演示壳层；部分系统治理、通知、集成与 demo 会话状态已持久化到本地 H2，但整体仍是非生产、非真实第三方、非真实配置中心的 MVP 收口阶段，BI 与 Agent 仍保留 rule-based / in-memory 的演示限制。
+
+---
+
+## 6. 证据摘要
 
 | 证据 | 路径 |
-|------|------|
-| Maven POM | `rebuild/backend-java/pom.xml` |
-| 后端 Java 源文件 (10 个) | `rebuild/backend-java/src/main/java/com/hireinsight/` |
-| 后端配置 | `rebuild/backend-java/src/main/resources/application.yml` |
-| 前端 package.json | `rebuild/frontend-vue/package.json` |
-| 前端源文件 (8 个) | `rebuild/frontend-vue/src/` |
-| 前端构建配置 | `rebuild/frontend-vue/vite.config.ts` |
+|---|---|
+| 默认 H2 文件库配置 | `rebuild/backend-java/src/main/resources/application.yml` |
+| 本地持久化迁移 | `rebuild/backend-java/src/main/resources/db/migration/V5__integration_persistence.sql` |
+| 本地持久化迁移 | `rebuild/backend-java/src/main/resources/db/migration/V6__create_system_governance_tables.sql` |
+| 本地持久化迁移 | `rebuild/backend-java/src/main/resources/db/migration/V7__create_notification_todo_status_overrides.sql` |
+| 本地持久化迁移 | `rebuild/backend-java/src/main/resources/db/migration/V8__create_demo_auth_tables.sql` |
+| Agent 仍是进程内存态 | `rebuild/backend-java/src/main/java/com/zhiping/rebuild/agent/AgentDemoService.java` |
+| BI 仍是 rule-based 生成 | `rebuild/backend-java/src/main/java/com/hireinsight/bi/BiOverviewService.java` |
+| 前端现有视图与测试 | `rebuild/frontend-vue/src/views/`、`rebuild/frontend-vue/src/components/`、`rebuild/frontend-vue/src/tests/` |
 
-> 说明：本报告所有结论均以当前仓库文件和目录结构为唯一证据，不含任何假设或口头预期。
+> 说明：本报告以当前仓库可见代码、配置、迁移与测试文件为唯一依据，不包含未落库的计划项。
