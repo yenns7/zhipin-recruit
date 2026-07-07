@@ -25,7 +25,7 @@ describe('system admin and BI copy contract', () => {
     vi.unstubAllGlobals()
   })
 
-  it('renders BI copy that separates local H2 persistence from demo limitations', async () => {
+  it('renders BI copy that separates PostgreSQL dev persistence from demo limitations', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(
         JSON.stringify({
@@ -55,17 +55,18 @@ describe('system admin and BI copy contract', () => {
     await Promise.resolve()
 
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/bi/overview', expect.any(Object))
-    expect(wrapper.text()).toContain('本地 H2 文件库保存演示状态')
+    expect(wrapper.text()).toContain('PostgreSQL dev 数据库保存演示状态')
     expect(wrapper.text()).toContain('rule-based 聚合')
     expect(wrapper.text()).toContain('未接真实第三方渠道')
     expect(wrapper.text()).toContain('未接真实配置中心')
   })
 
-  it('documents system governance as locally persisted H2 state instead of pure in-memory config', () => {
-    expect(applicationYml).toContain('jdbc:h2:file:./data/hireinsight-demo')
-    expect(report).toContain('系统治理参数/模型/审计日志、通知待办覆盖状态、集成账号/扩展上下文/抓取任务、demo 登录会话都已持久化到本地 H2')
-    expect(backendReadme).toContain('系统治理壳层')
-    expect(backendReadme).toContain('system_governance_audit_logs')
+  it('documents default PostgreSQL runtime and demo-only governance limits', () => {
+    expect(applicationYml).toContain('jdbc:postgresql://localhost:5432/hireinsight')
+    expect(applicationYml).toContain('jdbc:h2:mem:testdb')
+    expect(report).toContain('Java rebuild PostgreSQL dev 数据库')
+    expect(backendReadme).toContain('系统设置里的系统治理壳层')
+    expect(backendReadme).toContain('demo / in-memory')
     expect(backendReadme).toContain('非真实配置中心')
   })
 })

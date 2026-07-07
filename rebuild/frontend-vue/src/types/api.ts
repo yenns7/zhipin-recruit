@@ -55,6 +55,31 @@ export interface DashboardOverviewResponse {
   generatedAt: string
 }
 
+export interface DashboardStatsResponse {
+  activeJobs: number
+  candidateTotal: number
+  parsedCandidates: number
+  adminOrManager: boolean
+}
+
+export interface PaginatedResponse<T> {
+  items: T[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export interface CandidateListQuery {
+  page?: number
+  pageSize?: number
+}
+
+export interface JobListQuery extends CandidateListQuery {
+  status?: string
+}
+
+export interface InterviewListQuery extends CandidateListQuery {}
+
 export interface ResumeUploadResult {
   file: string
   status: 'PENDING' | 'PROCESSING' | 'PARSED' | 'FAILED' | 'ok' | 'skipped' | 'error'
@@ -233,6 +258,91 @@ export interface CandidateListItem {
   created_at?: string | null
 }
 
+export interface JobListItem {
+  id: number
+  title: string
+  status: string
+  created_at?: string | null
+}
+
+export interface InterviewListItem {
+  id: number
+  candidate_name: string
+  job_title: string
+  status: string
+  score: number | null
+  created_at?: string | null
+}
+
+export interface PipelineBoardCandidate {
+  candidate_id: number
+  candidate_name: string
+  stage: string
+  updated_at?: string | null
+}
+
+export interface PipelineBoardResponse {
+  job_id: number
+  stages: Record<string, PipelineBoardCandidate[]>
+}
+
+export interface PipelineHistoryEvent {
+  eventType: string
+  fromStage: string | null
+  toStage: string
+  reason: string | null
+  note: string | null
+  operatorId: number | null
+  operatorName: string | null
+  happenedAt: string | null
+}
+
+export interface PipelineHistoryResponse {
+  candidateId: number
+  candidateName: string
+  jobId: number
+  currentStage: string
+  historyHint: string
+  events: PipelineHistoryEvent[]
+}
+
+export interface PipelineRevisePayload {
+  candidateId: number
+  jobId: number
+  toStage: string
+  reason: string
+  note: string
+}
+
+export interface PipelineReviseResponse {
+  id?: number
+  eventType: string
+  fromStage: string
+  toStage: string
+}
+
+export interface PipelineMovePayload {
+  candidateId: number
+  jobId: number
+  toStage: string
+}
+
+export interface PipelineMoveResponse {
+  id: number
+  stage: string
+}
+
+export interface InterviewSchedulePayload {
+  candidateId: number
+  jobId: number
+  interviewerId: number
+}
+
+export interface InterviewScheduleResponse {
+  id: number
+  status: string
+}
+
 export interface CandidatePipelineRecord {
   stageId: number
   jobId: number
@@ -304,6 +414,73 @@ export interface InterviewFeedbackItem {
   createdAt: string | null
   reopenedAt: string | null
   reopened: boolean
+}
+
+export interface InterviewDetailItem {
+  id: number
+  candidateId: number
+  candidateName?: string | null
+  jobId: number
+  jobTitle?: string | null
+  interviewerId: number | null
+  score: number | null
+  passRecommended: boolean | null
+  qaJson?: string | null
+  aiReport?: string | null
+  createdAt: string | null
+  reopenedAt?: string | null
+  reopened?: boolean
+}
+
+export interface AgentConversationSummary {
+  id: string
+  title: string
+  description: string
+  lastMessagePreview: string
+  lastMessageRole: 'assistant' | 'user'
+  messageCount: number
+  unreadCount: number
+  updatedAt: string
+}
+
+export interface AgentConfirmationField {
+  label: string
+  value: string
+}
+
+export interface AgentConfirmation {
+  status: string
+  title: string
+  summary: string
+  riskNote: string
+  confirmLabel: string
+  cancelLabel: string
+  executed: boolean
+  fields: AgentConfirmationField[]
+}
+
+export interface AgentMessage {
+  id: string
+  role: 'assistant' | 'user'
+  content: string
+  messageType: 'text' | 'confirmation'
+  createdAt: string
+  confirmation?: AgentConfirmation | null
+}
+
+export interface AgentConversationListResponse {
+  conversations: AgentConversationSummary[]
+}
+
+export interface AgentConversationDetailResponse {
+  conversation: AgentConversationSummary
+  messages: AgentMessage[]
+}
+
+export interface AgentSendMessageResponse {
+  conversationId: string
+  userMessage: AgentMessage
+  assistantMessage: AgentMessage
 }
 
 // ---- Talent Map ----

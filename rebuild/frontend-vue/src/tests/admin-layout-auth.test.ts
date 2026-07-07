@@ -116,4 +116,26 @@ describe('AdminLayout auth self-service', () => {
     )
     expect(push).toHaveBeenCalledWith('/login')
   })
+
+  it('uses Python original navigation labels for core local trial entries', () => {
+    const wrapper = mount(AdminLayout, {
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          RouterLink: {
+            template: '<a><slot /></a>',
+          },
+          RouterView: {
+            template: '<div />',
+          },
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain('简历库')
+    expect(wrapper.text()).toContain('招聘管理')
+    expect(wrapper.text()).toContain('候选人流程')
+    expect(wrapper.text()).not.toContain('岗位管理')
+    expect(wrapper.text()).not.toContain('招聘流程')
+  })
 })

@@ -19,6 +19,7 @@ env/
 *.sqlite
 *.sqlite3
 backend/instance/
+target/
 # 种子库不再提交（旧库含 SHA256 时代 token 导致 401 循环）；
 # 克隆后运行 python -m backend.seed_dev 生成 bcrypt 密码的全新库。
 
@@ -31,6 +32,8 @@ dist/
 # ── Runtime uploads ──────────────────────────────────────
 backend/uploads/
 uploads/
+rebuild/backups/
+rebuild/logs/
 
 # ── Logs ─────────────────────────────────────────────────
 *.log

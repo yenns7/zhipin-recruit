@@ -84,13 +84,13 @@ describe('list pagination views', () => {
     const wrapper = mount(CandidateListView)
     await flushPromises()
 
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/candidates?page=1&pageSize=10')
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/v1/candidates?page=1&pageSize=10')
 
     await wrapper.get('[data-testid="page-size-select"]').setValue('5')
     await flushPromises()
 
     const latestCandidateCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1]
-    expect(String(latestCandidateCall?.[0])).toContain('/api/candidates?page=1&pageSize=5')
+    expect(String(latestCandidateCall?.[0])).toContain('/api/v1/candidates?page=1&pageSize=5')
   })
 
   it('passes job page params and resets to page 1 when filters change or reset', async () => {
@@ -103,25 +103,25 @@ describe('list pagination views', () => {
     const wrapper = mount(JobListView)
     await flushPromises()
 
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/jobs?page=1&pageSize=10')
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/v1/jobs?page=1&pageSize=10')
     expect(wrapper.text()).toContain('岗位 1')
     expect(wrapper.text()).not.toContain('岗位 11')
 
     await wrapper.get('[data-testid="pagination-next"]').trigger('click')
     await flushPromises()
 
-    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/api/jobs?page=2&pageSize=10')
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/api/v1/jobs?page=2&pageSize=10')
     expect(wrapper.text()).toContain('岗位 11')
 
     await wrapper.get('[data-testid="job-status-filter"]').setValue('closed')
     await flushPromises()
 
-    expect(String(fetchMock.mock.calls[2]?.[0])).toContain('/api/jobs?page=1&pageSize=10&status=closed')
+    expect(String(fetchMock.mock.calls[2]?.[0])).toContain('/api/v1/jobs?page=1&pageSize=10&status=closed')
 
     await wrapper.get('[data-testid="list-reset"]').trigger('click')
     await flushPromises()
 
-    expect(String(fetchMock.mock.calls[3]?.[0])).toContain('/api/jobs?page=1&pageSize=10')
+    expect(String(fetchMock.mock.calls[3]?.[0])).toContain('/api/v1/jobs?page=1&pageSize=10')
     expect(String(fetchMock.mock.calls[3]?.[0])).not.toContain('status=closed')
   })
 
@@ -147,11 +147,11 @@ describe('list pagination views', () => {
     const wrapper = mount(InterviewListView)
     await flushPromises()
 
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/interviews?page=1&pageSize=10')
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/v1/interviews?page=1&pageSize=10')
     await wrapper.get('[data-testid="pagination-next"]').trigger('click')
     await flushPromises()
 
-    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/api/interviews?page=2&pageSize=10')
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/api/v1/interviews?page=2&pageSize=10')
     expect(wrapper.text()).toContain('候选人 11')
   })
 })

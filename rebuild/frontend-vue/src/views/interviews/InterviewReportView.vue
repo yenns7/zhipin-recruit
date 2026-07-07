@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api/http'
-import type { InterviewDetailItem } from '@/types'
+import type { InterviewDetailItem } from '@/types/api'
 
 const route = useRoute()
 const router = useRouter()
@@ -23,7 +23,7 @@ type StructuredReport = {
   notes: string[]
 }
 
-function parseJson<T>(raw?: string) {
+function parseJson<T>(raw?: string | null) {
   if (!raw || !raw.trim()) {
     return null
   }
@@ -60,7 +60,7 @@ function normalizeList(value: unknown) {
   return single ? [single] : []
 }
 
-function splitPlainTextSections(raw?: string): StructuredReport {
+function splitPlainTextSections(raw?: string | null): StructuredReport {
   const lines = (raw ?? '')
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -97,7 +97,7 @@ function splitPlainTextSections(raw?: string): StructuredReport {
   return result
 }
 
-function parseReport(raw?: string): StructuredReport {
+function parseReport(raw?: string | null): StructuredReport {
   const parsed = parseJson<Record<string, unknown>>(raw)
   if (parsed && !Array.isArray(parsed)) {
     return {
@@ -125,7 +125,7 @@ function parseReport(raw?: string): StructuredReport {
   return splitPlainTextSections(plainText)
 }
 
-function parseQaEntries(raw?: string): QaEntry[] {
+function parseQaEntries(raw?: string | null): QaEntry[] {
   const parsed = parseJson<unknown>(raw)
   if (!Array.isArray(parsed)) {
     return []

@@ -1,5 +1,38 @@
-import type { ResumeUploadResponse, ResumeUploadResult, ResumeUploadTaskResponse } from '@/types/api'
-import type { InterviewDetailItem } from '@/types'
+import type {
+  AgentConversationDetailResponse,
+  AgentConversationListResponse,
+  AgentSendMessageResponse,
+  AuthLogoutResponse,
+  CandidateListItem,
+  CandidateListQuery,
+  DashboardStatsResponse,
+  InterviewDetailItem,
+  InterviewListItem,
+  InterviewListQuery,
+  JobListItem,
+  JobListQuery,
+  NotificationTodoMutationResponse,
+  NotificationTodoResponse,
+  PaginatedResponse,
+  PipelineBoardCandidate,
+  PipelineBoardResponse,
+  PipelineCorrectionResponse,
+  PipelineHistoryResponse,
+  PipelineMovePayload,
+  PipelineMoveResponse,
+  PipelineRevisePayload,
+  PipelineReviseResponse,
+  InterviewSchedulePayload,
+  InterviewScheduleResponse,
+  ResumeUploadResponse,
+  ResumeUploadResult,
+  ResumeUploadTaskResponse,
+  RollbackPreview,
+  SystemAuditLogResponse,
+  SystemGovernanceMutationResponse,
+  SystemOverviewResponse,
+  UserPasswordChangeResponse,
+} from '@/types/api'
 import type {
   TalentMap, TalentMapSummary, TalentMapInput,
   TalentMapCompany, TalentMapCompanyInput,
@@ -35,7 +68,17 @@ export class ApiError extends Error {
   }
 }
 
-const BASE = import.meta.env.VITE_API_BASE_URL || '/api'
+const BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+
+function isApiEnvelope(payload: unknown): payload is { code: number; message: string; data?: unknown } {
+  return Boolean(
+    payload &&
+      typeof payload === 'object' &&
+      'code' in payload &&
+      'message' in payload &&
+      'data' in payload
+  )
+}
 
 async function request<T>(
   path: string,
@@ -70,7 +113,8 @@ async function request<T>(
   }
   const text = await res.text()
   if (!text) return null as T
-  return JSON.parse(text) as T
+  const payload = JSON.parse(text) as unknown
+  return (isApiEnvelope(payload) ? payload.data : payload) as T
 }
 
 function unwrapData<T>(payload: T | { data?: T } | null | undefined): T | null {
@@ -79,6 +123,121 @@ function unwrapData<T>(payload: T | { data?: T } | null | undefined): T | null {
     return payload.data as T
   }
   return payload as T
+}
+
+function asRecord(payload: unknown): Record<string, unknown> | null {
+  return payload && typeof payload === 'object' ? payload as Record<string, unknown> : null
+}
+
+function stringValue(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback
+}
+
+function numberValue(value: unknown, fallback = 0): number {
+  return typeof value === 'number' ? value : fallback
+}
+
+function nullableString(value: unknown): string | null {
+  return typeof value === 'string' ? value : null
+}
+
+function buildPath(path: string, params: Record<string, string | number | undefined | null> = {}): string {
+  const query = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value) !== '') {
+      query.set(key, String(value))
+    }
+  })
+  const suffix = query.toString()
+  return suffix ? `${path}?${suffix}` : path
+}
+
+function normalizeCandidate(raw: unknown): CandidateListItem {
+  const record = asRecord(raw) ?? {}
+  return {
+    id: numberValue(record.id),
+    name_masked: stringValue(record.name_masked ?? record.nameMasked, '未知候选人'),
+    parse_status: stringValue(record.parse_status ?? record.parseStatus, 'parsed'),
+    created_at: nullableString(record.created_at ?? record.createdAt),
+  }
+}
+
+function normalizeJob(raw: unknown): JobListItem {
+  const record = asRecord(raw) ?? {}
+  return {
+    id: numberValue(record.id),
+    title: stringValue(record.title, '未命名岗位'),
+    status: stringValue(record.status, 'active'),
+    created_at: nullableString(record.created_at ?? record.createdAt),
+  }
+}
+
+function normalizeInterview(raw: unknown): InterviewListItem {
+  const record = asRecord(raw) ?? {}
+  return {
+    id: numberValue(record.id),
+    candidate_name: stringValue(record.candidate_name ?? record.candidateName, '候选人'),
+    job_title: stringValue(record.job_title ?? record.jobTitle, '岗位'),
+    status: stringValue(record.status, record.score === null ? 'draft' : 'completed'),
+    score: typeof record.score === 'number' ? record.score : null,
+    created_at: nullableString(record.created_at ?? record.createdAt),
+  }
+}
+
+function normalizePipelineCandidate(raw: unknown): PipelineBoardCandidate {
+  const record = asRecord(raw) ?? {}
+  return {
+    candidate_id: numberValue(record.candidate_id ?? record.candidateId),
+    candidate_name: stringValue(record.candidate_name ?? record.candidateName, '候选人'),
+    stage: stringValue(record.stage, 'pending'),
+    updated_at: nullableString(record.updated_at ?? record.updatedAt ?? record.ts),
+  }
+}
+
+function normalizePage<T>(
+  payload: unknown,
+  itemKeys: string[],
+  normalize: (raw: unknown) => T,
+  fallbackPage: number,
+  fallbackPageSize: number,
+): PaginatedResponse<T> {
+  const unwrapped = unwrapData(payload as { data?: unknown }) as unknown
+  if (Array.isArray(unwrapped)) {
+    const start = (fallbackPage - 1) * fallbackPageSize
+    return {
+      items: unwrapped.slice(start, start + fallbackPageSize).map(normalize),
+      total: unwrapped.length,
+      page: fallbackPage,
+      pageSize: fallbackPageSize,
+    }
+  }
+
+  const record = asRecord(unwrapped) ?? {}
+  const rawItems = itemKeys
+    .map(key => record[key])
+    .find(Array.isArray) as unknown[] | undefined
+  const items = (rawItems ?? []).map(normalize)
+  return {
+    items,
+    total: numberValue(record.total, items.length),
+    page: numberValue(record.page, fallbackPage),
+    pageSize: numberValue(record.pageSize, fallbackPageSize),
+  }
+}
+
+function normalizeDashboardStats(payload: unknown): DashboardStatsResponse {
+  const record = asRecord(unwrapData(payload as { data?: unknown })) ?? {}
+  const summary = Array.isArray(record.summary) ? record.summary : []
+  const metricValue = (key: string) => {
+    const match = summary.find(item => asRecord(item)?.key === key)
+    return numberValue(asRecord(match)?.value)
+  }
+  return {
+    activeJobs: numberValue(record.activeJobs, metricValue('active_jobs')),
+    candidateTotal: numberValue(record.candidateTotal, metricValue('candidate_total')),
+    parsedCandidates: numberValue(record.parsedCandidates, metricValue('parsed_candidates')),
+    adminOrManager: Boolean(record.adminOrManager),
+  }
 }
 
 function normalizeResumeStatus(status?: string): ResumeUploadResult['status'] {
@@ -156,25 +315,80 @@ export const api = {
       method: 'POST',
       body: payload,
     }),
+  logout: () =>
+    request<AuthLogoutResponse>('/auth/logout', {
+      method: 'POST',
+    }),
+  changePassword: (payload: { currentPassword: string; newPassword: string }) =>
+    request<UserPasswordChangeResponse>('/users/me/password', {
+      method: 'PUT',
+      body: payload,
+    }),
   getMe: () =>
-    request<{ id: number; name: string; email: string; role: string }>('/auth/me'),
-  listCandidates: () =>
-    request<{ id: number; name_masked: string; parse_status: string }[]>('/candidates'),
-  listJobs: (status?: string) =>
-    request<{ id: number; title: string; status: string }[]>(
-      `/jobs${status ? `?status=${status}` : ''}`
-    ),
-  getPipelineBoard: (jobId: number) =>
-    request<{ job_id: number; stages: Record<string, unknown[]> }>(
-      `/pipeline/${jobId}/board`
-    ),
+    request<{ id: number; name: string; email: string; role: string }>('/users/me'),
+  getDashboardStats: async () => {
+    const payload = await request<unknown>('/bi/overview')
+    return normalizeDashboardStats(payload)
+  },
+  listCandidates: async (params: CandidateListQuery = {}) => {
+    const page = params.page ?? 1
+    const pageSize = params.pageSize ?? 10
+    const payload = await request<unknown>(buildPath('/candidates', { page, pageSize }))
+    return normalizePage(payload, ['candidates', 'items'], normalizeCandidate, page, pageSize)
+  },
+  listJobs: async (params: JobListQuery = {}) => {
+    const page = params.page ?? 1
+    const pageSize = params.pageSize ?? 10
+    const payload = await request<unknown>(buildPath('/jobs', { page, pageSize, status: params.status }))
+    return normalizePage(payload, ['jobs', 'items'], normalizeJob, page, pageSize)
+  },
+  getPipelineBoard: async (jobId: number): Promise<PipelineBoardResponse> => {
+    const payload = await request<unknown>(`/pipeline/${jobId}/board`)
+    const record = asRecord(unwrapData(payload as { data?: unknown })) ?? {}
+    const rawStages = asRecord(record.stages) ?? {}
+    const stages = Object.fromEntries(
+      Object.entries(rawStages).map(([stage, items]) => [
+        stage,
+        Array.isArray(items) ? items.map(normalizePipelineCandidate) : [],
+      ]),
+    )
+    return {
+      job_id: numberValue(record.job_id ?? record.jobId, jobId),
+      stages,
+    }
+  },
+  getPipelineHistory: (jobId: number, candidateId: number) =>
+    request<PipelineHistoryResponse>(`/pipeline/${jobId}/candidates/${candidateId}/history`),
+  movePipeline: (payload: PipelineMovePayload) =>
+    request<PipelineMoveResponse>('/pipeline/move', {
+      method: 'POST',
+      body: payload,
+    }),
+  revisePipeline: (payload: PipelineRevisePayload) =>
+    request<PipelineReviseResponse>('/pipeline/revise', {
+      method: 'POST',
+      body: payload,
+    }),
+  previewPipelineRollback: (jobId: number, candidateId: number) =>
+    request<RollbackPreview>(`/pipeline/${jobId}/candidates/${candidateId}/rollback-preview`),
+  rollbackPipeline: (jobId: number, candidateId: number) =>
+    request<PipelineCorrectionResponse>(`/pipeline/${jobId}/candidates/${candidateId}/rollback`, {
+      method: 'POST',
+    }),
 
   getInterview: (id: number) =>
-    request<InterviewDetailItem>(`/api/v1/interviews/${id}`),
-  listInterviews: () =>
-    request<{ id: number; candidate_name: string; job_title: string; status: string; score: number | null }[]>(
-      '/interviews'
-    ),
+    request<InterviewDetailItem>(`/interviews/${id}`),
+  scheduleInterview: (payload: InterviewSchedulePayload) =>
+    request<InterviewScheduleResponse>('/interviews/schedule', {
+      method: 'POST',
+      body: payload,
+    }),
+  listInterviews: async (params: InterviewListQuery = {}) => {
+    const page = params.page ?? 1
+    const pageSize = params.pageSize ?? 10
+    const payload = await request<unknown>(buildPath('/interviews', { page, pageSize }))
+    return normalizePage(payload, ['interviews', 'items'], normalizeInterview, page, pageSize)
+  },
   uploadResumes: async (files: File[]): Promise<ResumeUploadResponse> => {
     const formData = new FormData()
     files.forEach(file => formData.append('files', file))
@@ -189,6 +403,47 @@ export const api = {
     const raw = unwrapData(payload as { data?: unknown }) as Record<string, unknown> | null
     return normalizeResumeUploadResult(raw ?? { file: '', status: 'FAILED' })
   },
+
+  getNotificationTodos: () =>
+    request<NotificationTodoResponse>('/notifications/todos'),
+
+  completeNotificationTodo: (todoId: string) =>
+    request<NotificationTodoMutationResponse>(`/notifications/todos/${todoId}/complete`, {
+      method: 'POST',
+    }),
+
+  archiveNotificationTodo: (todoId: string) =>
+    request<NotificationTodoMutationResponse>(`/notifications/todos/${todoId}/archive`, {
+      method: 'POST',
+    }),
+
+  getSystemOverview: () =>
+    request<SystemOverviewResponse>('/admin/system/overview'),
+
+  getSystemAuditLogs: () =>
+    request<SystemAuditLogResponse>('/admin/system/audit-logs'),
+
+  toggleSystemParameter: (key: string) =>
+    request<SystemGovernanceMutationResponse>(`/admin/system/parameters/${key}/toggle`, {
+      method: 'POST',
+    }),
+
+  toggleSystemModelStatus: (modelId: string) =>
+    request<SystemGovernanceMutationResponse>(`/admin/system/models/${modelId}/toggle-status`, {
+      method: 'POST',
+    }),
+
+  listAgentConversations: () =>
+    request<AgentConversationListResponse>('/agent/conversations'),
+
+  getAgentConversation: (conversationId: string) =>
+    request<AgentConversationDetailResponse>(`/agent/conversations/${conversationId}`),
+
+  sendAgentMessage: (conversationId: string, content: string) =>
+    request<AgentSendMessageResponse>(`/agent/conversations/${conversationId}/messages`, {
+      method: 'POST',
+      body: { content },
+    }),
 
   // ---- Talent Map ----
 

@@ -24,6 +24,8 @@ class HealthControllerTest {
     void healthReturnsUp() throws Exception {
         mockMvc.perform(get("/api/v1/health"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("UP"));
+                .andExpect(jsonPath("$.data.status").value("UP"))
+                .andExpect(jsonPath("$.data.database").value("UP"))
+                .andExpect(jsonPath("$.data.checkedAt").isNotEmpty());
     }
 }

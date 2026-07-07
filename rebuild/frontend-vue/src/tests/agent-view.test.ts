@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import source from '../../../../rebuild/backend-java/src/main/java/com/zhiping/rebuild/agent/AgentDemoService.java?raw'
+import source from '../../../../rebuild/backend-java/src/main/java/com/hireinsight/agent/AgentDemoService.java?raw'
 import prd from '../../../../docs/superpowers/specs/2026-07-06-java-springboot-vue-rebuild-prd.md?raw'
 import api from '../../../../docs/superpowers/specs/2026-07-06-java-springboot-vue-rebuild-api.md?raw'
 

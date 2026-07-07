@@ -2,7 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { api } from '@/api/http'
 import { getToken, setToken, clearToken, setUnauthorizedHandler } from '@/api/http'
-import type { LoginResponse, Role } from '@/types'
+import type { Role } from '@/types'
+import type { UserPasswordChangeResponse } from '@/types/api'
 
 const NAME_KEY = 'hireinsight_name'
 const ROLE_KEY = 'hireinsight_role'
@@ -24,7 +25,14 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem(ROLE_KEY, res.role)
   }
 
-  function logout() {
+  async function changePassword(
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<UserPasswordChangeResponse> {
+    return api.changePassword({ currentPassword, newPassword })
+  }
+
+  function clearSession() {
     token.value = null
     role.value = null
     name.value = null
@@ -33,7 +41,17 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem(ROLE_KEY)
   }
 
-  setUnauthorizedHandler(logout)
+  async function logout() {
+    try {
+      if (token.value) {
+        await api.logout()
+      }
+    } finally {
+      clearSession()
+    }
+  }
 
-  return { token, role, name, isAuthenticated, login, logout }
+  setUnauthorizedHandler(clearSession)
+
+  return { token, role, name, isAuthenticated, login, logout, changePassword }
 })

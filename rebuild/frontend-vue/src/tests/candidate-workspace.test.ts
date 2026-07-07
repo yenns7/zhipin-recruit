@@ -34,7 +34,7 @@ describe('CandidateListView - scope awareness', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('暂无候选人数据')
     expect(wrapper.text()).toContain('上传简历')
-    expect(wrapper.text()).toContain('解析完成后会真实写入本地 rebuild H2')
+    expect(wrapper.text()).toContain('解析完成后会真实写入 Java rebuild 的 PostgreSQL dev 数据库')
   })
 
   it('renders candidate list when data exists', async () => {
@@ -47,6 +47,6 @@ describe('CandidateListView - scope awareness', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('张三')
     expect(wrapper.text()).toContain('parsed')
-    expect(wrapper.text()).toContain('解析完成后会真实写入本地 rebuild H2')
+    expect(wrapper.text()).toContain('解析完成后会真实写入 Java rebuild 的 PostgreSQL dev 数据库')
   })
 })

@@ -1,6 +1,7 @@
 package com.hireinsight.auth;
 
 import com.hireinsight.common.ApiResponse;
+import com.hireinsight.config.AppConfig;
 import com.hireinsight.model.User;
 import com.hireinsight.repository.UserRepository;
 import jakarta.validation.Valid;
@@ -21,18 +22,28 @@ public class AuthController {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider tokenProvider;
+    private final DemoAuthSessionService sessionService;
+    private final AppConfig appConfig;
 
     public AuthController(UserRepository userRepository,
                           PasswordEncoder passwordEncoder,
-                          JwtTokenProvider tokenProvider) {
+                          JwtTokenProvider tokenProvider,
+                          DemoAuthSessionService sessionService,
+                          AppConfig appConfig) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.tokenProvider = tokenProvider;
+        this.sessionService = sessionService;
+        this.appConfig = appConfig;
     }
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<Map<String, Object>>> register(
             @Valid @RequestBody RegisterRequest req) {
+        if (!appConfig.getAuth().isPublicRegistrationEnabled()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error(403, "Public registration disabled"));
+        }
         if (userRepository.existsByEmail(req.getEmail())) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(ApiResponse.error(409, "Email already registered"));
@@ -60,9 +71,19 @@ public class AuthController {
             throw new AuthException(HttpStatus.FORBIDDEN, "Account deactivated");
         }
         String token = tokenProvider.createToken(user.getId(), user.getRole());
+        sessionService.activate(token);
         return ResponseEntity.ok(ApiResponse.ok(Map.of(
                 "token", token, "role", user.getRole(), "name", user.getName()
         )));
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> logout(
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        if (authorization != null && authorization.startsWith("Bearer ")) {
+            sessionService.invalidate(authorization.substring(7));
+        }
+        return ResponseEntity.ok(ApiResponse.ok(Map.of("message", "Logged out from demo session")));
     }
 
     @Data

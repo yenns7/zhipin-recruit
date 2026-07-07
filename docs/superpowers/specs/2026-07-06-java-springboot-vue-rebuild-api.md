@@ -25,28 +25,87 @@
 `CandidateListView` 的页面说明要与当前实现保持一致：
 
 - 上传简历后进入异步解析链路。
-- 解析成功后会真实写入本地 rebuild 演示库。
-- 当前对外文案可写为“写入本地 rebuild H2”，重点是**不再写成纯前端临时态或刷新即丢**。
+- 解析成功后会真实写入 Java rebuild PostgreSQL dev 数据库。
+- 当前对外文案可写为“写入 Java rebuild PostgreSQL dev 数据库”，重点是**不再写成纯前端临时态或刷新即丢**。
+- 候选人列表可调用 `POST /api/v1/pipeline/move` 将候选人加入岗位流程。
 
-## 3. Agent 相关口径
+## 3. Pipeline 加入流程契约
 
-### 3.1 不应继续标成“未实现”的能力
+候选人页“加入流程”使用现有流程推进接口：
+
+| 方法 | 路径 | body | 说明 |
+|---|---|---|---|
+| `POST` | `/api/v1/pipeline/move` | `{candidateId,jobId,toStage}` | 将候选人加入或推进到指定阶段 |
+
+试点默认动作：
+
+```json
+{
+  "candidateId": 12,
+  "jobId": 3,
+  "toStage": "ai_screen"
+}
+```
+
+前端成功提示必须说明：误推进后可去候选人流程看板查看历史并纠正。
+
+## 4. Interview 契约与权限边界
+
+### 4.1 安排面试
+
+| 方法 | 路径 | body | 说明 |
+|---|---|---|---|
+| `POST` | `/api/v1/interviews/schedule` | `{candidateId,jobId,interviewerId}` | 创建面试草稿 |
+
+权限：
+
+- 仅 `recruiter / manager / admin` 可创建面试草稿。
+- 返回 `{id,status}`，其中试点草稿状态为 `draft`。
+- 当前前端使用 ID 输入；后续应升级为候选人、岗位、面试官的可搜索选择器。
+
+### 4.2 面试官可见范围
+
+`GET /api/v1/interviews` 的可见范围：
+
+- `interviewer` 只返回本人 `interviewer_id` 的面试记录。
+- `recruiter / manager / admin` 当前返回可管理范围内的面试记录；后续仍需补更细的岗位/团队范围过滤。
+
+## 5. BI overview 统计范围
+
+`GET /api/v1/bi/overview` 的当前口径：
+
+| 角色 | activeJobs / candidateTotal / parsedCandidates 范围 |
+|---|---|
+| `recruiter` | 当前登录用户自己的 `owner_hr_id` 范围 |
+| `manager` | 团队范围 |
+| `admin` | 团队范围 |
+
+说明：
+
+- 招聘专员不能用全库总数，否则会出现“看得到但算不清”的试点偏差。
+- 经理/管理员仍是基础团队汇总，不代表完整 BI 绩效体系。
+
+## 6. Agent 相关口径
+
+### 6.1 不应继续标成“未实现”的能力
 
 以下两项在重构壳层里应按“已有演示能力”描述，不再写成未实现：
 
 | 能力 | 当前口径 |
 |---|---|
-| 创建新会话 | 已有会话壳层，应按“可创建新的 demo conversation”描述 |
-| AI 调用日志查询 | 已有管理员侧查询壳层，应按“可查看演示调用日志列表/详情”描述 |
+| 会话列表/详情 | 已有会话壳层，应按“可查看 demo conversation”描述 |
+| 发送消息 | 已有 confirm-first demo 消息接口，写意图只返回确认卡 |
 
-### 3.2 仍需保留的限制
+### 6.2 仍需保留的限制
 
-- 会话与调用日志当前仍是演示壳层口径，不应包装成生产级会话中心或完整 observability 平台。
-- 即使有“创建新会话”“日志查询”，也不等于 AI 写操作已经成为真实自动执行链路。
+- 会话当前仍是进程内存态，不是持久化会话中心，不应包装成生产级会话中心或完整 observability 平台。
+- 即使有 confirm-first 确认卡，也不执行真实写操作，不等于 AI 写操作已经成为真实自动执行链路。
+- 写意图只生成确认卡，并继续受当前账号权限约束。
+- 面试官角色当前没有 AI 助手入口。
 
-## 4. Pipeline 修正与终态边界
+## 7. Pipeline 修正与终态边界
 
-### 4.1 `revert-lite`
+### 7.1 `revert-lite`
 
 `revert-lite` 更适合被描述为：
 
@@ -64,7 +123,7 @@
 - 完整审批回滚系统
 - 对 Offer、入职、淘汰等业务后果的全量逆操作保障
 
-### 4.2 `offer / onboarded / rejected`
+### 7.2 `offer / onboarded / rejected`
 
 当前重构壳层里，这三个阶段应明确写清边界：
 
@@ -74,19 +133,69 @@
 | `onboarded` | 候选人已进入已入职终态记录 | 完整入职办理、账号/设备/合同闭环 |
 | `rejected` | 候选人已进入淘汰终态记录 | 完整拒绝原因治理、通知合规、申诉修正闭环 |
 
-## 5. 推荐写法
+## 8. 集成 demo 口径
+
+- 当前集成壳层是非真实第三方授权，不代表 BOSS/猎聘/邮箱/日历已经完成在线授权。
+- `V5__integration_persistence.sql` 只保留 `integration_accounts`、`integration_crawl_tasks` 等本地表结构说明。
+- 对外只能描述为“写本地扩展上下文表”的目标口径；当前 Java `IntegrationDemoService` 仍是 demo / in-memory 快照。
+
+## 9. 真实试点配置与健康检查口径
+
+### 9.1 `pilot` profile
+
+真实用户小范围试点使用 `pilot` profile，不使用 `dev` profile。`pilot` 启动前校验：
+
+- `JWT_SECRET` 不能是默认弱值。
+- `DATABASE_PASSWORD` 不能是 `hipass`。
+- `CORS_ALLOWED_ORIGINS` 不能是 `*`。
+- `PUBLIC_REGISTRATION_ENABLED=false`。
+- `UPLOAD_FOLDER` 不能位于 `/tmp`。
+- 数据库中不能残留 `demo.*@hireinsight.local` 账号。
+
+### 9.2 公开注册
+
+`POST /api/v1/auth/register` 受 `app.auth.public-registration-enabled` 控制：
+
+- 本地演示默认允许注册 recruiter。
+- 真实试点关闭后返回 `403`，提示 `Public registration disabled`。
+- 真实账号由管理员在用户治理页创建。
+
+### 9.3 健康检查
+
+`GET /api/v1/health` 返回：
+
+- `status`: `UP` 或 `DOWN`
+- `database`: `UP` 或 `DOWN`
+- `service`: `hireinsight-api`
+- `version`
+- `checkedAt`
+
+数据库不可用时返回 HTTP `503`，用于试点期间快速区分“前端能打开但后端/数据库不可用”的问题。
+
+## 10. 推荐写法
 
 - `管理员账号治理最小闭环已可联调`
-- `候选人异步解析成功后会写入本地 rebuild 演示库`
-- `创建新会话与 AI 调用日志查询已具备演示壳层`
+- `候选人异步解析成功后会写入 Java rebuild PostgreSQL dev 数据库`
+- `候选人可从列表加入岗位流程，误推进可到流程看板纠正`
+- `招聘专员、负责人、管理员可安排面试草稿；面试官只看本人面试`
+- `BI overview 对招聘专员使用 owner_hr_id 范围，对负责人/管理员使用团队范围`
+- `真实试点使用 pilot profile，dev demo 账号只用于本地演示`
+- `健康检查会返回数据库状态，数据库不可用时返回 503`
+- `AI 助手会话列表/详情/消息发送已具备 confirm-first 演示壳层`
 - `revert-lite 仅作为 demo / legacy correction path`
 - `Offer / Onboard / Reject 目前只代表重构壳层里的阶段记录边界`
+- `集成账号与抓取任务只是非真实第三方 demo 壳层`
 
-## 6. 不推荐写法
+## 11. 不推荐写法
 
 - `AdminUsersView 只支持 list/toggle`
 - `候选人解析结果还没真实入库`
-- `创建新会话未实现`
-- `AI 调用日志查询未实现`
+- `招聘专员看到的是全公司 BI 总数`
+- `面试官可以看到所有候选人的面试`
+- `真实试点继续使用 demo.* 固定密码账号`
+- `health 只要返回 UP 就代表数据库正常`
+- `AI 助手已经具备生产级会话中心`
+- `AI 写操作会自动真实执行`
 - `revert-lite 可作为完整回滚引擎`
 - `Offer / Onboard / Reject 已具备完整业务闭环`
+- `第三方集成已经真实授权打通`

@@ -27,11 +27,15 @@ spring:
 
 app:
   jwt:
-    secret: ${JWT_SECRET:change-me-in-prod}
+    secret: ${JWT_SECRET:change-me-in-prod-use-32-byte-secret}
     expiry-hours: ${JWT_EXPIRY_HOURS:8}
   upload:
     max-file-size: 100MB
     folder: ${UPLOAD_FOLDER:/tmp/hireinsight_uploads}
+  auth:
+    public-registration-enabled: ${PUBLIC_REGISTRATION_ENABLED:true}
+  security:
+    cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
 
 springdoc:
   api-docs:
@@ -48,6 +52,20 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: pilot
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+app:
+  auth:
+    public-registration-enabled: ${PUBLIC_REGISTRATION_ENABLED:false}
 
 ---
 spring:

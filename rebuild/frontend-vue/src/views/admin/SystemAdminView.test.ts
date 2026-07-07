@@ -50,7 +50,7 @@ describe('SystemAdminView', () => {
 
     await flushPromises()
 
-    expect(wrapper.text()).toContain('系统治理')
+    expect(wrapper.text()).toContain('系统设置')
   })
 
   it('loads system overview and audit logs for admin users', async () => {
@@ -152,7 +152,7 @@ describe('SystemAdminView', () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/v1/admin/system/overview', expect.any(Object))
     expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/v1/admin/system/audit-logs', expect.any(Object))
-    expect(wrapper.text()).toContain('系统治理')
+    expect(wrapper.text()).toContain('系统设置')
     expect(wrapper.text()).toContain('仅用于 demo / in-memory 展示')
     expect(wrapper.text()).toContain('后台会话超时')
     expect(wrapper.text()).toContain('gpt-4.1-mini')

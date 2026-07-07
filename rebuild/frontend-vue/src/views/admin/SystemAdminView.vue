@@ -54,9 +54,9 @@ async function loadGovernanceData() {
     error.value = ''
   } catch (err) {
     if (err instanceof ApiError && err.status === 403) {
-      error.value = '仅管理员可查看系统治理 demo 页面。'
+      error.value = '仅管理员可查看系统设置 demo 页面。'
     } else {
-      error.value = err instanceof Error ? err.message : '系统治理页面加载失败'
+      error.value = err instanceof Error ? err.message : '系统设置页面加载失败'
     }
   }
 }
@@ -74,7 +74,7 @@ async function runMutation(
     actionMessage.value = `${mutation.message}，当前值：${mutation.currentValue}。`
     await loadGovernanceData()
   } catch (err) {
-    actionError.value = err instanceof Error ? err.message : '系统治理写操作失败'
+    actionError.value = err instanceof Error ? err.message : '系统设置写操作失败'
   } finally {
     activeAction.value = ''
   }
@@ -103,7 +103,7 @@ onMounted(async () => {
       <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <p class="text-xs uppercase tracking-[0.18em] text-muted">Admin Only</p>
-          <h2 class="mt-2 font-display text-2xl text-ink">系统治理</h2>
+          <h2 class="mt-2 font-display text-2xl text-ink">系统设置</h2>
           <p class="mt-3 max-w-3xl text-sm text-muted">
             这里展示系统参数摘要、模型配置摘要和审计日志列表，全部采用 demo / in-memory 读展示，
             不写数据库，也不代表完整的审计平台。

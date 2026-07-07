@@ -72,9 +72,9 @@ onMounted(async () => {
       <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <p class="text-xs uppercase tracking-[0.18em] text-muted">BI Scope</p>
-          <h2 class="mt-2 font-display text-2xl text-ink">BI 口径说明</h2>
+          <h2 class="mt-2 font-display text-2xl text-ink">数据看板口径说明</h2>
           <p class="mt-3 max-w-3xl text-sm text-muted">
-            本页把“已经持久化到本地 H2 的演示状态”和“仍然只是演示口径的 BI 指标”分开说明，避免继续把当前重构版笼统写成 demo / in-memory。
+            本页把“已经持久化到 Java rebuild PostgreSQL dev 数据库的演示状态”和“仍然只是演示口径的 BI 指标”分开说明，避免继续把当前重构版笼统写成 demo / in-memory。
           </p>
         </div>
         <div class="rounded-xl bg-surface-soft px-4 py-3 text-sm text-muted">
@@ -83,11 +83,11 @@ onMounted(async () => {
       </div>
 
       <div class="mt-4 rounded-xl border border-dashed border-hairline bg-surface-soft/50 p-4 text-sm text-body">
-        当前重构版默认使用本地 H2 文件库保存演示状态；但 BI 概览本身仍来自服务端 rule-based 聚合，不代表真实生产 BI、真实渠道转化或真实归因口径。
+        当前重构版默认使用 Java rebuild PostgreSQL dev 数据库保存演示状态；但 BI 概览本身仍来自服务端 rule-based 聚合，不代表真实生产 BI、真实渠道转化或真实归因口径。
       </div>
 
       <ul class="mt-4 space-y-2 text-sm text-body">
-        <li>系统治理参数、模型摘要、审计日志、通知待办覆盖状态、集成账号与抓取任务、demo 登录会话已落到本地 H2。</li>
+        <li>系统设置参数、模型摘要、审计日志、通知待办覆盖状态、集成账号与抓取任务、demo 登录会话已落到 PostgreSQL dev 数据库或明确标注的进程内存态。</li>
         <li>当前 BI 指标仍是重构版样例数据与规则聚合结果，不等于真实业务明细汇总。</li>
         <li>环境仍为非生产，未接真实第三方渠道，未接真实配置中心，也未落真实供应商密钥。</li>
       </ul>

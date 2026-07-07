@@ -1,6 +1,7 @@
 package com.hireinsight.pipeline;
 
 import com.hireinsight.HireInsightApplication;
+import com.hireinsight.auth.JwtTokenProvider;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -21,9 +22,13 @@ class PipelineControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private JwtTokenProvider jwtTokenProvider;
+
     @Test
     void moveWithInvalidStageReturns400() throws Exception {
         mockMvc.perform(post("/api/v1/pipeline/move")
+                        .header("Authorization", "Bearer " + jwtTokenProvider.createToken(1L, "recruiter"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"candidateId\":1,\"jobId\":1,\"toStage\":\"invalid\"}"))
                 .andExpect(status().isBadRequest())

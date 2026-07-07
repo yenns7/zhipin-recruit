@@ -25,11 +25,18 @@ public class JobController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<Job>>> listJobs(Authentication auth) {
+    public ResponseEntity<ApiResponse<List<Job>>> listJobs(
+            Authentication auth,
+            @RequestParam(required = false) String status) {
         Long userId = (Long) auth.getDetails();
         boolean isAdmin = auth.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MANAGER"));
         List<Job> jobs = isAdmin ? jobRepository.findAll() : jobRepository.findByOwnerHrId(userId);
+        if (status != null && !status.isBlank()) {
+            jobs = jobs.stream()
+                    .filter(job -> status.equals(job.getStatus()))
+                    .toList();
+        }
         return ResponseEntity.ok(ApiResponse.ok(jobs));
     }
 

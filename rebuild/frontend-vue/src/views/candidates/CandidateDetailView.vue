@@ -72,7 +72,7 @@ const latestStageLabel = computed(() => {
 const processSummary = computed(() => {
   if (!detail.value) return ''
   if (detail.value.pipelineStageCount === 0) {
-    return '尚未进入招聘流程，建议先确认目标岗位。'
+    return '尚未进入候选人流程，建议先确认目标岗位。'
   }
   return `共推进 ${detail.value.pipelineStageCount} 次，涉及 ${detail.value.activeJobCount} 个岗位`
 })
@@ -374,7 +374,7 @@ onMounted(loadDetail)
         <div class="rounded-2xl bg-white p-6 shadow-card">
           <h3 class="font-display text-base text-ink">下一步入口</h3>
           <p class="mt-1 text-sm text-muted">
-            {{ detail.inPipeline ? '继续查看流程进度或回到岗位池补充判断。' : '可以先去岗位管理确认目标岗位，再回到流程看板推进。' }}
+            {{ detail.inPipeline ? '继续查看流程进度或回到岗位池补充判断。' : '可以先去招聘管理确认目标岗位，再回到流程看板推进。' }}
           </p>
           <div class="mt-4 grid gap-3">
             <button
@@ -382,7 +382,7 @@ onMounted(loadDetail)
               type="button"
               @click="router.push({ name: 'Pipeline' })"
             >
-              去招聘流程看板
+              去候选人流程看板
             </button>
             <button
               class="inline-flex items-center justify-center rounded-xl border border-hairline bg-white px-4 py-3 text-sm font-medium text-body transition hover:border-ink/30 hover:text-ink"
@@ -397,11 +397,11 @@ onMounted(loadDetail)
 
       <div class="rounded-2xl bg-white shadow-card">
         <div class="px-6 py-4 border-b border-hairline">
-          <h3 class="font-display text-base text-ink">招聘流程记录</h3>
+          <h3 class="font-display text-base text-ink">候选人流程记录</h3>
         </div>
         <div v-if="detail.pipelineRecords.length === 0" class="px-6 py-8 text-center text-sm text-muted">
-          <p class="text-body">该候选人还没有进入招聘流程。</p>
-          <p class="mt-2">可以先去岗位管理确认目标岗位，再回到招聘流程看板推进。</p>
+          <p class="text-body">该候选人还没有进入候选人流程。</p>
+          <p class="mt-2">可以先去招聘管理确认目标岗位，再回到候选人流程看板推进。</p>
         </div>
         <table v-else class="w-full text-sm">
           <thead>

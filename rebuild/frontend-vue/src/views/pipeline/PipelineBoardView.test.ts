@@ -194,7 +194,7 @@ describe('PipelineBoardView', () => {
     await flushPromises()
 
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/pipeline/1/board', expect.any(Object))
-    expect(wrapper.text()).toContain('招聘流程')
+    expect(wrapper.text()).toContain('候选人流程')
     expect(wrapper.text()).toContain('林然')
 
     await wrapper.get('button').trigger('click')
