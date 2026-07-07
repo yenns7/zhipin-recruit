@@ -173,13 +173,47 @@ export interface SystemGovernanceMutationResponse {
   currentValue: string
 }
 
+export type AdminUserRole = 'recruiter' | 'manager' | 'admin' | 'interviewer'
+
+export interface AdminUserApiItem {
+  id: number
+  name: string
+  email: string
+  role: AdminUserRole
+  active?: boolean
+  isActive?: boolean
+  createdAt: string | null
+}
+
 export interface AdminUserListItem {
   id: number
   name: string
   email: string
-  role: 'recruiter' | 'manager' | 'admin' | 'interviewer'
+  role: AdminUserRole
   isActive: boolean
   createdAt: string | null
+}
+
+export interface AdminUserCreatePayload {
+  name: string
+  email: string
+  role: AdminUserRole
+  password: string
+  active: boolean
+}
+
+export interface AdminUserUpdatePayload {
+  name: string
+  role: AdminUserRole
+  active: boolean
+}
+
+export interface AdminUserResetPasswordPayload {
+  newPassword: string
+}
+
+export interface AdminUserResetPasswordResponse {
+  message: string
 }
 
 export interface AdminUserGovernanceMutationResponse {
@@ -187,9 +221,16 @@ export interface AdminUserGovernanceMutationResponse {
   message: string
   userId: number
   userName: string
-  role: 'recruiter' | 'manager' | 'admin' | 'interviewer'
+  role: AdminUserRole
   isActive: boolean
   actorName: string
+}
+
+export interface CandidateListItem {
+  id: number
+  name_masked: string
+  parse_status: string
+  created_at?: string | null
 }
 
 export interface CandidatePipelineRecord {

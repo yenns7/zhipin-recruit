@@ -1,64 +1,36 @@
-# 智聘重构 MVP — Java Spring Boot + Vue 技术栈
+# 智聘重构 MVP（Java Spring Boot + Vue）
 
-> 本目录存放以 **Java 21 + Spring Boot 3.2.5 + Vue 3 + TypeScript** 重新实现智聘 MVP 的代码。
-> 当前状态：**项目脚手架阶段**，仅完成基础设施骨架，业务代码尚未开始编写。
+`rebuild/` 不是“只有脚手架”的空目录，也还不是生产可上线版本。当前更准确的口径是：**Java + Vue 重构版已经进入可本地联调的 MVP 壳层收口阶段**。
 
----
+## 当前前端壳层
 
-## 当前状态概览
+- `AdminUsersView`：管理员最小闭环已收口到 `list + create + edit + reset-password`
+  - 创建：`POST /api/v1/admin/users`
+  - 编辑：`PATCH /api/v1/admin/users/{userId}`
+  - 重置密码：`POST /api/v1/admin/users/{userId}/reset-password`
+  - 该页仍是 `demo-only` 账号治理壳层，不是完整 IAM / SSO / 审批系统
+- `CandidateListView`：页面说明已统一为当前事实
+  - 上传简历后会进入异步解析
+  - 解析成功后会真实写入本地 rebuild 演示库（当前对外口径写作本地 rebuild H2）
+  - 不再写成“只是前端临时态 / 刷新即丢”
+- Agent 壳层：会话列表、会话详情、“创建新会话”、管理员侧 AI 调用日志查询都应按“已存在的演示壳层”描述
+  - 仍不应包装成生产级会话中心或完整可观测平台
+- Pipeline 壳层：`offer / onboarded / rejected` 可用于演示阶段流转与样例数据校验
+  - 但不代表完整 Offer 审批、入职办理、淘汰合规闭环已经完成
 
-| 层 | 进展 | 说明 |
-|---|---|---|
-| 后端 Java 骨架 | 已完成 | pom.xml, 安全配置, JWT, 健康检查, 全局异常处理, 三环境配置 |
-| 后端业务代码 | 未开始 | 无 Entity/Repository/Service/Controller |
-| 前端 Vue 骨架 | 已完成 | 路由定义, Pinia 状态管理, HTTP 客户端, 类型定义, Tailwind 配置 |
-| 前端页面视图 | 未开始 | 路由指向的 `views/` 和 `layouts/` 组件尚未创建 |
-| 测试 | 未开始 | 后端和前端均无测试代码 |
-| Docker/部署 | 未开始 | 无 Dockerfile 或 docker-compose.yml |
+## 本轮需要特别注意的边界
 
----
+- `revert-lite` 应视为**demo / legacy correction path**
+  - 用于演示环境中的轻量纠偏、旧数据修正或误推进后的最小回退说明
+  - 不应对外宣称为生产级“任意节点撤回引擎”
+- `offer / onboarded / rejected` 在重构壳层里更接近**阶段记录与 demo 演示边界**
+  - `offer`：仅表示进入 Offer 阶段，不等于完整审批流
+  - `onboarded`：仅表示流程终态记录，不等于入职手续、账号开通、设备/合同闭环
+  - `rejected`：仅表示流程终态记录，不等于原因治理、通知合规、申诉修正全闭环
 
-## 目录结构
+## 文档入口
 
-```
-rebuild/
-├── README.md                          ← 本文件
-├── backend-java/                      ← Spring Boot 后端
-│   ├── pom.xml
-│   └── src/main/
-│       ├── java/com/hireinsight/
-│       │   ├── HireInsightApplication.java    ← 应用入口
-│       │   ├── auth/                           ← JWT 认证
-│       │   ├── common/                         ← 统一响应 + 全局异常处理
-│       │   ├── config/                         ← 安全 + JPA + 通用配置
-│       │   └── health/                         ← 健康检查
-│       └── resources/
-│           └── application.yml                 ← 三环境配置
-└── frontend-vue/                      ← Vue 3 前端
-    ├── package.json
-    ├── vite.config.ts
-    ├── tailwind.config.js
-    └── src/
-        ├── main.ts                              ← 应用入口
-        ├── App.vue                              ← 根组件
-        ├── router/index.ts                      ← 路由定义
-        ├── stores/auth.ts                       ← 登录状态管理
-        ├── api/http.ts                          ← HTTP 客户端
-        ├── types/index.ts                       ← 类型定义
-        └── styles/index.css                     ← 全局样式
-```
-
----
-
-## 需完成的工作
-
-详见 [docs/15_JavaSpringBootVue重构MVP状态报告.md](../docs/15_JavaSpringBootVue重构MVP状态报告.md) 第 3 节。
-
----
-
-## 与主项目（Flask + React）的关系
-
-主项目 `backend/` + `frontend/` 是当前可运行的智聘系统，采用 Flask + React 技术栈，用于内测和演示。
-`rebuild/` 是技术栈迁移方向，当前尚不具备运行能力。两套代码共存，互不干扰。
-
-> 详细的状态分析和缺项清单，见 [docs/15_JavaSpringBootVue重构MVP状态报告.md](../docs/15_JavaSpringBootVue重构MVP状态报告.md)
+- 运行说明见 [RUNNING.md](./RUNNING.md)
+- API 口径见 [../docs/superpowers/specs/2026-07-06-java-springboot-vue-rebuild-api.md](../docs/superpowers/specs/2026-07-06-java-springboot-vue-rebuild-api.md)
+- PRD 口径见 [../docs/superpowers/specs/2026-07-06-java-springboot-vue-rebuild-prd.md](../docs/superpowers/specs/2026-07-06-java-springboot-vue-rebuild-prd.md)
+- 状态报告见 [../docs/15_JavaSpringBootVue重构MVP状态报告.md](../docs/15_JavaSpringBootVue重构MVP状态报告.md)

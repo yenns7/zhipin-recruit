@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hireinsight-base-agent"
+version = "0.1.0"
+description = "Editable local package exposing reused base_agent modules for HireInsight."
+requires-python = ">=3.9"
+
+[tool.setuptools]
+py-modules = [
+  "AI_interviewer",
+  "add_tags",
+  "api_server",
+  "app",
+  "interview_agent",
+  "job_agent",
+  "job_crawler",
+  "job_crawler_selenium",
+  "job_crawler_v2",
+  "job_matcher",
+  "llm_client",
+  "llm_utils",
+  "md_to_pdf",
+  "pipeline",
+  "resume_parser",
+  "tag_rate",
+  "update_jobs",
+]

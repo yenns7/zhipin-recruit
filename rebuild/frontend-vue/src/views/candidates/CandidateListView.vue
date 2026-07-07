@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { api } from '@/api/http'
+import type { CandidateListItem } from '@/types/api'
 
-const items = ref<any[]>([])
+const items = ref<CandidateListItem[]>([])
 const loading = ref(true)
 
 onMounted(async () => {
@@ -16,7 +17,12 @@ onMounted(async () => {
 <template>
   <div class="space-y-4">
     <div class="flex items-center justify-between">
-      <h2 class="font-display text-lg text-ink">候选人</h2>
+      <div>
+        <h2 class="font-display text-lg text-ink">候选人</h2>
+        <p class="mt-1 text-sm text-muted">
+          上传简历后会进入异步解析；解析完成后会真实写入本地 rebuild H2 候选人库，而不是只停留在前端临时态。
+        </p>
+      </div>
     </div>
     <div v-if="loading" class="text-sm text-muted">加载中…</div>
     <div v-else-if="items.length === 0" class="bg-white rounded-xl shadow-card p-8 text-center text-sm text-muted">
