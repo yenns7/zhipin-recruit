@@ -1,0 +1,127 @@
+.claude/skills/gsap-core/SKILL.md
+  s_5e4e093ae32533::t_2ec725478b665c 1-254
+.claude/skills/gsap-frameworks/SKILL.md
+  s_5e4e093ae32533::t_2dcfa3df30ba6c 1-266
+.claude/skills/gsap-performance/SKILL.md
+  s_5e4e093ae32533::t_a6f35f2239131a 1-79
+.claude/skills/gsap-plugins/SKILL.md
+  s_5e4e093ae32533::t_83fc65750044ed 1-433
+.claude/skills/gsap-react/SKILL.md
+  s_5e4e093ae32533::t_7e92f0a47258ea 1-135
+.claude/skills/gsap-scrolltrigger/SKILL.md
+  s_5e4e093ae32533::t_2371640c65ca5b 1-296
+.claude/skills/gsap-timeline/SKILL.md
+  s_5e4e093ae32533::t_f672f59ee5d450 1-107
+.claude/skills/gsap-utils/SKILL.md
+  s_5e4e093ae32533::t_32cb8eac31c39c 1-284
+base_agent/.github/workflows/ci.yml
+  s_5e4e093ae32533::t_ca2e84f909b10c 1-8,23
+base_agent/AI_interviewer.py
+  s_5e4e093ae32533::t_e7811dfc499435 1-503
+base_agent/FrontEnd/README.md
+  s_5e4e093ae32533::t_e25684bc716523 1-113
+base_agent/FrontEnd/eslint.config.js
+  s_5e4e093ae32533::t_fcf5955e46fbb2 1-28
+base_agent/FrontEnd/index.html
+  s_5e4e093ae32533::t_12b3f80e03bcb6 1-16
+base_agent/FrontEnd/package-lock.json
+  s_5e4e093ae32533::t_e39bf1b42dd486 1-4316
+base_agent/FrontEnd/package.json
+  s_5e4e093ae32533::t_028a80485e6a78 1-36
+base_agent/FrontEnd/postcss.config.js
+  s_5e4e093ae32533::t_c355006e4eb4c3 1-6
+base_agent/FrontEnd/src/App.tsx
+  s_5e4e093ae32533::t_59eb5f0db27b83 1-49
+base_agent/FrontEnd/src/components/InterviewPage.tsx
+  s_5e4e093ae32533::t_e65a93095aad5f 1-369
+base_agent/FrontEnd/src/components/JobsPage.tsx
+  s_5e4e093ae32533::t_cbdf3d161c6ff5 1-415
+base_agent/FrontEnd/src/components/Navigation.tsx
+  s_5e4e093ae32533::t_faaa573b066200 1-54
+base_agent/FrontEnd/src/components/ResumePage.tsx
+  s_5e4e093ae32533::t_ef5f479998316e 1-303
+base_agent/FrontEnd/src/index.css
+  s_5e4e093ae32533::t_faaba506f4db4c 1-22
+base_agent/FrontEnd/src/lib/mockApi.ts
+  s_5e4e093ae32533::t_e869ba34598048 1-96
+base_agent/FrontEnd/src/main.tsx
+  s_5e4e093ae32533::t_4e56d95785d024 1-10
+base_agent/FrontEnd/src/types/index.ts
+  s_5e4e093ae32533::t_68062d135f67d5 1-81
+base_agent/FrontEnd/src/vite-env.d.ts
+  s_5e4e093ae32533::t_9d94ed4a3b3b1d 1
+base_agent/FrontEnd/tailwind.config.js
+  s_5e4e093ae32533::t_ac2868fb8f8f13 1-8
+base_agent/FrontEnd/tsconfig.app.json
+  s_5e4e093ae32533::t_a7ff7422ad68c0 1-24
+base_agent/FrontEnd/tsconfig.json
+  s_5e4e093ae32533::t_00b0c508b5cafa 1-7
+base_agent/FrontEnd/tsconfig.node.json
+  s_5e4e093ae32533::t_5f780d74ce925e 1-22
+base_agent/FrontEnd/vite.config.ts
+  s_5e4e093ae32533::t_8d14f1e4142c90 1-18
+base_agent/README.md
+  s_5e4e093ae32533::t_ab2e6abda9fa39 1-175
+base_agent/README_API.md
+  s_5e4e093ae32533::t_b239baa635ce57 1-152,154-170
+base_agent/README_CN.md
+  s_5e4e093ae32533::t_010dc669111636 1-175
+base_agent/add_tags.py
+  s_5e4e093ae32533::t_45e43aaa0e931d 1-311
+base_agent/api_server.py
+  s_5e4e093ae32533::t_e103914d590470 1-513
+base_agent/interview_agent.py
+  s_5e4e093ae32533::t_4c6974e45220b6 1-570
+base_agent/job_agent.py
+  s_5e4e093ae32533::t_beba051774adf1 1-1314
+base_agent/job_crawler.py
+  s_5e4e093ae32533::t_d48a0364bc5d44 1-1423
+base_agent/job_crawler_selenium.py
+  s_5e4e093ae32533::t_281fde9e7e9252 1-542
+base_agent/job_crawler_v2.py
+  s_5e4e093ae32533::t_c7affba796321f 1-1678
+base_agent/job_matcher.py
+  s_5e4e093ae32533::t_e8b209021dac59 1-232
+base_agent/llm_config_openai.json
+  s_5e4e093ae32533::t_81622d7a5c6d36 1-6
+base_agent/llm_utils.py
+  s_5e4e093ae32533::t_1289386fd3eab2 1-64
+base_agent/md_to_pdf.py
+  s_5e4e093ae32533::t_370c7eab9b3660 1-165
+base_agent/ms_deploy.example.json
+  s_5e4e093ae32533::t_a29b566f3aba11 1-12
+base_agent/pipeline.py
+  s_5e4e093ae32533::t_43ac1a2f96f711 1-348
+base_agent/resume_parser.py
+  s_5e4e093ae32533::t_88498c2f4ea2ad 1-18,23-34,36-48,65-165,168-184,187-196,208-253,276-288,302-305,316-458,471-538
+base_agent/scripts/start_linux.sh
+  s_5e4e093ae32533::t_7aa17f8fa5b403 1-58
+base_agent/tag_rate.py
+  s_5e4e093ae32533::t_299e5a92f02292 1-648
+base_agent/tech_taxonomy.json
+  s_5e4e093ae32533::t_9dcc5fd2fdfeb8 1-1066
+base_agent/tests/test_job_matcher.py
+  s_5e4e093ae32533::t_c19cc53c740d9b 1-43
+base_agent/update_jobs.py
+  s_5e4e093ae32533::t_d66675098e10f4 1-125
+base_agent/项目说明文档.md
+  s_5e4e093ae32533::t_99653be2f20daf 1-346
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "2b7381b7852487e36c73a40011a67e5d8623bbeb",
+  "prompts": {},
+  "sessions": {
+    "s_5e4e093ae32533": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f9336dcb-e0de-4ad7-abaa-10e9c4eb019c",
+        "model": "unknown"
+      },
+      "human_author": "yenns <1060203591@qq.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
