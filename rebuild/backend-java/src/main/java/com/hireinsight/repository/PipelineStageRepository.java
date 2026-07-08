@@ -12,4 +12,6 @@ public interface PipelineStageRepository extends JpaRepository<PipelineStage, Lo
     Optional<PipelineStage> findTopByCandidateIdAndJobIdOrderByTsDesc(Long candidateId, Long jobId);
     List<PipelineStage> findByCandidateId(Long candidateId);
     List<PipelineStage> findByCandidateIdIn(List<Long> candidateIds);
+
+    List<PipelineStage> findByJobIdIn(List<Long> jobIds);
 }

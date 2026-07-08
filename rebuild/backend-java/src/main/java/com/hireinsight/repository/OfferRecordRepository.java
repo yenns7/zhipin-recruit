@@ -10,4 +10,6 @@ public interface OfferRecordRepository extends JpaRepository<OfferRecord, Long> 
     List<OfferRecord> findByCandidateId(Long candidateId);
     List<OfferRecord> findByJobId(Long jobId);
     Optional<OfferRecord> findByCandidateIdAndJobId(Long candidateId, Long jobId);
+
+    List<OfferRecord> findByJobIdIn(List<Long> jobIds);
 }

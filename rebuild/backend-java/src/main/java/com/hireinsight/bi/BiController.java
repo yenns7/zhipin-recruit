@@ -8,10 +8,7 @@ import com.hireinsight.repository.JobRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
 import java.util.List;
@@ -34,12 +31,28 @@ public class BiController {
         this.biService = biService;
     }
 
-    @GetMapping("/overview")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> overview(Authentication authentication) {
-        boolean adminOrManager = authentication.getAuthorities().stream()
+    private boolean isAdminOrManager(Authentication authentication) {
+        return authentication.getAuthorities().stream()
                 .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN")
                         || authority.getAuthority().equals("ROLE_MANAGER"));
-        Long userId = (Long) authentication.getDetails();
+    }
+
+    private Long getUserId(Authentication authentication) {
+        return (Long) authentication.getPrincipal();
+    }
+
+    private int resolveDays(Integer days) {
+        if (days == null) return 30;
+        if (days == 7 || days == 30 || days == 90) return days;
+        return 30;
+    }
+
+    // ==================== Existing ====================
+
+    @GetMapping("/overview")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> overview(Authentication authentication) {
+        boolean adminOrManager = isAdminOrManager(authentication);
+        Long userId = getUserId(authentication);
         List<Job> scopedJobs = adminOrManager ? jobRepository.findAll() : jobRepository.findByOwnerHrId(userId);
         List<Candidate> scopedCandidates = adminOrManager ? candidateRepository.findAll() : candidateRepository.findByOwnerHrId(userId);
 
@@ -69,10 +82,7 @@ public class BiController {
     @GetMapping("/staff/{hrId}")
     public ResponseEntity<ApiResponse<Map<String, Object>>> staffAnalytics(
             @PathVariable Long hrId, Authentication authentication) {
-        // Only manager and admin can access any staff's data
-        boolean adminOrManager = authentication.getAuthorities().stream()
-                .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN")
-                        || authority.getAuthority().equals("ROLE_MANAGER"));
+        boolean adminOrManager = isAdminOrManager(authentication);
         if (!adminOrManager) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(ApiResponse.error(403, "Forbidden: manager or admin role required"));
@@ -89,9 +99,7 @@ public class BiController {
     @GetMapping("/job/{jobId}")
     public ResponseEntity<ApiResponse<Map<String, Object>>> jobFunnel(
             @PathVariable Long jobId, Authentication authentication) {
-        boolean adminOrManager = authentication.getAuthorities().stream()
-                .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN")
-                        || authority.getAuthority().equals("ROLE_MANAGER"));
+        boolean adminOrManager = isAdminOrManager(authentication);
         if (!adminOrManager) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(ApiResponse.error(403, "Forbidden: manager or admin role required"));
@@ -103,6 +111,104 @@ public class BiController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ApiResponse.error(404, e.getMessage()));
         }
+    }
+
+    // ==================== 1. Funnel ====================
+
+    @GetMapping("/funnel")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> funnel(
+            @RequestParam(required = false, defaultValue = "30") Integer days,
+            Authentication authentication) {
+        boolean adminOrManager = isAdminOrManager(authentication);
+        Long userId = getUserId(authentication);
+        int d = resolveDays(days);
+        Map<String, Object> data = biService.funnel(d, userId, adminOrManager);
+        data.put("days", d);
+        return ResponseEntity.ok(ApiResponse.ok(data));
+    }
+
+    // ==================== 2. Channel Quality ====================
+
+    @GetMapping("/channel-quality")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> channelQuality(
+            @RequestParam(required = false, defaultValue = "30") Integer days,
+            Authentication authentication) {
+        boolean adminOrManager = isAdminOrManager(authentication);
+        Long userId = getUserId(authentication);
+        int d = resolveDays(days);
+        Map<String, Object> data = biService.channelQuality(d, userId, adminOrManager);
+        data.put("days", d);
+        return ResponseEntity.ok(ApiResponse.ok(data));
+    }
+
+    // ==================== 3. Interview Accountability ====================
+
+    @GetMapping("/interview-accountability")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> interviewAccountability(
+            @RequestParam(required = false, defaultValue = "30") Integer days,
+            Authentication authentication) {
+        boolean adminOrManager = isAdminOrManager(authentication);
+        Long userId = getUserId(authentication);
+        int d = resolveDays(days);
+        Map<String, Object> data = biService.interviewAccountability(d, userId, adminOrManager);
+        data.put("days", d);
+        return ResponseEntity.ok(ApiResponse.ok(data));
+    }
+
+    // ==================== 4. Manager Alerts ====================
+
+    @GetMapping("/manager-alerts")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> managerAlerts(
+            @RequestParam(required = false, defaultValue = "90") Integer days,
+            Authentication authentication) {
+        boolean adminOrManager = isAdminOrManager(authentication);
+        Long userId = getUserId(authentication);
+        int d = resolveDays(days);
+        Map<String, Object> data = biService.managerAlerts(d, userId, adminOrManager);
+        data.put("days", d);
+        return ResponseEntity.ok(ApiResponse.ok(data));
+    }
+
+    // ==================== 5. Demand Health ====================
+
+    @GetMapping("/demand-health")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> demandHealth(
+            @RequestParam(required = false, defaultValue = "30") Integer days,
+            Authentication authentication) {
+        boolean adminOrManager = isAdminOrManager(authentication);
+        Long userId = getUserId(authentication);
+        int d = resolveDays(days);
+        Map<String, Object> data = biService.demandHealth(d, userId, adminOrManager);
+        data.put("days", d);
+        return ResponseEntity.ok(ApiResponse.ok(data));
+    }
+
+    // ==================== 6. Resume Consumption ====================
+
+    @GetMapping("/resume-consumption")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> resumeConsumption(
+            @RequestParam(required = false, defaultValue = "30") Integer days,
+            Authentication authentication) {
+        boolean adminOrManager = isAdminOrManager(authentication);
+        Long userId = getUserId(authentication);
+        int d = resolveDays(days);
+        Map<String, Object> data = biService.resumeConsumption(d, userId, adminOrManager);
+        data.put("days", d);
+        return ResponseEntity.ok(ApiResponse.ok(data));
+    }
+
+    // ==================== 7. Data Quality ====================
+
+    @GetMapping("/data-quality")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> dataQuality(
+            @RequestParam(required = false, defaultValue = "30") Integer days,
+            Authentication authentication) {
+        boolean adminOrManager = isAdminOrManager(authentication);
+        Long userId = getUserId(authentication);
+        int d = resolveDays(days);
+        Map<String, Object> data = biService.dataQuality(d, userId, adminOrManager);
+        data.put("days", d);
+        return ResponseEntity.ok(ApiResponse.ok(data));
     }
 
     private Map<String, Object> metric(String key, String label, long value) {
