@@ -1,7 +1,9 @@
 package com.hireinsight.pipeline;
 
 import com.hireinsight.common.ApiResponse;
+import com.hireinsight.model.OfferRecord;
 import com.hireinsight.model.PipelineStage;
+import com.hireinsight.repository.OfferRecordRepository;
 import com.hireinsight.repository.PipelineStageRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -11,10 +13,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 @RestController
@@ -24,13 +28,13 @@ public class PipelineController {
     private static final Set<String> VALID_STAGES = Set.of(
             "pending", "ai_screen", "business_review", "interview", "offer", "onboarded", "rejected");
 
-    // In-memory store for offers keyed by "jobId:candidateId"
-    private final java.util.concurrent.ConcurrentHashMap<String, Map<String, Object>> offerStore = new java.util.concurrent.ConcurrentHashMap<>();
-
     private final PipelineStageRepository pipelineStageRepository;
+    private final OfferRecordRepository offerRecordRepository;
 
-    public PipelineController(PipelineStageRepository pipelineStageRepository) {
+    public PipelineController(PipelineStageRepository pipelineStageRepository,
+                               OfferRecordRepository offerRecordRepository) {
         this.pipelineStageRepository = pipelineStageRepository;
+        this.offerRecordRepository = offerRecordRepository;
     }
 
     @PostMapping("/move")
@@ -194,13 +198,13 @@ public class PipelineController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> getOffer(
             @PathVariable Long jobId,
             @PathVariable Long candidateId) {
-        String key = jobId + ":" + candidateId;
-        Map<String, Object> data = offerStore.get(key);
-        if (data == null) {
+        Optional<OfferRecord> opt = offerRecordRepository.findByCandidateIdAndJobId(candidateId, jobId);
+        if (opt.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ApiResponse.error(404, "Offer not found for this candidate and job"));
         }
-        return ResponseEntity.ok(ApiResponse.ok(data));
+        OfferRecord offer = opt.get();
+        return ResponseEntity.ok(ApiResponse.ok(toOfferResponse(offer)));
     }
 
     @PutMapping("/{jobId}/candidates/{candidateId}/offer")
@@ -209,15 +213,40 @@ public class PipelineController {
             @PathVariable Long candidateId,
             @Valid @RequestBody OfferRequest req,
             Authentication auth) {
-        String key = jobId + ":" + candidateId;
+        Optional<OfferRecord> existing = offerRecordRepository.findByCandidateIdAndJobId(candidateId, jobId);
+        OfferRecord offer;
+        if (existing.isPresent()) {
+            offer = existing.get();
+            offer.setSalary(req.getSalary());
+            if (req.getOnboardDate() != null && !req.getOnboardDate().isEmpty()) {
+                offer.setStartDate(LocalDate.parse(req.getOnboardDate()));
+            }
+            offer.setRemark(req.getNotes());
+        } else {
+            offer = OfferRecord.builder()
+                    .candidateId(candidateId)
+                    .jobId(jobId)
+                    .salary(req.getSalary())
+                    .startDate(req.getOnboardDate() != null && !req.getOnboardDate().isEmpty()
+                            ? LocalDate.parse(req.getOnboardDate()) : null)
+                    .remark(req.getNotes())
+                    .status(OfferRecord.Status.PENDING)
+                    .build();
+        }
+        offer = offerRecordRepository.save(offer);
+        return ResponseEntity.ok(ApiResponse.ok(toOfferResponse(offer)));
+    }
+
+    private Map<String, Object> toOfferResponse(OfferRecord offer) {
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("candidateId", candidateId);
-        data.put("jobId", jobId);
-        data.put("salary", req.getSalary());
-        data.put("onboardDate", req.getOnboardDate());
-        data.put("notes", req.getNotes());
-        offerStore.put(key, data);
-        return ResponseEntity.ok(ApiResponse.ok(data));
+        data.put("candidateId", offer.getCandidateId());
+        data.put("jobId", offer.getJobId());
+        data.put("salary", offer.getSalary());
+        data.put("onboardDate", offer.getStartDate() != null ? offer.getStartDate().toString() : null);
+        data.put("notes", offer.getRemark());
+        data.put("status", offer.getStatus().name());
+        data.put("id", offer.getId());
+        return data;
     }
 
     private Map<String, List<Map<String, Object>>> emptyBoard() {

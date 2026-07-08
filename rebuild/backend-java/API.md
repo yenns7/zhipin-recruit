@@ -2,7 +2,7 @@
 
 > **版本**: 0.1.0-SNAPSHOT
 > **日期**: 2026-07-08
-> **后端**: Java Spring Boot 3.2.5 — 129 tests 全绿
+> **后端**: Java Spring Boot 3.2.5
 > **基础路径**: `/api/v1`
 
 ---
@@ -39,7 +39,8 @@ admin > manager > recruiter > interviewer
 |------|------|
 | **Demo-Stub** | 返回 in-memory 静态样例数据，不代表真实集成 |
 | **Rule-Based** | 基于 JPA 聚合的规则计算，非真实数仓/BI 系统 |
-| **进程内存** | 数据存于 `ConcurrentHashMap`，重启即丢失 |
+| **DB 持久化** | 通知/Offer/处置/审计日志已持久化至 PostgreSQL，重启不丢失 |
+| **进程内存** | BOSS/Agent 会话数据存于 `ConcurrentHashMap`，重启丢失 |
 | **Flyway 持久化** | 已创建数据库表，真实写入 PostgreSQL |
 
 ---
@@ -599,7 +600,7 @@ GET /api/v1/health
 }
 ```
 
-> 当前 Offer 仅代表阶段记录，不包含完整审批流。
+> 当前 Offer 已持久化至 DB（OfferRecord 表），不包含完整审批流。
 
 ---
 
@@ -836,35 +837,49 @@ GET /api/v1/health
 
 ---
 
-## 14. 通知与待办
+## 14. 通知中心
 
-**Controller**: `com.hireinsight.notifications.NotificationTodoController` | 基础路径: `/api/v1/notifications/todos`
+**Controller**: `com.hireinsight.notifications.NotificationController` | 基础路径: `/api/v1/notifications`
 
 | 方法 | 路径 | 权限 | 说明 |
 |------|------|------|------|
-| GET | `/api/v1/notifications/todos` | 已认证 | 待办列表 |
-| GET | `/api/v1/notifications/todos/unread-count` | 已认证 | 未读数 |
-| POST | `/api/v1/notifications/todos/{todoId}/complete` | 已认证 | 标记完成 |
-| POST | `/api/v1/notifications/todos/{todoId}/archive` | 已认证 | 归档待办 |
+| GET | `/api/v1/notifications` | 已认证 | 通知列表（分页） |
+| GET | `/api/v1/notifications/unread-count` | 已认证 | 未读通知数 |
+| PUT | `/api/v1/notifications/{id}/read` | 已认证 | 标记单条已读 |
+| PUT | `/api/v1/notifications/read-all` | 已认证 | 全部标记已读 |
 
-### GET `/api/v1/notifications/todos`
+> 数据持久化至 DB（PostgreSQL），重启不丢失。
+
+### GET `/api/v1/notifications`（分页）
+
+**查询参数**: `page=0`（默认）、`per_page=20`（默认）
 
 **响应**:
 ```json
 {
   "code": 200,
   "data": {
-    "role": "recruiter",
-    "generatedAt": "2026-07-08T10:00:00Z",
-    "summary": "您有 3 项待办",
-    "items": [
-      { "id": "1", "title": "面试张三", "type": "interview", "priority": "high" }
-    ]
+    "notifications": [
+      {
+        "id": 1,
+        "type": "system",
+        "title": "新候选人待处理",
+        "body": "有 3 位候选人等待初筛",
+        "link": null,
+        "is_read": false,
+        "created_at": "2026-07-08T10:00:00"
+      }
+    ],
+    "total": 1,
+    "page": 0,
+    "per_page": 20,
+    "pages": 1,
+    "unread_count": 1
   }
 }
 ```
 
-### GET `/api/v1/notifications/todos/unread-count`
+### GET `/api/v1/notifications/unread-count`
 
 ```json
 {
@@ -873,12 +888,21 @@ GET /api/v1/health
 }
 ```
 
-### POST `/api/v1/notifications/todos/{todoId}/complete`
+### PUT `/api/v1/notifications/{id}/read`
 
 ```json
 {
   "code": 200,
-  "data": { "id": "1", "status": "completed", "statusLabel": "已完成" }
+  "data": { "id": 1, "is_read": true }
+}
+```
+
+### PUT `/api/v1/notifications/read-all`
+
+```json
+{
+  "code": 200,
+  "data": { "status": "all marked read" }
 }
 ```
 
@@ -1078,7 +1102,9 @@ GET /api/v1/health
 | Agent / AI 助手 | `AgentController` | 10 | AgentCallLog, Conversation | ✅ 调用日志 + ❌ 会话(进程内存) |
 | 匹配 | `MatchController` | 3 | - | ❌ demo 数据 |
 | BOSS 直聘 | `BossController` | 18 | - | ❌ in-memory (demo stub) |
-| 通知待办 | `NotificationTodoController` | 4 | NotificationTodo | ✅ JPA |
+| 通知中心 | `NotificationController` | 4 | Notification | ✅ JPA (Flyway V14) |
+| 审计日志 | `AuditLogController` | 1 | AuditLog | ✅ JPA (Flyway V14) |
+| 候选人处置 | `DispositionController` | 2 | CandidateDisposition | ✅ JPA (Flyway V14) |
 | 系统治理 | `SystemGovernanceController` | 4 | - | ❌ in-memory (demo) |
 | 管理员用户治理 | `AdminUserController` | 3 | User | ✅ JPA |
 | 人才地图 | `TalentMapController` | 8 | TalentMap, Company, Person | ✅ JPA |

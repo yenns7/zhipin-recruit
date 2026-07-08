@@ -556,16 +556,18 @@ export const api = {
 
   // ---- Notifications ----
   getNotifications(page = 1, perPage = 20): Promise<NotificationListResponse> {
-    return request(`/notifications/todos?page=${page}&per_page=${perPage}`);
+    return request(`/notifications?page=${page - 1}&per_page=${perPage}`);
   },
-  getUnreadCount(): Promise<{ unread_count: number }> {
+  getUnreadCount(): Promise<{ count: number }> {
     return request('/notifications/unread-count');
   },
   markNotificationsRead(ids?: number[]): Promise<{ status: string }> {
-    return request('/notifications/mark-read', {
-      method: 'POST',
-      body: ids && ids.length > 0 ? { ids } : {},
-    });
+    if (ids && ids.length > 0) {
+      // Mark single notification as read — only the first id
+      return request(`/notifications/${ids[0]}/read`, { method: 'PUT' });
+    }
+    // Mark all as read
+    return request('/notifications/read-all', { method: 'PUT' });
   },
 
   // ---- Candidate pipeline context / journey / reassignment (M4/M5) ----
