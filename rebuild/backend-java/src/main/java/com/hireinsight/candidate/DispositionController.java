@@ -45,11 +45,11 @@ public class DispositionController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<Map<String, Object>>> get(@PathVariable Long candidateId) {
-        var dispositions = dispositionRepository.findByCandidateId(candidateId);
+        var dispositions = dispositionRepository.findByCandidateIdOrderByCreatedAtDesc(candidateId);
         if (dispositions.isEmpty()) {
-            return ResponseEntity.ok(ApiResponse.error(404, "No disposition found"));
+            return ResponseEntity.status(404).body(ApiResponse.error(404, "No disposition found"));
         }
-        CandidateDisposition d = dispositions.get(dispositions.size() - 1);
+        CandidateDisposition d = dispositions.get(0);
         return ResponseEntity.ok(ApiResponse.ok(Map.of(
                 "id", d.getId(),
                 "candidate_id", d.getCandidateId(),
