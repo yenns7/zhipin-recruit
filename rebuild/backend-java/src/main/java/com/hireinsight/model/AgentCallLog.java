@@ -49,6 +49,15 @@ public class AgentCallLog {
     @Column(name = "duration_ms")
     private Long durationMs;
 
+    @Column(length = 100)
+    private String model;
+
+    @Column(name = "prompt_tokens")
+    private Integer promptTokens;
+
+    @Column(name = "completion_tokens")
+    private Integer completionTokens;
+
     @CreatedDate
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;

@@ -1,8 +1,8 @@
 package com.hireinsight.agent;
 
 import com.hireinsight.common.ApiResponse;
+import com.hireinsight.llm.LlmClient;
 import com.hireinsight.model.AgentCallLog;
-import com.hireinsight.security.RateLimit;
 import com.hireinsight.repository.AgentCallLogRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -10,33 +10,70 @@ import lombok.Data;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @RestController
 @RequestMapping("/api/v1/agent")
 public class AgentController {
 
     private final AgentDemoService agentDemoService;
+    private final AgentService agentService;
+    private final LlmClient llmClient;
     private final AgentCallLogRepository agentCallLogRepository;
+    private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
 
-    public AgentController(AgentDemoService agentDemoService, AgentCallLogRepository agentCallLogRepository) {
+    public AgentController(AgentDemoService agentDemoService,
+                           AgentService agentService,
+                           LlmClient llmClient,
+                           AgentCallLogRepository agentCallLogRepository) {
         this.agentDemoService = agentDemoService;
+        this.agentService = agentService;
+        this.llmClient = llmClient;
         this.agentCallLogRepository = agentCallLogRepository;
+    }
+
+    // ==================== SSE Chat (new) ====================
+
+    /**
+     * POST /api/v1/agent/chat
+     * SSE streaming chat endpoint. Returns text/event-stream with ReAct agent events.
+     */
+    @PostMapping("/chat")
+    public SseEmitter chat(@Valid @RequestBody ChatRequest request,
+                           Authentication authentication) {
+        Long userId = authentication != null ? (Long) authentication.getPrincipal() : 0L;
+        String route = request.getRoute() != null ? request.getRoute() : "fast";
+
+        SseEmitter emitter = new SseEmitter(300_000L); // 5 minute timeout
+
+        executor.execute(() -> {
+            try {
+                agentService.processChat(userId, request.getConversationId(),
+                        request.getMessage(), emitter, route);
+            } catch (Exception e) {
+                try {
+                    emitter.send(SseEmitter.event()
+                            .name("error")
+                            .data("{\"type\":\"error\",\"message\":\"" +
+                                    e.getMessage().replace("\"", "\\\"") + "\"}"));
+                } catch (Exception ignored) {
+                }
+                emitter.completeWithError(e);
+            }
+        });
+
+        return emitter;
     }
 
     // ==================== Call Logs (admin) ====================
@@ -89,12 +126,25 @@ public class AgentController {
             @Valid @RequestBody ExecuteToolRequest request,
             Authentication authentication) {
         Long userId = authentication != null ? (Long) authentication.getPrincipal() : 0L;
+
+        // If confirmKey is provided, execute a pending write tool
+        if (request.getConfirmKey() != null && !request.getConfirmKey().isBlank()) {
+            Map<String, Object> result = agentService.executeWriteTool(request.getConfirmKey(), userId);
+            boolean ok = Boolean.TRUE.equals(result.get("ok"));
+            if (ok) {
+                return ResponseEntity.ok(ApiResponse.ok(result));
+            } else {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error(400, (String) result.getOrDefault("error", "执行失败")));
+            }
+        }
+
+        // Legacy mock tool execution
         long start = System.currentTimeMillis();
         Map<String, Object> result;
         try {
             result = mockExecuteTool(request.getToolName(), request.getParameters());
         } catch (Exception e) {
-            // log the error
             AgentCallLog errorLog = AgentCallLog.builder()
                     .userId(userId)
                     .action("tool_execute")
@@ -164,7 +214,6 @@ public class AgentController {
     }
 
     @PostMapping("/conversations/{conversationId}/messages")
-    @RateLimit(key = "agent-chat")
     public ResponseEntity<ApiResponse<Map<String, Object>>> message(
             @PathVariable String conversationId,
             @Valid @RequestBody SendMessageRequest request,
@@ -176,7 +225,43 @@ public class AgentController {
         return ResponseEntity.ok(ApiResponse.ok(agentDemoService.appendMessage(conversationId, request.getContent(), role)));
     }
 
+    // ==================== Admin Architecture Endpoint ====================
+
+    @GetMapping("/admin/ai-architecture")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getAiArchitecture() {
+        Map<String, Object> arch = Map.of(
+                "systemPrompt", agentService.getSystemPrompt(),
+                "tools", agentService.getToolDefinitions(),
+                "permissions", Map.of(
+                        "readTools", "所有认证用户",
+                        "writeTools", "需要 ADMIN 角色 + 用户确认",
+                        "adminEndpoint", "需要 ADMIN 角色"
+                ),
+                "security", Map.of(
+                        "authentication", "JWT Bearer Token",
+                        "rateLimit", "agent-chat: 20次/60秒",
+                        "dataAccess", "用户只能访问自己有权限的数据",
+                        "writeConfirmation", "写操作需要用户二次确认"
+                ),
+                "llmConfig", Map.of(
+                        "routes", List.of("fast", "think", "pro"),
+                        "mockMode", "当 LLM_API_KEY 未配置时自动启用"
+                )
+        );
+        return ResponseEntity.ok(ApiResponse.ok(arch));
+    }
+
     // ==================== DTOs ====================
+
+    @Data
+    public static class ChatRequest {
+        @NotBlank
+        private String message;
+        private Long conversationId;
+        private String route; // fast, think, pro
+        private List<Map<String, String>> history; // optional context
+    }
 
     @Data
     public static class SendMessageRequest {
@@ -201,6 +286,7 @@ public class AgentController {
         @NotBlank
         private String toolName;
         private Map<String, Object> parameters;
+        private String confirmKey; // for write tool confirmation
     }
 
     @Data
@@ -222,6 +308,9 @@ public class AgentController {
         private String outputJson;
         private String status;
         private Long durationMs;
+        private String model;
+        private Integer promptTokens;
+        private Integer completionTokens;
         private String createdAt;
     }
 
@@ -238,6 +327,9 @@ public class AgentController {
         r.setOutputJson(log.getOutputJson());
         r.setStatus(log.getStatus());
         r.setDurationMs(log.getDurationMs());
+        r.setModel(log.getModel());
+        r.setPromptTokens(log.getPromptTokens());
+        r.setCompletionTokens(log.getCompletionTokens());
         r.setCreatedAt(log.getCreatedAt() != null ? log.getCreatedAt().toString() : null);
         return r;
     }

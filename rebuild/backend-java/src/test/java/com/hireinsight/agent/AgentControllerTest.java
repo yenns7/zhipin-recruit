@@ -4,6 +4,7 @@ import com.hireinsight.HireInsightApplication;
 import com.hireinsight.auth.JwtTokenProvider;
 import com.hireinsight.model.AgentCallLog;
 import com.hireinsight.repository.AgentCallLogRepository;
+import com.hireinsight.repository.ConversationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,15 +31,21 @@ class AgentControllerTest {
     @Autowired
     private AgentCallLogRepository agentCallLogRepository;
 
+    @Autowired
+    private ConversationRepository conversationRepository;
+
     private String adminToken;
     private String userToken;
 
     @BeforeEach
     void setUp() {
         agentCallLogRepository.deleteAll();
+        conversationRepository.deleteAll();
         adminToken = "Bearer " + jwtTokenProvider.createToken(1L, "ADMIN");
         userToken = "Bearer " + jwtTokenProvider.createToken(2L, "RECRUITER");
     }
+
+    // ==================== Call Logs ====================
 
     @Test
     void callLogsWithoutAuthReturns401() throws Exception {
@@ -107,6 +114,8 @@ class AgentControllerTest {
                 .andExpect(jsonPath("$.data.total").value(1));
     }
 
+    // ==================== Tools ====================
+
     @Test
     void toolsReturnsPredefinedList() throws Exception {
         mockMvc.perform(get("/api/v1/agent/tools")
@@ -151,6 +160,8 @@ class AgentControllerTest {
                         .content("{\"toolName\":\"search_candidates\"}"))
                 .andExpect(status().isUnauthorized());
     }
+
+    // ==================== Conversations ====================
 
     @Test
     void createConversationReturnsCreated() throws Exception {
@@ -225,5 +236,75 @@ class AgentControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"hello\"}"))
                 .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/api/v1/agent/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"hello\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    // ==================== SSE Chat (new) ====================
+
+    @Test
+    void chatWithoutAuthReturns401() throws Exception {
+        mockMvc.perform(post("/api/v1/agent/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"hello\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void chatReturnsSseStream() throws Exception {
+        mockMvc.perform(post("/api/v1/agent/chat")
+                        .header("Authorization", userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"你好\",\"route\":\"fast\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void chatWithConversationIdReturnsSseStream() throws Exception {
+        mockMvc.perform(post("/api/v1/agent/chat")
+                        .header("Authorization", userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"继续\",\"conversationId\":1}"))
+                .andExpect(status().isOk());
+    }
+
+    // ==================== Admin Architecture (new) ====================
+
+    @Test
+    void adminArchitectureWithoutAuthReturns401() throws Exception {
+        mockMvc.perform(get("/api/v1/agent/admin/ai-architecture"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void adminArchitectureWithUserRoleReturns403() throws Exception {
+        mockMvc.perform(get("/api/v1/agent/admin/ai-architecture")
+                        .header("Authorization", userToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminArchitectureReturnsSystemPromptAndTools() throws Exception {
+        mockMvc.perform(get("/api/v1/agent/admin/ai-architecture")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.systemPrompt").exists())
+                .andExpect(jsonPath("$.data.tools").isArray())
+                .andExpect(jsonPath("$.data.permissions").exists())
+                .andExpect(jsonPath("$.data.security").exists())
+                .andExpect(jsonPath("$.data.llmConfig").exists());
+    }
+
+    @Test
+    void adminArchitectureToolsIncludeReadAndWrite() throws Exception {
+        mockMvc.perform(get("/api/v1/agent/admin/ai-architecture")
+                        .header("Authorization", adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.tools.length()").value(12));
     }
 }
