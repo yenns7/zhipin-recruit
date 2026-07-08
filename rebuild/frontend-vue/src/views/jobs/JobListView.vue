@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
 import { api } from '@/api/http'
-import type { JobListItem, PaginatedResponse } from '@/types/api'
+import type { JobCreateInput, JobListItem, PaginatedResponse } from '@/types/api'
+import type { Role } from '@/types'
+
+const currentRole = ref<Role>((localStorage.getItem('hireinsight_role') as Role | null) || 'recruiter')
+const canCreateJob = computed(() => ['recruiter', 'manager', 'admin'].includes(currentRole.value))
 
 const items = ref<JobListItem[]>([])
 const pageInfo = ref<PaginatedResponse<JobListItem>>({
@@ -15,6 +19,13 @@ const pageSize = ref(10)
 const status = ref('')
 const loading = ref(true)
 const error = ref('')
+
+// Create-job form state
+const showCreateForm = ref(false)
+const creating = ref(false)
+const createError = ref('')
+const createSuccess = ref('')
+const form = ref<JobCreateInput>({ title: '', jdText: '' })
 
 const canGoNext = computed(() => page.value * pageSize.value < pageInfo.value.total)
 const canGoPrev = computed(() => page.value > 1)
@@ -34,6 +45,38 @@ async function loadJobs() {
     error.value = err instanceof Error ? err.message : '岗位加载失败'
   } finally {
     loading.value = false
+  }
+}
+
+function toggleCreateForm() {
+  showCreateForm.value = !showCreateForm.value
+  if (!showCreateForm.value) {
+    createError.value = ''
+  }
+}
+
+function resetCreateForm() {
+  form.value = { title: '', jdText: '' }
+}
+
+async function submitCreate() {
+  createError.value = ''
+  createSuccess.value = ''
+  if (!form.value.title.trim() || !form.value.jdText.trim()) {
+    createError.value = '岗位名称和岗位描述不能为空'
+    return
+  }
+  creating.value = true
+  try {
+    const result = await api.createJob({ title: form.value.title.trim(), jdText: form.value.jdText.trim() })
+    createSuccess.value = `已创建岗位 #${result.id}`
+    resetCreateForm()
+    showCreateForm.value = false
+    await loadJobs()
+  } catch (err) {
+    createError.value = err instanceof Error ? err.message : '岗位创建失败'
+  } finally {
+    creating.value = false
   }
 }
 
@@ -88,8 +131,67 @@ onMounted(async () => {
         >
           重置
         </button>
+        <button
+          v-if="canCreateJob"
+          type="button"
+          data-testid="toggle-create-job"
+          class="rounded-lg bg-ink px-3 py-1 text-white hover:opacity-90"
+          @click="toggleCreateForm"
+        >
+          {{ showCreateForm ? '收起' : '新建岗位' }}
+        </button>
       </div>
     </div>
+
+    <form
+      v-if="showCreateForm && canCreateJob"
+      data-testid="create-job-form"
+      class="bg-white rounded-xl shadow-card p-4 space-y-3"
+      @submit.prevent="submitCreate"
+    >
+      <div class="space-y-1">
+        <label class="text-xs text-muted">岗位名称</label>
+        <input
+          v-model="form.title"
+          type="text"
+          required
+          data-testid="job-title"
+          class="w-full rounded-lg border border-hairline px-3 py-2 text-body"
+          placeholder="请输入岗位名称"
+        />
+      </div>
+      <div class="space-y-1">
+        <label class="text-xs text-muted">岗位描述（JD）</label>
+        <textarea
+          v-model="form.jdText"
+          required
+          data-testid="job-jd"
+          rows="4"
+          class="w-full rounded-lg border border-hairline px-3 py-2 text-body"
+          placeholder="请输入岗位描述"
+        ></textarea>
+      </div>
+      <p v-if="createError" class="text-sm text-danger">{{ createError }}</p>
+      <div class="flex items-center gap-3">
+        <button
+          type="submit"
+          data-testid="submit-create-job"
+          :disabled="creating"
+          class="rounded-lg bg-ink px-4 py-2 text-white hover:opacity-90 disabled:opacity-50"
+        >
+          {{ creating ? '创建中…' : '创建岗位' }}
+        </button>
+        <button
+          type="button"
+          class="rounded-lg border border-hairline px-4 py-2 text-muted hover:text-ink"
+          @click="toggleCreateForm"
+        >
+          取消
+        </button>
+      </div>
+    </form>
+
+    <p v-if="createSuccess" class="text-sm text-success">{{ createSuccess }}</p>
     <p v-if="error" class="text-sm text-danger">{{ error }}</p>
     <div v-if="loading" class="text-sm text-muted">加载中…</div>
     <div v-else-if="items.length === 0" class="bg-white rounded-xl shadow-card p-8 text-center text-sm text-muted">

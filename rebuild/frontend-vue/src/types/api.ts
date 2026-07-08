@@ -265,6 +265,15 @@ export interface JobListItem {
   created_at?: string | null
 }
 
+export interface JobCreateInput {
+  title: string
+  jdText: string
+}
+
+export interface JobCreateResult {
+  id: number
+}
+
 export interface InterviewListItem {
   id: number
   candidate_name: string

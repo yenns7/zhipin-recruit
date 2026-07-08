@@ -11,6 +11,8 @@ import type {
   InterviewListQuery,
   JobListItem,
   JobListQuery,
+  JobCreateInput,
+  JobCreateResult,
   NotificationTodoMutationResponse,
   NotificationTodoResponse,
   PaginatedResponse,
@@ -342,6 +344,8 @@ export const api = {
     const payload = await request<unknown>(buildPath('/jobs', { page, pageSize, status: params.status }))
     return normalizePage(payload, ['jobs', 'items'], normalizeJob, page, pageSize)
   },
+  createJob: (payload: JobCreateInput) =>
+    request<JobCreateResult>('/jobs', { method: 'POST', body: payload }),
   getPipelineBoard: async (jobId: number): Promise<PipelineBoardResponse> => {
     const payload = await request<unknown>(`/pipeline/${jobId}/board`)
     const record = asRecord(unwrapData(payload as { data?: unknown })) ?? {}
