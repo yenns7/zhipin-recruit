@@ -161,7 +161,7 @@ public class BossCliService {
 
     private CliResult run(List<String> args, int timeoutSeconds, String cookieOverride) {
         if (!checkInstalled()) {
-            return new CliResult(-1, "", "boss-cli not installed", null);
+            return new CliResult(-1, "", "boss-cli not installed", "boss_cli_not_installed");
         }
 
         List<String> cmd = new ArrayList<>();
