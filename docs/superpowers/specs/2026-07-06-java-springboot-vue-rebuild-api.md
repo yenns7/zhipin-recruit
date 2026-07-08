@@ -20,12 +20,12 @@
 - `reset-password` 前端只显示成功提示，不展示密码明文。
 - 该组接口属于 `demo-only` 账号治理壳层，不应写成“完整用户中心”。
 
-## 2. Candidate 异步解析口径
+## 2. Candidate 解析与入库口径
 
 `CandidateListView` 的页面说明要与当前实现保持一致：
 
-- 上传简历后进入异步解析链路。
-- 解析成功后会真实写入 Java rebuild PostgreSQL dev 数据库。
+- 上传简历后会真实写入 Java rebuild PostgreSQL dev 数据库（当前为同步写入候选人记录，简历 JSON 暂以 `{}` 占位，尚未接真实异步解析链路）。
+- “已解析候选人”指标当前等于已上传候选人数量，不代表简历内容已完成结构化解析；后续需补真实解析链路。
 - 当前对外文案可写为“写入 Java rebuild PostgreSQL dev 数据库”，重点是**不再写成纯前端临时态或刷新即丢**。
 - 候选人列表可调用 `POST /api/v1/pipeline/move` 将候选人加入岗位流程。
 
@@ -77,13 +77,13 @@
 | 角色 | activeJobs / candidateTotal / parsedCandidates 范围 |
 |---|---|
 | `recruiter` | 当前登录用户自己的 `owner_hr_id` 范围 |
-| `manager` | 团队范围 |
-| `admin` | 团队范围 |
+| `manager` | 全局范围（demo 阶段未按团队细分） |
+| `admin` | 全局范围（demo 阶段未按团队细分） |
 
 说明：
 
 - 招聘专员不能用全库总数，否则会出现“看得到但算不清”的试点偏差。
-- 经理/管理员仍是基础团队汇总，不代表完整 BI 绩效体系。
+- 经理/管理员当前是 rule-based 全库汇总，尚未引入团队归属模型，不代表完整 BI 绩效体系；后续需补 `team_id` / `reports_to` 才能真正按团队细分。
 
 ## 6. Agent 相关口径
 
@@ -175,10 +175,10 @@
 ## 10. 推荐写法
 
 - `管理员账号治理最小闭环已可联调`
-- `候选人异步解析成功后会写入 Java rebuild PostgreSQL dev 数据库`
+- `候选人上传后会写入 Java rebuild PostgreSQL dev 数据库（当前同步写入，简历 JSON 暂为占位，尚未接真实解析链路）`
 - `候选人可从列表加入岗位流程，误推进可到流程看板纠正`
 - `招聘专员、负责人、管理员可安排面试草稿；面试官只看本人面试`
-- `BI overview 对招聘专员使用 owner_hr_id 范围，对负责人/管理员使用团队范围`
+- `BI overview 对招聘专员使用 owner_hr_id 范围，对负责人/管理员当前使用全局范围（demo 阶段未按团队细分）`
 - `真实试点使用 pilot profile，dev demo 账号只用于本地演示`
 - `健康检查会返回数据库状态，数据库不可用时返回 503`
 - `AI 助手会话列表/详情/消息发送已具备 confirm-first 演示壳层`
