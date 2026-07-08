@@ -245,6 +245,11 @@ describe('InterviewReportView', () => {
     expect(body.passRecommended).toBe(true)
     expect(body.candidateId).toBe(2)
     expect(body.jobId).toBe(1)
+    // I1: aiReport must be a JSON-parseable string with a `summary` property,
+    // proving we send valid JSON to the backend jsonb column (not plain text).
+    const aiReportParsed = JSON.parse(body.aiReport)
+    expect(aiReportParsed).toHaveProperty('summary')
+    expect(aiReportParsed.summary).toBe('沟通清晰')
 
     // Success message visible and form is gone (status flipped)
     expect(wrapper.text()).toContain('反馈已提交')

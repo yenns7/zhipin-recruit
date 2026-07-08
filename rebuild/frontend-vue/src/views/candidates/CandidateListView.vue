@@ -110,7 +110,7 @@ onMounted(async () => {
       <div>
         <h2 class="font-display text-lg text-ink">候选人</h2>
         <p class="mt-1 text-sm text-muted">
-          上传简历后会进入异步解析；解析完成后会真实写入 Java rebuild 的 PostgreSQL dev 数据库，而不是只停留在前端临时态。
+          上传简历后会真实写入 Java rebuild 的 PostgreSQL dev 数据库（当前为同步写入候选人记录，简历内容暂以占位存储，尚未接真实解析链路），而不是只停留在前端临时态或刷新即丢。
         </p>
       </div>
       <label class="flex items-center gap-2 text-sm text-muted">

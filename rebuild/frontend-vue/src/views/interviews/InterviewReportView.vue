@@ -11,7 +11,7 @@ const interview = ref<InterviewDetailItem | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
 
-const feedbackScore = ref<number>(0)
+const feedbackScore = ref<number>(1)
 const feedbackPass = ref<boolean>(true)
 const feedbackNotes = ref('')
 const submitting = ref(false)
@@ -221,7 +221,7 @@ async function submitFeedback() {
       score: feedbackScore.value,
       passRecommended: feedbackPass.value,
       qaJson: JSON.stringify([{ question: '面试备注', answer: feedbackNotes.value }]),
-      aiReport: feedbackNotes.value || '{}',
+      aiReport: JSON.stringify({ summary: feedbackNotes.value || '面试官未补充备注' }),
     })
     feedbackSuccess.value = `反馈已提交，记录 #${result.id}`
     await loadInterview()
@@ -397,14 +397,14 @@ onMounted(loadInterview)
         </div>
         <div class="grid gap-4 sm:grid-cols-2">
           <label class="text-sm text-muted">
-            综合评分（0-5，步进 0.5）
+            综合评分（1-5）
             <input
               v-model.number="feedbackScore"
               data-testid="feedback-score"
               type="number"
-              min="0"
+              min="1"
               max="5"
-              step="0.5"
+              step="1"
               required
               class="mt-1 w-full rounded-lg border border-hairline px-3 py-2 text-body"
             >
