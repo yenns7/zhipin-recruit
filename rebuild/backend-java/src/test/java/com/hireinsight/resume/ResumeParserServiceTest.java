@@ -1,5 +1,6 @@
 package com.hireinsight.resume;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hireinsight.llm.LlmClient;
 import com.hireinsight.repository.CandidateRepository;
@@ -7,6 +8,8 @@ import com.hireinsight.repository.CandidateTagRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -19,6 +22,13 @@ import static org.mockito.Mockito.when;
 /**
  * Tests for ResumeParserService, focused on the computeSkillScore logic
  * exercised through the package-private scoreSkills method.
+ *
+ * Score tiers:
+ *   1 = single mention, no years context
+ *   2 = single mention with years of experience
+ *   3 = multiple mentions (count > 1)
+ *   4 = many mentions (count > 3)
+ *   5 = core skill (count > 5 with years of experience)
  */
 @ExtendWith(MockitoExtension.class)
 class ResumeParserServiceTest {
@@ -43,6 +53,8 @@ class ResumeParserServiceTest {
                 objectMapper, techTaxonomy);
     }
 
+    // ====== Score 1: single mention, no years ======
+
     @Test
     void scoreSkill_returns1_whenSingleMentionNoYears() {
         when(techTaxonomy.getAllTags()).thenReturn(Set.of("Java", "Python"));
@@ -55,6 +67,23 @@ class ResumeParserServiceTest {
 
         assertThat(scores).containsEntry("Java", 1);
     }
+
+    // ====== Score 2: single mention with years ======
+
+    @Test
+    void scoreSkill_returns2_whenSingleMentionWithYears() {
+        when(techTaxonomy.getAllTags()).thenReturn(Set.of("Java", "Python"));
+
+        // "Java" mentioned once but with years of experience
+        String resumeText = "5年 Java 开发经验";
+        String json = "{\"skills\":[\"Java\"]}";
+
+        Map<String, Integer> scores = service.scoreSkills(resumeText, json);
+
+        assertThat(scores).containsEntry("Java", 2);
+    }
+
+    // ====== Score 3: multiple mentions (count > 1) ======
 
     @Test
     void scoreSkill_returns3_whenMultipleMentionsNoYears() {
@@ -74,17 +103,19 @@ class ResumeParserServiceTest {
     }
 
     @Test
-    void scoreSkill_returns3_whenSingleMentionWithYears() {
+    void scoreSkill_returns3_whenTwoMentionsWithYears() {
         when(techTaxonomy.getAllTags()).thenReturn(Set.of("Java", "Python"));
 
-        // "Java" mentioned once but with years of experience
-        String resumeText = "5年 Java 开发经验";
+        // "Java" mentioned 2 times with years → count > 1, so score 3
+        String resumeText = "5年 Java 开发经验\nDeep knowledge of Java ecosystem.";
         String json = "{\"skills\":[\"Java\"]}";
 
         Map<String, Integer> scores = service.scoreSkills(resumeText, json);
 
         assertThat(scores).containsEntry("Java", 3);
     }
+
+    // ====== Score 4: many mentions (count > 3) ======
 
     @Test
     void scoreSkill_returns4_whenManyMentionsNoYears() {
@@ -104,18 +135,7 @@ class ResumeParserServiceTest {
         assertThat(scores).containsEntry("Java", 4);
     }
 
-    @Test
-    void scoreSkill_returns4_whenMultipleMentionsWithYears() {
-        when(techTaxonomy.getAllTags()).thenReturn(Set.of("Java", "Python"));
-
-        // "Java" mentioned 2 times with years
-        String resumeText = "5年 Java 开发经验\nDeep knowledge of Java ecosystem.";
-        String json = "{\"skills\":[\"Java\"]}";
-
-        Map<String, Integer> scores = service.scoreSkills(resumeText, json);
-
-        assertThat(scores).containsEntry("Java", 4);
-    }
+    // ====== Score 5: core skill (count > 5 with years) ======
 
     @Test
     void scoreSkill_returns5_whenManyMentionsWithYears() {
@@ -137,6 +157,23 @@ class ResumeParserServiceTest {
 
         assertThat(scores).containsEntry("Java", 5);
     }
+
+    // ====== Count = 4 with years → still score 4 (not 5, need >5) ======
+
+    @Test
+    void scoreSkill_returns4_whenFourMentionsWithYears() {
+        when(techTaxonomy.getAllTags()).thenReturn(Set.of("Java", "Python"));
+
+        // "Java" mentioned 4 times with years → count > 3 (score 4), but not > 5
+        String resumeText = "5年 Java 开发经验\nJava microservices\nJava Spring Boot\nJava concurrency";
+        String json = "{\"skills\":[\"Java\"]}";
+
+        Map<String, Integer> scores = service.scoreSkills(resumeText, json);
+
+        assertThat(scores).containsEntry("Java", 4);
+    }
+
+    // ====== Fallback: invalid JSON → text matching ======
 
     @Test
     void scoreSkill_fallsBackToTextMatchingWhenJsonInvalid() {

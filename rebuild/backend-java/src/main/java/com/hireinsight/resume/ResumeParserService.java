@@ -122,20 +122,6 @@ public class ResumeParserService {
         log.info("Resume parsed successfully for candidate {}: {} skills scored", candidate.getId(), skillScores.size());
     }
 
-    /**
-     * Retry parsing a candidate's resume (synchronous). <br>
-     * NOTE: Currently unused — the controller calls {@link #parseResumeAsync(Long)} directly.
-     * Kept as a convenience for potential synchronous flow.
-     */
-    public void retryParse(Long candidateId) {
-        Candidate candidate = candidateRepository.findById(candidateId)
-                .orElseThrow(() -> new IllegalArgumentException("Candidate not found: " + candidateId));
-        // Clear previous tags
-        candidateTagRepository.deleteByCandidateId(candidateId);
-        // Re-parse
-        parseResume(candidate);
-    }
-
     // ========== Text Extraction ==========
 
     /**
@@ -320,13 +306,16 @@ public class ResumeParserService {
             }
         }
 
-        // Score: 1=mentioned, 2=mentioned a few times, 3=multiple mentions,
-        // 4=multiple mentions with years of experience, 5=core skill
+        // Score:
+        //   1 = single mention, no years context (just mentioned)
+        //   2 = single mention with years of experience
+        //   3 = multiple mentions (count > 1)
+        //   4 = many mentions (count > 3)
+        //   5 = core skill (count > 5 with years of experience)
         if (count > 5 && hasYears) return 5;
         if (count > 3) return 4;
-        if (count > 1 && hasYears) return 4;
         if (count > 1) return 3;
-        if (hasYears) return 3;
+        if (count == 1 && hasYears) return 2;
         return 1;
     }
 

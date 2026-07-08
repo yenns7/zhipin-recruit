@@ -63,12 +63,29 @@ public class LlmClient {
         return doRequest(body);
     }
 
+    /**
+     * Resolve model name for the given route, respecting app.llm.provider
+     * and app.llm.model-fast/think/pro config. Falls back to provider-specific
+     * defaults when config values are empty.
+     */
     private String resolveModel(String route) {
-        return switch (route == null ? "fast" : route) {
+        String r = (route == null) ? "fast" : route;
+        String model = switch (r) {
             case "think" -> config.getModelThink();
             case "pro" -> config.getModelPro();
             default -> config.getModelFast();
         };
+
+        // If config value is empty, fall back to provider-based default
+        if (model == null || model.isBlank()) {
+            String provider = config.getProvider();
+            model = switch (r) {
+                case "think" -> "deepseek".equalsIgnoreCase(provider) ? "deepseek-reasoner" : "gpt-4o";
+                case "pro" -> "deepseek".equalsIgnoreCase(provider) ? "deepseek-chat" : "o3-mini";
+                default -> "deepseek".equalsIgnoreCase(provider) ? "deepseek-chat" : "gpt-4o-mini";
+            };
+        }
+        return model;
     }
 
     private ObjectNode buildBody(String systemPrompt, String userPrompt, String model) {
