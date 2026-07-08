@@ -49,6 +49,12 @@ app:
     resume-upload:
       limit: 10
       window-seconds: 60
+  boss:
+    demo-mode: ${BOSS_DEMO_MODE:true}
+    cli-path: ${BOSS_CLI_PATH:}
+    max-import-limit: ${BOSS_MAX_IMPORT_LIMIT:50}
+    interval-seconds: ${BOSS_INTERVAL_SECONDS:1.5}
+    cli-timeout: ${BOSS_CLI_TIMEOUT:60}
   llm:
     provider: ${LLM_PROVIDER:openai}
     api-key: ${LLM_API_KEY:}

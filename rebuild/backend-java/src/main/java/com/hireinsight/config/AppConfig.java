@@ -17,6 +17,7 @@ public class AppConfig {
     private final Security security = new Security();
     private final Llm llm = new Llm();
     private final Encryption encryption = new Encryption();
+    private final Boss boss = new Boss();
     private final Map<String, RateLimitConfig> rateLimit = new HashMap<>();
 
     public Jwt getJwt() { return jwt; }
@@ -25,6 +26,7 @@ public class AppConfig {
     public Security getSecurity() { return security; }
     public Llm getLlm() { return llm; }
     public Encryption getEncryption() { return encryption; }
+    public Boss getBoss() { return boss; }
     public Map<String, RateLimitConfig> getRateLimit() { return rateLimit; }
 
     public static class Jwt {
@@ -85,6 +87,25 @@ public class AppConfig {
         public void setLimit(int limit) { this.limit = limit; }
         public int getWindowSeconds() { return windowSeconds; }
         public void setWindowSeconds(int windowSeconds) { this.windowSeconds = windowSeconds; }
+    }
+
+    public static class Boss {
+        private boolean demoMode = true;
+        private String cliPath = "";
+        private int maxImportLimit = 50;
+        private double intervalSeconds = 1.5;
+        private int cliTimeout = 60;
+
+        public boolean isDemoMode() { return demoMode; }
+        public void setDemoMode(boolean demoMode) { this.demoMode = demoMode; }
+        public String getCliPath() { return cliPath; }
+        public void setCliPath(String cliPath) { this.cliPath = cliPath; }
+        public int getMaxImportLimit() { return maxImportLimit; }
+        public void setMaxImportLimit(int maxImportLimit) { this.maxImportLimit = maxImportLimit; }
+        public double getIntervalSeconds() { return intervalSeconds; }
+        public void setIntervalSeconds(double intervalSeconds) { this.intervalSeconds = intervalSeconds; }
+        public int getCliTimeout() { return cliTimeout; }
+        public void setCliTimeout(int cliTimeout) { this.cliTimeout = cliTimeout; }
     }
 
     public static class Llm {
