@@ -80,6 +80,10 @@ public class PilotReadinessValidator implements ApplicationRunner {
         if (uploadFolder.isBlank() || uploadFolder.equals("/tmp") || uploadFolder.startsWith("/tmp/")) {
             failures.add("UPLOAD_FOLDER must be a persistent server directory, not /tmp");
         }
+        String encryptionKey = trim(appConfig.getEncryption().getFieldEncryptionKey());
+        if (encryptionKey.isBlank() || encryptionKey.length() < 16) {
+            failures.add("FIELD_ENCRYPTION_KEY must be set and have sufficient length (>= 16 chars)");
+        }
         for (String email : DEMO_EMAILS) {
             if (userRepository.existsByEmail(email)) {
                 failures.add("demo account must be removed before pilot: " + email);

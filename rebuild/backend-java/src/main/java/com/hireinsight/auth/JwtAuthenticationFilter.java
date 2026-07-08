@@ -23,9 +23,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
 
     private final JwtTokenProvider tokenProvider;
+    private final TokenBlacklistService blacklistService;
 
-    public JwtAuthenticationFilter(JwtTokenProvider tokenProvider) {
+    public JwtAuthenticationFilter(JwtTokenProvider tokenProvider,
+                                   TokenBlacklistService blacklistService) {
         this.tokenProvider = tokenProvider;
+        this.blacklistService = blacklistService;
     }
 
     @Override
@@ -35,6 +38,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String token = extractToken(request);
         if (token != null) {
+            // Check blacklist before validating token
+            if (blacklistService.isRevoked(token)) {
+                log.debug("Token is revoked, rejecting request");
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token has been revoked");
+                return;
+            }
             try {
                 Long userId = tokenProvider.getUserId(token);
                 String role = tokenProvider.getRole(token);

@@ -3,6 +3,7 @@ package com.hireinsight.resume;
 import com.hireinsight.common.ApiResponse;
 import com.hireinsight.config.AppConfig;
 import com.hireinsight.model.Candidate;
+import com.hireinsight.security.RateLimit;
 import com.hireinsight.model.UploadBatch;
 import com.hireinsight.repository.CandidateRepository;
 import com.hireinsight.repository.CandidateTagRepository;
@@ -41,6 +42,7 @@ public class ResumeController {
     }
 
     @PostMapping("/upload")
+    @RateLimit(key = "resume-upload")
     public ResponseEntity<ApiResponse<Map<String, Object>>> upload(
             @RequestParam("files") List<MultipartFile> files,
             @RequestParam(value = "source", defaultValue = "manual") String source,

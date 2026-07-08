@@ -24,6 +24,7 @@ class PilotReadinessValidatorTest {
         appConfig.getAuth().setPublicRegistrationEnabled(false);
         appConfig.getSecurity().setCorsAllowedOrigins("https://hr-pilot.example.com");
         appConfig.getUpload().setFolder("/srv/hireinsight/uploads");
+        appConfig.getEncryption().setFieldEncryptionKey("pilot-enc-key-abcdef1234567890");
 
         environment = new MockEnvironment()
                 .withProperty("DATABASE_PASSWORD", "strong-db-password")
@@ -127,5 +128,27 @@ class PilotReadinessValidatorTest {
         assertThatThrownBy(validator::validate)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("hr01@mvp.local");
+    }
+
+    @Test
+    void rejectsMissingEncryptionKey() {
+        appConfig.getEncryption().setFieldEncryptionKey("");
+
+        PilotReadinessValidator validator = new PilotReadinessValidator(appConfig, environment, userRepository);
+
+        assertThatThrownBy(validator::validate)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("FIELD_ENCRYPTION_KEY");
+    }
+
+    @Test
+    void rejectsWeakEncryptionKey() {
+        appConfig.getEncryption().setFieldEncryptionKey("short");
+
+        PilotReadinessValidator validator = new PilotReadinessValidator(appConfig, environment, userRepository);
+
+        assertThatThrownBy(validator::validate)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("FIELD_ENCRYPTION_KEY");
     }
 }

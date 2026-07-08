@@ -3,6 +3,7 @@ package com.hireinsight.auth;
 import com.hireinsight.common.ApiResponse;
 import com.hireinsight.config.AppConfig;
 import com.hireinsight.model.User;
+import com.hireinsight.security.RateLimit;
 import com.hireinsight.repository.UserRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -23,17 +24,20 @@ public class AuthController {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider tokenProvider;
     private final DemoAuthSessionService sessionService;
+    private final TokenBlacklistService blacklistService;
     private final AppConfig appConfig;
 
     public AuthController(UserRepository userRepository,
                           PasswordEncoder passwordEncoder,
                           JwtTokenProvider tokenProvider,
                           DemoAuthSessionService sessionService,
+                          TokenBlacklistService blacklistService,
                           AppConfig appConfig) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.tokenProvider = tokenProvider;
         this.sessionService = sessionService;
+        this.blacklistService = blacklistService;
         this.appConfig = appConfig;
     }
 
@@ -60,6 +64,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
+    @RateLimit(key = "auth-login")
     public ResponseEntity<ApiResponse<Map<String, Object>>> login(
             @Valid @RequestBody LoginRequest req) {
         User user = userRepository.findByEmail(req.getEmail())
@@ -81,9 +86,11 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> logout(
             @RequestHeader(value = "Authorization", required = false) String authorization) {
         if (authorization != null && authorization.startsWith("Bearer ")) {
-            sessionService.invalidate(authorization.substring(7));
+            String token = authorization.substring(7);
+            sessionService.invalidate(token);
+            blacklistService.revoke(token);
         }
-        return ResponseEntity.ok(ApiResponse.ok(Map.of("message", "Logged out from demo session")));
+        return ResponseEntity.ok(ApiResponse.ok(Map.of("message", "Logged out")));
     }
 
     @Data

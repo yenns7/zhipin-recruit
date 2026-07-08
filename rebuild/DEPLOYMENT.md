@@ -29,6 +29,7 @@ chmod 600 /etc/hireinsight/hireinsight-pilot.env
 - `DATABASE_PASSWORD`：不要使用本地 demo 密码 `hipass`。
 - `CORS_ALLOWED_ORIGINS`：写真实试点前端域名，不要写 `*`。
 - `UPLOAD_FOLDER`：写持久目录，不要写 `/tmp`。
+- `FIELD_ENCRYPTION_KEY`：AES-GCM 256-bit 密钥，用 `openssl rand -hex 32` 生成。
 - `PILOT_BOOTSTRAP_ADMIN_EMAIL/PASSWORD`：只用于首次创建管理员，首次登录后删除并重启后端。
 
 生成 JWT 示例：
@@ -36,8 +37,6 @@ chmod 600 /etc/hireinsight/hireinsight-pilot.env
 ```bash
 python3 -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
-
-字段级加密说明：Java rebuild 当前没有字段级加密实现，不能声称 `FIELD_ENCRYPTION_KEY` 生效。真实试点先依赖 PostgreSQL 权限、HTTPS、服务器权限、备份与角色权限控制；字段级加密列为后续安全专项。
 
 ## 3. PostgreSQL
 
@@ -244,11 +243,65 @@ build/test 失败：
 - 数据事故按第 6 节恢复。
 - 代码事故回滚到上一可用 git 版本，重新构建前端和后端。
 
-## 8. 当前边界
+## 8. 安全配置
+
+### 8.1 字段加密
+
+敏感字段（如 BOSS cookies）使用 AES-GCM 256-bit 进行对称加密。
+
+- 密钥通过 `FIELD_ENCRYPTION_KEY` 环境变量传入 `app.encryption.field-encryption-key`。
+- 开发模式下若未设置密钥，自动生成临时密钥（重启后旧密文不可解密）。
+- Pilot/生产模式下若密钥缺失，后端拒绝启动。
+- 生成密钥：`openssl rand -hex 32`。
+
+### 8.2 JWT 吊销
+
+登出时将 token 加入内存黑名单，后续请求携带同一 token 会收到 401。
+
+- 黑名单仅在内存中，重启后清空（JWT 本身有到期时间保障）。
+- 检查时机：在 `JwtAuthenticationFilter` 解析 token 前查询黑名单。
+
+### 8.3 安全头
+
+Spring Security 响应自动添加以下安全头（通过 `app.security.headers-enabled` 控制，默认 true）：
+
+| Header | Value |
+|---|---|
+| `X-Content-Type-Options` | `nosniff` |
+| `X-Frame-Options` | `DENY` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` |
+| `Content-Security-Policy` | `default-src 'self'` + 白名单 |
+
+### 8.4 限流
+
+端点级滑动窗口限流，配置位于 `app.rate-limit.*`：
+
+| 端点 | 限制 | 窗口 |
+|---|---|---|
+| `auth-login` | 5 次 | 60 秒 |
+| `agent-chat` | 20 次 | 60 秒 |
+| `resume-upload` | 10 次 | 60 秒 |
+
+超限返回 `429 Too Many Requests`，含 `Retry-After` 头和中文错误消息 `请求过于频繁，请稍后再试`。
+
+### 8.5 Pilot 启动校验（Profile: pilot）
+
+`PilotReadinessValidator` 在 pilot profile 下启动时执行以下校验，任何一项不通过则拒绝启动：
+
+1. 不能同时激活 `dev` profile
+2. JWT secret >= 32 字符且非默认弱密码
+3. 数据库密码已设置且非 `hipass`
+4. CORS origins 不包含 `*`
+5. 公开注册已关闭
+6. 上传目录为持久目录，非 `/tmp`
+7. `FIELD_ENCRYPTION_KEY` 已设置且长度 >= 16
+8. 数据库中不存在 demo 账号
+
+## 9. 当前边界
 
 当前可以进入真实用户小范围试点，但仍不是生产上线：
 
-- 没有完整字段级加密。
 - 没有生产级审计中心和监控平台。
 - 没有完整灾备演练报告。
 - AI 助手、系统设置里的系统治理、通知待办仍有 demo / in-memory 边界。

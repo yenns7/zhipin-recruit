@@ -2,6 +2,7 @@ package com.hireinsight.agent;
 
 import com.hireinsight.common.ApiResponse;
 import com.hireinsight.model.AgentCallLog;
+import com.hireinsight.security.RateLimit;
 import com.hireinsight.repository.AgentCallLogRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -163,6 +164,7 @@ public class AgentController {
     }
 
     @PostMapping("/conversations/{conversationId}/messages")
+    @RateLimit(key = "agent-chat")
     public ResponseEntity<ApiResponse<Map<String, Object>>> message(
             @PathVariable String conversationId,
             @Valid @RequestBody SendMessageRequest request,
