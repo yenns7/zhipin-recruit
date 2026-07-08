@@ -1,0 +1,1096 @@
+# HireInsight API 接口文档
+
+> **版本**: 0.1.0-SNAPSHOT
+> **日期**: 2026-07-08
+> **后端**: Java Spring Boot 3.2.5 — 129 tests 全绿
+> **基础路径**: `/api/v1`
+
+---
+
+## 通用说明
+
+### 认证
+- 除 `/api/v1/health` 和 `/api/v1/auth/login` 外，所有接口需在 Header 中携带 `Authorization: Bearer <token>`
+- 登录成功后返回 JWT token，附带 `role` 和 `name`
+
+### 响应格式
+统一 `ApiResponse<T>` 结构：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": { ... },
+  "timestamp": 1719360000000
+}
+```
+
+### 角色体系（升序）
+```
+admin > manager > recruiter > interviewer
+```
+
+### 分页
+通用分页参数：`?page=0&size=20`
+
+### 约定与边界
+
+| 维度 | 说明 |
+|------|------|
+| **Demo-Stub** | 返回 in-memory 静态样例数据，不代表真实集成 |
+| **Rule-Based** | 基于 JPA 聚合的规则计算，非真实数仓/BI 系统 |
+| **进程内存** | 数据存于 `ConcurrentHashMap`，重启即丢失 |
+| **Flyway 持久化** | 已创建数据库表，真实写入 PostgreSQL |
+
+---
+
+## 1. 健康检查
+
+**Controller**: `com.hireinsight.health.HealthController`
+
+| 方法 | 路径 | 权限 | 说明 |
+|------|------|------|------|
+| GET | `/api/v1/health` | 公开 | 返回 status / database / service / version |
+
+### 请求示例
+```
+GET /api/v1/health
+```
+
+### 响应示例
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "status": "UP",
+    "database": "UP",
+    "service": "hireinsight-api",
+    "version": "0.1.0-SNAPSHOT",
+    "checkedAt": "2026-07-08T10:00:00Z"
+  },
+  "timestamp": 1719360000000
+}
+```
+
+> 数据库不可用时返回 HTTP 503。
+
+---
+
+## 2. 认证
+
+**Controller**: `com.hireinsight.auth.AuthController` | 基础路径: `/api/v1/auth`
+
+| 方法 | 路径 | 权限 | 说明 |
+|------|------|------|------|
+| POST | `/api/v1/auth/register` | 受 `publicRegistrationEnabled` 控制 | 用户注册 |
+| POST | `/api/v1/auth/login` | 公开 | 登录，返回 JWT token |
+| POST | `/api/v1/auth/logout` | 公开 | 登出，使 demo session 失效 |
+
+### POST `/api/v1/auth/register`
+
+**请求体**:
+```json
+{
+  "email": "user@example.com",
+  "password": "securePassword123",
+  "name": "张三"
+}
+```
+
+**响应**:
+```json
+{
+  "code": 201,
+  "message": "success",
+  "data": {
+    "id": 1,
+    "email": "user@example.com",
+    "role": "recruiter"
+  },
+  "timestamp": 1719360000000
+}
+```
+
+> `name` 为可选字段。`publicRegistrationEnabled` 关闭时返回 403。
+
+### POST `/api/v1/auth/login`
+
+**请求体**:
+```json
+{
+  "email": "user@example.com",
+  "password": "securePassword123"
+}
+```
+
+**响应**:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIs...",
+    "role": "recruiter",
+    "name": "张三"
+  },
+  "timestamp": 1719360000000
+}
+```
+
+---
+
+## 3. 用户管理
+
+**Controller**: `com.hireinsight.auth.UserController` | 基础路径: `/api/v1`
+
+| 方法 | 路径 | 权限 | 说明 |
+|------|------|------|------|
+| GET | `/api/v1/users/me` | 已认证 | 获取当前用户信息 |
+| PUT | `/api/v1/users/me/password` | 已认证 | 修改当前用户密码 |
+| GET | `/api/v1/admin/users` | ADMIN only | 管理员查看用户列表 |
+
+### GET `/api/v1/users/me`
+
+**响应**:
+```json
+{
+  "code": 200,
+  "data": {
+    "id": 1,
+    "name": "张三",
+    "email": "user@example.com",
+    "role": "recruiter"
+  }
+}
+```
+
+### PUT `/api/v1/users/me/password`
+
+**请求体**:
+```json
+{
+  "currentPassword": "oldPassword123",
+  "newPassword": "newPassword456"
+}
+```
+
+---
+
+## 4. 岗位管理
+
+**Controller**: `com.hireinsight.job.JobController` | 基础路径: `/api/v1/jobs`
+
+| 方法 | 路径 | 权限 | 说明 |
+|------|------|------|------|
+| GET | `/api/v1/jobs` | 已认证 | 岗位列表，可按 status 过滤 |
+| GET | `/api/v1/jobs/{id}` | 已认证 | 岗位详情 |
+| POST | `/api/v1/jobs` | 已认证 | 创建岗位 |
+| PUT | `/api/v1/jobs/{id}` | 已认证 | 更新岗位 |
+| POST | `/api/v1/jobs/{id}/close` | 已认证 | 关闭岗位 |
+| POST | `/api/v1/jobs/{id}/restore` | 已认证 | 恢复岗位 |
+
+### GET `/api/v1/jobs`
+
+**参数**: `?status=active`（可选）
+
+> recruiter 只能查看自己的岗位；manager/admin 可查看全部。
+
+### POST `/api/v1/jobs`
+
+**请求体**:
+```json
+{
+  "title": "高级 Java 工程师",
+  "jdText": "负责后端系统设计与开发，3年以上Java经验..."
+}
+```
+
+**响应** (HTTP 201):
+```json
+{
+  "code": 201,
+  "data": { "id": 42 }
+}
+```
+
+### PUT `/api/v1/jobs/{id}`
+
+**请求体**:
+```json
+{
+  "title": "资深 Java 工程师",
+  "jdText": "更新后的职位描述..."
+}
+```
+
+> 所有字段可选，只发送需要更新的字段。
+
+### POST `/api/v1/jobs/{id}/close`
+
+关闭岗位，`status` 设置为 `closed`。
+
+### POST `/api/v1/jobs/{id}/restore`
+
+恢复岗位，`status` 设置为 `active`。
+
+---
+
+## 5. 候选人管理
+
+**Controller**: `com.hireinsight.candidate.CandidateController` | 基础路径: `/api/v1/candidates`
+
+| 方法 | 路径 | 权限 | 说明 |
+|------|------|------|------|
+| GET | `/api/v1/candidates` | 已认证 | 候选人列表 |
+| GET | `/api/v1/candidates/{id}` | 已认证 | 候选人详情 |
+| GET | `/api/v1/candidates/owner-options` | 已认证 | 负责人选项列表 |
+| GET | `/api/v1/candidates/{id}/pipelines` | 已认证 | 候选人的流程记录 |
+| GET | `/api/v1/candidates/{id}/journey` | 已认证 | 候选人旅程时间线 |
+| PATCH | `/api/v1/candidates/{id}/owner` | 已认证 | 改派负责人 |
+
+### GET `/api/v1/candidates/owner-options`
+
+返回 recruiter / manager 列表，用于下拉选择。
+
+### GET `/api/v1/candidates/{id}/pipelines`
+
+返回候选人在各岗位的 pipeline 阶段记录。
+
+### GET `/api/v1/candidates/{id}/journey`
+
+按时间排序的 pipeline + event 合并列表，展示候选人完整流转轨迹。
+
+### PATCH `/api/v1/candidates/{id}/owner`
+
+**请求体**:
+```json
+{
+  "ownerHrId": 5
+}
+```
+
+---
+
+## 6. 招聘需求
+
+**Controller**: `com.hireinsight.demand.DemandController` | 基础路径: `/api/v1/demands`
+
+| 方法 | 路径 | 权限 | 说明 |
+|------|------|------|------|
+| GET | `/api/v1/demands` | 已认证 | 需求列表 |
+| POST | `/api/v1/demands` | 已认证 | 创建需求 |
+| GET | `/api/v1/demands/{id}` | 已认证 | 需求详情 |
+| PATCH | `/api/v1/demands/{id}` | 已认证 | 更新需求 |
+| POST | `/api/v1/demands/{id}/close` | 已认证 | 关闭需求 |
+| POST | `/api/v1/demands/{id}/restore` | 已认证 | 恢复需求 |
+| POST | `/api/v1/demands/{id}/downgrade` | 已认证 | 降级需求 |
+
+> 持久化: ✅ Flyway V10 — `recruitment_demand` 表
+
+### POST `/api/v1/demands` — 创建需求
+
+**请求体**:
+```json
+{
+  "requestNo": "REQ-2026-001",
+  "requesterName": "李四",
+  "department": "技术部",
+  "hiringManagerName": "王五",
+  "priority": "high",
+  "headcount": 3,
+  "targetDate": "2026-09-30",
+  "note": "紧急招聘"
+}
+```
+
+> `priority`、`headcount`、`targetDate`、`note` 为可选字段。
+
+**响应** (HTTP 201):
+```json
+{
+  "code": 201,
+  "data": { "id": 10 }
+}
+```
+
+### GET `/api/v1/demands/{id}` — 需求详情
+
+返回包含计算指标：
+```json
+{
+  "code": 200,
+  "data": {
+    "id": 10,
+    "requestNo": "REQ-2026-001",
+    "requesterName": "李四",
+    "department": "技术部",
+    "hiringManagerName": "王五",
+    "priority": "high",
+    "headcount": 3,
+    "targetDate": "2026-09-30",
+	    "note": "紧急招聘",
+	    "_demandMetrics": {
+	      "daysSinceRequested": 0,
+	      "daysUntilTarget": null,
+	      "candidateInPipeline": 3,
+	      "interviewCompletionRate": 0.67
+	    },
+	    "_riskFlags": {
+	      "overdue": false,
+	      "approachingDeadline": true,
+	      "noProgress": false
+	    }
+  }
+}
+```
+
+### PATCH `/api/v1/demands/{id}` — 更新需求
+
+**请求体**（所有字段可选）:
+```json
+{
+  "requestNo": "REQ-2026-001",
+  "requesterName": "李四",
+  "department": "技术部",
+  "hiringManagerName": "王五",
+  "priority": "high",
+  "headcount": 3,
+  "targetDate": "2026-09-30",
+  "note": "更新备注",
+  "jobId": 5
+}
+```
+
+### POST `/api/v1/demands/{id}/close`
+
+**请求体**:
+```json
+{
+  "closeReason": "需求已满足"
+}
+```
+
+### POST `/api/v1/demands/{id}/restore`
+
+恢复需求，`status` 设置为 `open`。
+
+### POST `/api/v1/demands/{id}/downgrade`
+
+**请求体**:
+```json
+{
+  "downgradeReason": "预算调整"
+}
+```
+
+---
+
+## 7. 面试管理
+
+**Controller**: `com.hireinsight.interview.InterviewController` | 基础路径: `/api/v1/interviews`
+
+| 方法 | 路径 | 权限 | 说明 |
+|------|------|------|------|
+| POST | `/api/v1/interviews/feedback` | 已认证 | 提交面试反馈 |
+| POST | `/api/v1/interviews/schedule` | RECRUITER / MANAGER / ADMIN | 安排面试 |
+| GET | `/api/v1/interviews` | 已认证 | 面试反馈列表 |
+| GET | `/api/v1/interviews/{id}` | 已认证 | 面试反馈详情 |
+| POST | `/api/v1/interviews/start` | RECRUITER / MANAGER / ADMIN | AI 面试开始 |
+| POST | `/api/v1/interviews/submit` | INTERVIEWER / RECRUITER / MANAGER / ADMIN | 提交 AI 面试答案 |
+| GET | `/api/v1/interviews/guide` | 已认证 | 面试指南 |
+| GET | `/api/v1/interviews/interviewers` | RECRUITER / MANAGER / ADMIN | 面试官列表 |
+| GET | `/api/v1/interviews/assignments` | INTERVIEWER / RECRUITER / MANAGER / ADMIN | 面试任务分配 |
+
+### POST `/api/v1/interviews/feedback` — 提交面试反馈
+
+**请求体**:
+```json
+{
+  "candidateId": 12,
+  "jobId": 3,
+  "score": 4,
+  "passRecommended": true,
+  "qaJson": "{\"q\":\"问题\",\"a\":\"回答\"}",
+  "aiReport": "AI 评估报告内容"
+}
+```
+
+> `score` 取值范围: 1-5。`qaJson`、`aiReport` 为可选 JSON 字符串。
+
+### POST `/api/v1/interviews/schedule` — 安排面试
+
+**请求体**:
+```json
+{
+  "candidateId": 12,
+  "jobId": 3,
+  "interviewerId": 8
+}
+```
+
+> 仅 `recruiter / manager / admin` 可操作。返回 `{id, status}` (status = `draft`)。
+
+### POST `/api/v1/interviews/start` — AI 面试开始
+
+**请求体**:
+```json
+{
+  "jobId": 3,
+  "candidateId": 12
+}
+```
+
+**响应**:
+```json
+{
+  "code": 201,
+  "data": {
+    "sessionId": 1,
+    "session": { ... },
+    "questions": [
+      { "questionId": "q1", "question": "请描述一次解决复杂问题的经历" }
+    ]
+  }
+}
+```
+
+### POST `/api/v1/interviews/submit` — 提交 AI 面试答案
+
+**请求体**:
+```json
+{
+  "sessionId": 1,
+  "answers": [
+    {
+      "questionId": "q1",
+      "question": "请描述一次解决复杂问题的经历",
+      "answer": "在上一份工作中..."
+    }
+  ]
+}
+```
+
+**响应**:
+```json
+{
+  "code": 200,
+  "data": {
+    "sessionId": 1,
+    "score": 85,
+    "summary": "候选人表现出良好的技术能力和沟通能力",
+    "strengths": ["Java 经验丰富", "架构设计能力强"],
+    "weaknesses": ["项目管理经验稍显不足"],
+    "aiReport": "详细AI评估报告..."
+  }
+}
+```
+
+### GET `/api/v1/interviews`
+
+**参数**: `?candidateId=12&jobId=3`
+
+> `interviewer` 角色只能看到自己参与的面试记录。
+
+### GET `/api/v1/interviews/interviewers`
+
+返回可选面试官列表 `[{id, name, email}, ...]`。
+
+### GET `/api/v1/interviews/assignments`
+
+> `interviewer` 角色只返回自己的面试任务分配。
+
+---
+
+## 8. Pipeline 流程管理
+
+**Controller**: `com.hireinsight.pipeline.PipelineController` | 基础路径: `/api/v1/pipeline`
+
+| 方法 | 路径 | 权限 | 说明 |
+|------|------|------|------|
+| POST | `/api/v1/pipeline/move` | 已认证 | 移动候选人到指定阶段 |
+| GET | `/api/v1/pipeline` | 已认证 | 获取 pipeline 记录 |
+| GET | `/api/v1/pipeline/{jobId}/board` | 已认证 | 岗位看板 |
+| GET | `/api/v1/pipeline/{jobId}/candidates/{candidateId}/history` | 已认证 | 阶段变更历史 |
+| POST | `/api/v1/pipeline/revise` | 已认证 | 修正候选人阶段 |
+| GET | `/api/v1/pipeline/{jobId}/candidates/{candidateId}/rollback-preview` | 已认证 | 回退预览 |
+| POST | `/api/v1/pipeline/{jobId}/candidates/{candidateId}/rollback` | 已认证 | 回退候选人 |
+| GET | `/api/v1/pipeline/{jobId}/candidates/{candidateId}/offer` | 已认证 | 获取 Offer |
+| PUT | `/api/v1/pipeline/{jobId}/candidates/{candidateId}/offer` | 已认证 | 保存/更新 Offer |
+
+### 可用阶段
+`pending` → `ai_screen` → `business_review` → `interview` → `offer` → `onboarded` / `rejected`
+
+### POST `/api/v1/pipeline/move`
+
+**请求体**:
+```json
+{
+  "candidateId": 12,
+  "jobId": 3,
+  "toStage": "ai_screen"
+}
+```
+
+### GET `/api/v1/pipeline/{jobId}/board`
+
+返回看板视图（按阶段分组的候选人列表）：
+```json
+{
+  "code": 200,
+  "data": {
+    "jobId": 3,
+    "stages": {
+      "pending": [{ "id": 12, "name": "张三" }],
+      "ai_screen": [{ "id": 15, "name": "李四" }],
+      "business_review": [],
+      "interview": [{ "id": 18, "name": "王五" }],
+      "offer": [],
+      "onboarded": [],
+      "rejected": [{ "id": 20, "name": "赵六" }]
+    }
+  }
+}
+```
+
+### POST `/api/v1/pipeline/revise` — 修正
+
+> 适用于 demo / legacy correction path，轻量纠偏。
+
+**请求体**:
+```json
+{
+  "toStage": "business_review",
+  "candidateId": 12,
+  "jobId": 3,
+  "reason": "误操作纠正",
+  "note": "应进入业务评审阶段"
+}
+```
+
+### GET `/api/v1/pipeline/{jobId}/candidates/{candidateId}/rollback-preview`
+
+```json
+{
+  "code": 200,
+  "data": {
+    "canRollback": true,
+	    "currentStage": "interview",
+	    "targetStage": "business_review",
+	    "explanation": "可回退到业务评估阶段",
+	    "history": [],
+	    "reasonIfBlocked": ""
+  }
+}
+```
+
+### POST `/api/v1/pipeline/{jobId}/candidates/{candidateId}/rollback`
+
+回退候选人到业务评估阶段（business_review）。
+
+### PUT `/api/v1/pipeline/{jobId}/candidates/{candidateId}/offer`
+
+**请求体**:
+```json
+{
+  "salary": "25K-30K",
+  "onboardDate": "2026-08-01",
+  "notes": "候选人已通过终面"
+}
+```
+
+> 当前 Offer 仅代表阶段记录，不包含完整审批流。
+
+---
+
+## 9. 简历上传
+
+**Controller**: `com.hireinsight.resume.ResumeController` | 基础路径: `/api/v1/resumes`
+
+| 方法 | 路径 | 权限 | 说明 |
+|------|------|------|------|
+| POST | `/api/v1/resumes/upload` | 已认证 | 上传简历文件 |
+
+### POST `/api/v1/resumes/upload`
+
+> multipart/form-data，支持批量上传。
+
+**参数**: `files` — List of MultipartFile
+
+**响应** (HTTP 202):
+```json
+{
+  "code": 202,
+  "data": {
+    "queued": 2,
+    "results": [
+      { "file": "resume1.pdf", "candidateId": 101 },
+      { "file": "resume2.pdf", "candidateId": 102 }
+    ]
+  }
+}
+```
+
+> 上传后简历真实写入 PostgreSQL，简历 JSON 暂为 `{}` 占位，尚未接入真实异步解析链路。
+
+---
+
+## 10. 商业智能 (BI)
+
+**Controller**: `com.hireinsight.bi.BiController` | 基础路径: `/api/v1/bi`
+
+| 方法 | 路径 | 权限 | 说明 |
+|------|------|------|------|
+| GET | `/api/v1/bi/overview` | 已认证 | 全局概览 |
+| GET | `/api/v1/bi/staff/{hrId}` | MANAGER / ADMIN | HR 归因分析 |
+| GET | `/api/v1/bi/job/{jobId}` | MANAGER / ADMIN | 岗位漏斗分析 |
+
+> 当前为 rule-based JPA 聚合，非真实数仓。
+
+### GET `/api/v1/bi/overview`
+
+**响应**:
+```json
+{
+  "code": 200,
+  "data": {
+    "activeJobs": 12,
+    "candidateTotal": 345,
+	    "parsedCandidates": 120,
+	    "summary": [
+	      { "key": "active_jobs", "label": "进行中岗位", "value": 12, "trend": "rule-based 聚合", "trendDirection": "neutral" },
+	      { "key": "new_candidates", "label": "新增候选人", "value": 45, "trend": "up", "trendDirection": "up" },
+	      { "key": "interviews_scheduled", "label": "安排面试", "value": 18, "trend": "up", "trendDirection": "up" },
+	      { "key": "offers_pending", "label": "待发 Offer", "value": 3, "trend": "down", "trendDirection": "down" }
+	    ]
+  }
+}
+```
+
+> recruiter 只看到自己 `owner_hr_id` 范围的数据；manager/admin 为全局范围（demo 阶段未按团队细分）。
+
+### GET `/api/v1/bi/staff/{hrId}`
+
+指定 HR 的招聘归因分析：阶段分布 / 推进统计。
+
+### GET `/api/v1/bi/job/{jobId}`
+
+指定岗位的漏斗分析：各阶段候选人数量 / 转化率。
+
+---
+
+## 11. Agent 与 AI 助手
+
+**Controller**: `com.hireinsight.agent.AgentController` | 基础路径: `/api/v1/agent`
+
+| 方法 | 路径 | 权限 | 说明 |
+|------|------|------|------|
+| GET | `/api/v1/agent/call-logs` | ADMIN only | 调用日志列表 |
+| GET | `/api/v1/agent/call-logs/{id}` | ADMIN only | 调用日志详情 |
+| GET | `/api/v1/agent/tools` | ADMIN only | 工具列表 |
+| POST | `/api/v1/agent/execute` | ADMIN only | 执行工具 |
+| GET | `/api/v1/agent/conversations` | 已认证 | 对话列表 |
+| GET | `/api/v1/agent/conversations/{conversationId}` | 已认证 | 对话详情 |
+| POST | `/api/v1/agent/conversations` | 已认证 | 创建对话 |
+| PATCH | `/api/v1/agent/conversations/{conversationId}` | 已认证 | 更新对话 |
+| DELETE | `/api/v1/agent/conversations/{conversationId}` | 已认证 | 删除对话 |
+| POST | `/api/v1/agent/conversations/{conversationId}/messages` | 已认证 | 发送消息 |
+
+> - 调用日志持久化: ✅ Flyway V12 — `agent_call_logs` 表
+> - 会话数据: ❌ 进程内存 (`ConcurrentHashMap`)，重启丢失
+> - 写操作仅生成 confirm-first 确认卡，不真实执行
+
+### GET `/api/v1/agent/call-logs`
+
+**参数**: `?page=0&size=20&action=`
+
+### POST `/api/v1/agent/execute`
+
+**请求体**:
+```json
+{
+  "toolName": "tool_example",
+  "parameters": { "key": "value" }
+}
+```
+
+> 当前为 mock 模式。
+
+### POST `/api/v1/agent/conversations/{conversationId}/messages`
+
+**请求体**:
+```json
+{
+  "content": "帮我查看当前招聘进度"
+}
+```
+
+> 当前返回 confirm-first 确认卡，不执行真实写操作。
+
+---
+
+## 12. 匹配
+
+**Controller**: `com.hireinsight.match.MatchController` | 基础路径: `/api/v1/match`
+
+| 方法 | 路径 | 权限 | 说明 |
+|------|------|------|------|
+| POST | `/api/v1/match` | 已认证 | 批量匹配候选人 |
+| GET | `/api/v1/match/jobs/{jobId}/preview` | 已认证 | 匹配预览 |
+| POST | `/api/v1/match/jobs/{jobId}/match` | 已认证 | 匹配并加入流程 |
+
+> 数据为本地样例（demo 数据），算法已移植。
+
+### POST `/api/v1/match` — 批量匹配
+
+**请求体**:
+```json
+{
+  "jobId": 3,
+  "candidateIds": [12, 15, 18]
+}
+```
+
+**响应**:
+```json
+{
+  "code": 200,
+  "data": [
+    {
+      "candidateId": 15,
+      "candidateName": "李四",
+      "score": 87.5,
+      "matchedRequiredSkills": ["Java", "Spring Boot"],
+      "matchedPreferredSkills": ["微服务", "Docker"],
+      "missingRequiredSkills": ["Kubernetes"],
+      "yearsOfExperience": 5,
+      "summary": "良好匹配"
+    }
+  ]
+}
+```
+
+### POST `/api/v1/match/jobs/{jobId}/match`
+
+**请求体**:
+```json
+{
+  "candidateIds": [12, 15]
+}
+```
+
+匹配后自动将候选人加入 pipeline，初始阶段为 `ai_screen`。
+
+---
+
+## 13. BOSS 直聘 Demo Stub
+
+**Controller**: `com.hireinsight.boss.BossController` | 基础路径: `/api/v1/boss`
+
+> ⚠️ **所有端点为 Demo Stub** — 返回 in-memory 静态样例数据，不连接真实 BOSS 直聘。
+
+| 方法 | 路径 | 权限 | 说明 |
+|------|------|------|------|
+| GET | `/api/v1/boss/status` | 已认证 | 状态查询 |
+| POST | `/api/v1/boss/login` | 已认证 | 登录 |
+| POST | `/api/v1/boss/browser-cookie` | 已认证 | 导入浏览器 Cookie |
+| GET | `/api/v1/boss/jobs` | 已认证 | 岗位列表 |
+| GET | `/api/v1/boss/candidates/recommend` | 已认证 | 推荐候选人 |
+| GET | `/api/v1/boss/candidates/inbox` | 已认证 | 收件箱候选人 |
+| GET | `/api/v1/boss/candidates/{id}/resume` | 已认证 | 候选人简历 |
+| GET | `/api/v1/boss/resume/download` | 已认证 | 简历下载 |
+| POST | `/api/v1/boss/batch-import` | 已认证 | 批量导入 |
+| POST | `/api/v1/boss/ai-screen` | 已认证 | AI 筛选 |
+| GET | `/api/v1/boss/accounts` | 已认证 | 账号列表 |
+| POST | `/api/v1/boss/accounts/activate` | 已认证 | 激活账号 |
+| DELETE | `/api/v1/boss/accounts/{id}` | 已认证 | 删除账号 |
+| POST | `/api/v1/boss/accounts/verify` | 已认证 | 验证账号 |
+| GET | `/api/v1/boss/labels` | 已认证 | 标签列表 |
+| POST | `/api/v1/boss/chat` | 已认证 | 发送消息 |
+| GET | `/api/v1/boss/export` | 已认证 | 数据导出 |
+| GET | `/api/v1/boss/extension/download` | 已认证 | 扩展下载 |
+
+> 当前集成壳层为非真实第三方授权，不代表已完成在线授权。
+
+---
+
+## 14. 通知与待办
+
+**Controller**: `com.hireinsight.notifications.NotificationTodoController` | 基础路径: `/api/v1/notifications/todos`
+
+| 方法 | 路径 | 权限 | 说明 |
+|------|------|------|------|
+| GET | `/api/v1/notifications/todos` | 已认证 | 待办列表 |
+| GET | `/api/v1/notifications/todos/unread-count` | 已认证 | 未读数 |
+| POST | `/api/v1/notifications/todos/{todoId}/complete` | 已认证 | 标记完成 |
+| POST | `/api/v1/notifications/todos/{todoId}/archive` | 已认证 | 归档待办 |
+
+### GET `/api/v1/notifications/todos`
+
+**响应**:
+```json
+{
+  "code": 200,
+  "data": {
+    "role": "recruiter",
+    "generatedAt": "2026-07-08T10:00:00Z",
+    "summary": "您有 3 项待办",
+    "items": [
+      { "id": "1", "title": "面试张三", "type": "interview", "priority": "high" }
+    ]
+  }
+}
+```
+
+### GET `/api/v1/notifications/todos/unread-count`
+
+```json
+{
+  "code": 200,
+  "data": { "count": 3 }
+}
+```
+
+### POST `/api/v1/notifications/todos/{todoId}/complete`
+
+```json
+{
+  "code": 200,
+  "data": { "id": "1", "status": "completed", "statusLabel": "已完成" }
+}
+```
+
+---
+
+## 15. 系统治理
+
+**Controller**: `com.hireinsight.admin.SystemGovernanceController` | 基础路径: `/api/v1/admin/system`
+
+| 方法 | 路径 | 权限 | 说明 |
+|------|------|------|------|
+| GET | `/api/v1/admin/system/overview` | ADMIN only | 系统治理概览 |
+| GET | `/api/v1/admin/system/audit-logs` | ADMIN only | 审计日志 |
+| POST | `/api/v1/admin/system/parameters/{key}/toggle` | ADMIN only | 切换系统参数 |
+| POST | `/api/v1/admin/system/models/{modelId}/toggle-status` | ADMIN only | 切换模型状态 |
+
+> 治理数据为 in-memory demo。
+
+### POST `/api/v1/admin/system/parameters/{key}/toggle`
+
+仅支持 `audit.manualReviewEnabled`。
+
+### POST `/api/v1/admin/system/models/{modelId}/toggle-status`
+
+仅支持 `interview-question-generator`。
+
+---
+
+## 16. 管理员用户治理
+
+**Controller**: `com.zhiping.rebuild.user.AdminUserController` | 基础路径: `/api/v1/admin/users`
+
+> 类级别 `@PreAuthorize("hasRole('ADMIN')")`
+
+| 方法 | 路径 | 权限 | 说明 |
+|------|------|------|------|
+| POST | `/api/v1/admin/users` | ADMIN only | 创建用户 |
+| PATCH | `/api/v1/admin/users/{userId}` | ADMIN only | 更新用户 |
+| POST | `/api/v1/admin/users/{userId}/reset-password` | ADMIN only | 重置密码 |
+
+### POST `/api/v1/admin/users`
+
+**请求体**:
+```json
+{
+  "name": "新用户",
+  "email": "newuser@hireinsight.local",
+  "role": "recruiter",
+  "password": "temporaryPwd123",
+  "active": true
+}
+```
+
+**响应** (HTTP 201):
+```json
+{
+  "code": 201,
+  "data": {
+    "id": 20,
+    "name": "新用户",
+    "email": "newuser@hireinsight.local",
+    "role": "recruiter",
+    "active": true,
+    "createdAt": "2026-07-08T10:00:00Z"
+  }
+}
+```
+
+### PATCH `/api/v1/admin/users/{userId}`
+
+**请求体**:
+```json
+{
+  "name": "更新后的名字",
+  "role": "manager",
+  "active": true
+}
+```
+
+> 所有字段可选。
+
+### POST `/api/v1/admin/users/{userId}/reset-password`
+
+**请求体**:
+```json
+{
+  "newPassword": "newSecurePwd456"
+}
+```
+
+---
+
+## 17. 人才地图
+
+**Controller**: `com.zhiping.rebuild.talentmap.TalentMapController` | 基础路径: `/api/v1/talent-maps`
+
+| 方法 | 路径 | 权限 | 说明 |
+|------|------|------|------|
+| GET | `/api/v1/talent-maps` | 已认证 | 人才地图列表 |
+| POST | `/api/v1/talent-maps` | 已认证 | 创建人才地图 |
+| GET | `/api/v1/talent-maps/{mapId}` | 已认证 | 人才地图详情 |
+| POST | `/api/v1/talent-maps/{mapId}/companies` | 已认证 | 添加公司 |
+| POST | `/api/v1/talent-maps/{mapId}/people` | 已认证 | 添加人员 |
+| PATCH | `/api/v1/talent-maps/{mapId}` | 已认证 | 更新地图 |
+| PATCH | `/api/v1/talent-maps/{mapId}/companies/{companyId}` | 已认证 | 更新公司 |
+| PATCH | `/api/v1/talent-maps/{mapId}/people/{personId}` | 已认证 | 更新人员 |
+
+### POST `/api/v1/talent-maps` — 创建
+
+**请求体**:
+```json
+{
+  "name": "竞品公司人才地图",
+  "jobId": 3,
+  "department": "技术部",
+  "boardJson": "{}"
+}
+```
+
+### GET `/api/v1/talent-maps/{mapId}` — 详情
+
+**参数**: `?company=&city=&status=&keyword=`（全部可选）
+
+**响应**:
+```json
+{
+  "code": 200,
+  "data": {
+    "id": 1,
+    "name": "竞品公司人才地图",
+    "jobId": 3,
+    "jobTitle": "高级 Java 工程师",
+    "department": "技术部",
+    "ownerHrId": 1,
+    "boardJson": "{}",
+    "companiesCount": 5,
+    "peopleCount": 12,
+    "companies": [...],
+    "people": [...],
+    "createdAt": "2026-07-08T10:00:00Z",
+    "updatedAt": "2026-07-08T10:00:00Z"
+  }
+}
+```
+
+### POST `/api/v1/talent-maps/{mapId}/companies`
+
+**请求体**:
+```json
+{
+  "companyName": "某科技有限公司",
+  "city": "北京",
+  "region": "海淀区",
+  "industry": "互联网",
+  "priority": "high",
+  "note": "重点竞品"
+}
+```
+
+### POST `/api/v1/talent-maps/{mapId}/people`
+
+**请求体**:
+```json
+{
+  "companyId": 1,
+  "name": "张三",
+  "title": "技术总监",
+  "city": "北京",
+  "tags": ["Java", "架构", "管理"],
+  "salaryRange": "50K-70K",
+  "contactStatus": "interested",
+  "evaluation": "A+",
+  "source": "linkedin",
+  "nextFollowAt": "2026-08-01",
+  "note": "重点跟进"
+}
+```
+
+---
+
+## 汇总统计
+
+### 接口数统计
+
+| 模块 | Controller | 接口数 | 主要实体 | 持久化状态 |
+|------|-----------|--------|---------|-----------|
+| 健康检查 | `HealthController` | 1 | - | — |
+| 认证 | `AuthController` | 3 | User | ✅ JPA |
+| 用户管理 | `UserController` | 3 | User | ✅ JPA |
+| 岗位管理 | `JobController` | 6 | Job | ✅ JPA |
+| 候选人管理 | `CandidateController` | 6 | Candidate | ✅ JPA |
+| 招聘需求 | `DemandController` | 7 | RecruitmentDemand | ✅ Flyway V10 |
+| 面试管理 | `InterviewController` | 9 | InterviewFeedback, InterviewSession | ✅ 实体 + ❌ 评估(rule-based) |
+| 流程管理 | `PipelineController` | 9 | PipelineStage | ✅ JPA |
+| 简历上传 | `ResumeController` | 1 | Candidate (占位) | ✅ JPA (同步写入) |
+| 商业智能 | `BiController` | 3 | - | ⚡ JPA 聚合 (rule-based) |
+| Agent / AI 助手 | `AgentController` | 10 | AgentCallLog, Conversation | ✅ 调用日志 + ❌ 会话(进程内存) |
+| 匹配 | `MatchController` | 3 | - | ❌ demo 数据 |
+| BOSS 直聘 | `BossController` | 18 | - | ❌ in-memory (demo stub) |
+| 通知待办 | `NotificationTodoController` | 4 | NotificationTodo | ✅ JPA |
+| 系统治理 | `SystemGovernanceController` | 4 | - | ❌ in-memory (demo) |
+| 管理员用户治理 | `AdminUserController` | 3 | User | ✅ JPA |
+| 人才地图 | `TalentMapController` | 8 | TalentMap, Company, Person | ✅ JPA |
+| **合计** | **17** | **98** | | |
+
+### HTTP 方法分布
+
+| 方法 | 数量 |
+|------|------|
+| GET | 53 |
+| POST | 30 |
+| PUT | 3 |
+| PATCH | 10 |
+| DELETE | 2 |
+| **总计** | **98** |
+
+### 权限分布
+
+| 权限级别 | 数量 |
+|---------|------|
+| 公开 (无限制) | 2 |
+| 已认证 (任意角色) | 61 |
+| ADMIN only | 14 |
+| RECRUITER / MANAGER / ADMIN | 4 |
+| 多角色 (含 INTERVIEWER) | 2 |
+| 角色检查 (手动代码) | 14 |
+
+### 边界标注
+
+| 类型 | 模块 | 说明 |
+|------|------|------|
+| **Demo-Stub** | BOSS 直聘 | 全部 18 个接口返回 in-memory 静态样例数据 |
+| **Demo 数据** | 匹配 | 算法已移植，数据为本地样例 |
+| **Rule-Based** | BI | JPA 聚合，非真实数仓；概览按角色范围区分 |
+| **进程内存** | Agent 会话 | 对话数据存于 `ConcurrentHashMap`，重启丢失 |
+| **Rule-Based** | AI 面试评估 | 实体已建表，评估逻辑为 rule-based |
+| **占位写入** | 简历解析 | 简历上传后写入数据库，但 JSON 解析内容暂为 `{}` 占位 |
