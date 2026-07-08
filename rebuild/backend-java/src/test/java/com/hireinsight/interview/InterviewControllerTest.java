@@ -3,10 +3,12 @@ package com.hireinsight.interview;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hireinsight.HireInsightApplication;
 import com.hireinsight.auth.JwtTokenProvider;
+import com.hireinsight.model.InterviewAssignment;
 import com.hireinsight.model.InterviewFeedback;
 import com.hireinsight.model.InterviewSession;
 import com.hireinsight.model.Job;
 import com.hireinsight.model.User;
+import com.hireinsight.repository.InterviewAssignmentRepository;
 import com.hireinsight.repository.InterviewFeedbackRepository;
 import com.hireinsight.repository.InterviewSessionRepository;
 import com.hireinsight.repository.JobRepository;
@@ -26,6 +28,7 @@ import java.util.Map;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -47,6 +50,9 @@ class InterviewControllerTest {
     private InterviewSessionRepository sessionRepository;
 
     @Autowired
+    private InterviewAssignmentRepository assignmentRepository;
+
+    @Autowired
     private JobRepository jobRepository;
 
     @Autowired
@@ -59,6 +65,7 @@ class InterviewControllerTest {
     void setUp() {
         feedbackRepository.deleteAll();
         sessionRepository.deleteAll();
+        assignmentRepository.deleteAll();
         jobRepository.deleteAll();
         userRepository.deleteAll();
     }
@@ -176,6 +183,7 @@ class InterviewControllerTest {
                 .andExpect(jsonPath("$.data.summary").isString())
                 .andExpect(jsonPath("$.data.strengths").isArray())
                 .andExpect(jsonPath("$.data.weaknesses").isArray())
+                .andExpect(jsonPath("$.data.passRecommended").isBoolean())
                 .andExpect(jsonPath("$.data.aiReport").isString());
     }
 
@@ -185,8 +193,9 @@ class InterviewControllerTest {
                         .header("Authorization", "Bearer " + jwtTokenProvider.createToken(1L, "recruiter")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.title").value("面试官操作指南"))
-                .andExpect(jsonPath("$.data.sections").isArray())
-                .andExpect(jsonPath("$.data.sections.length()").value(4));
+                .andExpect(jsonPath("$.data.version").value("2.0"))
+                .andExpect(jsonPath("$.data.rounds").isArray())
+                .andExpect(jsonPath("$.data.rounds.length()").value(4));
     }
 
     @Test
@@ -217,6 +226,30 @@ class InterviewControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(2))
                 .andExpect(jsonPath("$.data[0].name").isString());
+    }
+
+    @Test
+    void listInterviewers_withNameSearch() throws Exception {
+        // Given: interviewer users
+        userRepository.save(User.builder()
+                .name("张三")
+                .email("zhangsan@test.com")
+                .role("interviewer")
+                .passwordHash("hash")
+                .build());
+        userRepository.save(User.builder()
+                .name("李四")
+                .email("lisi@test.com")
+                .role("interviewer")
+                .passwordHash("hash")
+                .build());
+
+        // Search by name
+        mockMvc.perform(get("/api/v1/interviews/interviewers?name=张")
+                        .header("Authorization", "Bearer " + jwtTokenProvider.createToken(1L, "recruiter")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].name").value("张三"));
     }
 
     @Test
@@ -258,6 +291,117 @@ class InterviewControllerTest {
                 .build());
 
         mockMvc.perform(get("/api/v1/interviews/assignments")
+                        .header("Authorization", "Bearer " + jwtTokenProvider.createToken(1L, "interviewer")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].interviewerId").value(1));
+    }
+
+    // ---- InterviewAssignment endpoint tests ----
+
+    @Test
+    void createAssignment_Success() throws Exception {
+        // Given: an interviewer user exists
+        User interviewer = userRepository.save(User.builder()
+                .name("面试官张三")
+                .email("interviewer@test.com")
+                .role("interviewer")
+                .passwordHash("hash")
+                .build());
+
+        String requestBody = objectMapper.writeValueAsString(Map.of(
+                "interviewId", 1L,
+                "round", 1,
+                "interviewerId", interviewer.getId(),
+                "interviewerName", "面试官张三",
+                "location", "会议室A",
+                "notes", "首轮技术面试"
+        ));
+
+        mockMvc.perform(post("/api/v1/interviews/assignments")
+                        .header("Authorization", "Bearer " + jwtTokenProvider.createToken(1L, "recruiter"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.id").isNumber());
+    }
+
+    @Test
+    void createAssignment_WithoutAuth_Returns401() throws Exception {
+        mockMvc.perform(post("/api/v1/interviews/assignments")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"interviewId\":1,\"round\":1,\"interviewerId\":1}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void updateAssignmentStatus_Success() throws Exception {
+        // Given: an assignment
+        InterviewAssignment assignment = assignmentRepository.save(InterviewAssignment.builder()
+                .interviewId(1L)
+                .round(1)
+                .interviewerId(1L)
+                .interviewerName("面试官")
+                .status("SCHEDULED")
+                .build());
+
+        String requestBody = objectMapper.writeValueAsString(Map.of(
+                "status", "COMPLETED",
+                "notes", "面试已完成"
+        ));
+
+        mockMvc.perform(put("/api/v1/interviews/assignments/" + assignment.getId() + "/status")
+                        .header("Authorization", "Bearer " + jwtTokenProvider.createToken(1L, "recruiter"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"));
+    }
+
+    @Test
+    void getAssignmentsByInterview_Success() throws Exception {
+        // Given: assignments for an interview
+        assignmentRepository.save(InterviewAssignment.builder()
+                .interviewId(1L)
+                .round(1)
+                .interviewerId(1L)
+                .interviewerName("面试官A")
+                .status("SCHEDULED")
+                .build());
+        assignmentRepository.save(InterviewAssignment.builder()
+                .interviewId(1L)
+                .round(2)
+                .interviewerId(2L)
+                .interviewerName("面试官B")
+                .status("SCHEDULED")
+                .build());
+
+        mockMvc.perform(get("/api/v1/interviews/assignments/by-interview/1")
+                        .header("Authorization", "Bearer " + jwtTokenProvider.createToken(1L, "recruiter")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2));
+    }
+
+    @Test
+    void getMyAssignments_Success() throws Exception {
+        // Given: assignments for different interviewers
+        assignmentRepository.save(InterviewAssignment.builder()
+                .interviewId(1L)
+                .round(1)
+                .interviewerId(1L)
+                .interviewerName("面试官A")
+                .status("SCHEDULED")
+                .build());
+        assignmentRepository.save(InterviewAssignment.builder()
+                .interviewId(2L)
+                .round(1)
+                .interviewerId(2L)
+                .interviewerName("面试官B")
+                .status("SCHEDULED")
+                .build());
+
+        // Authenticated as user 1
+        mockMvc.perform(get("/api/v1/interviews/assignments/my")
                         .header("Authorization", "Bearer " + jwtTokenProvider.createToken(1L, "interviewer")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(1))

@@ -44,6 +44,17 @@ public class InterviewFeedback {
     @Column(name = "pass_recommended")
     private Boolean passRecommended;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "reason_tags", columnDefinition = "jsonb")
+    private String reasonTags;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "evaluation_json", columnDefinition = "jsonb")
+    private String evaluationJson;
+
+    @Column(name = "pass_score")
+    private Integer passScore;
+
     @CreatedDate
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;

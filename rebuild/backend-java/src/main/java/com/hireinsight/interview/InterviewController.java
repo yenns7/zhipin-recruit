@@ -3,10 +3,12 @@ package com.hireinsight.interview;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hireinsight.common.ApiResponse;
+import com.hireinsight.model.InterviewAssignment;
 import com.hireinsight.model.InterviewFeedback;
 import com.hireinsight.model.InterviewSession;
 import com.hireinsight.model.Job;
 import com.hireinsight.model.User;
+import com.hireinsight.repository.InterviewAssignmentRepository;
 import com.hireinsight.repository.InterviewFeedbackRepository;
 import com.hireinsight.repository.InterviewSessionRepository;
 import com.hireinsight.repository.JobRepository;
@@ -22,6 +24,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -31,6 +34,7 @@ public class InterviewController {
 
     private final InterviewFeedbackRepository feedbackRepository;
     private final InterviewSessionRepository sessionRepository;
+    private final InterviewAssignmentRepository assignmentRepository;
     private final InterviewAIService aiService;
     private final JobRepository jobRepository;
     private final UserRepository userRepository;
@@ -38,12 +42,14 @@ public class InterviewController {
 
     public InterviewController(InterviewFeedbackRepository feedbackRepository,
                                InterviewSessionRepository sessionRepository,
+                               InterviewAssignmentRepository assignmentRepository,
                                InterviewAIService aiService,
                                JobRepository jobRepository,
                                UserRepository userRepository,
                                ObjectMapper objectMapper) {
         this.feedbackRepository = feedbackRepository;
         this.sessionRepository = sessionRepository;
+        this.assignmentRepository = assignmentRepository;
         this.aiService = aiService;
         this.jobRepository = jobRepository;
         this.userRepository = userRepository;
@@ -128,14 +134,11 @@ public class InterviewController {
     @PreAuthorize("hasAnyRole('RECRUITER','MANAGER','ADMIN')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> startAiInterview(
             @Valid @RequestBody StartInterviewRequest req) {
-        // Get job to extract JD text
         Job job = jobRepository.findById(req.getJobId())
                 .orElseThrow(() -> new IllegalArgumentException("Job not found: " + req.getJobId()));
 
-        // Generate questions from JD
         List<InterviewAIService.InterviewQuestion> questions = aiService.generateQuestions(job.getJdText(), 6);
 
-        // Serialize questions to JSON
         String questionsJson;
         try {
             questionsJson = objectMapper.writeValueAsString(questions);
@@ -143,7 +146,6 @@ public class InterviewController {
             throw new RuntimeException("Failed to serialize questions", e);
         }
 
-        // Create session
         InterviewSession session = InterviewSession.builder()
                 .jobId(req.getJobId())
                 .candidateId(req.getCandidateId())
@@ -175,7 +177,6 @@ public class InterviewController {
             throw new IllegalArgumentException("Session is not in a submittable state: " + session.getStatus());
         }
 
-        // Serialize answers
         String answersJson;
         try {
             answersJson = objectMapper.writeValueAsString(req.getAnswers());
@@ -183,16 +184,14 @@ public class InterviewController {
             throw new RuntimeException("Failed to serialize answers", e);
         }
 
-        // Evaluate answers
         List<InterviewAIService.QA> qaList = req.getAnswers().stream()
                 .map(a -> new InterviewAIService.QA(a.getQuestionId(), a.getQuestion(), a.getAnswer()))
                 .collect(Collectors.toList());
         InterviewAIService.InterviewEvaluation evaluation = aiService.evaluateAnswers(qaList);
 
-        // Generate report
-        String report = aiService.generateReport(qaList, evaluation.getScore());
+        // Build report — use the score from evaluation (1-5 scale)
+        String report = aiService.buildReport(qaList, evaluation.getScore());
 
-        // Update session
         session.setAnswersJson(answersJson);
         session.setScore(evaluation.getScore());
         session.setAiReport(report);
@@ -206,6 +205,7 @@ public class InterviewController {
         result.put("summary", evaluation.getSummary());
         result.put("strengths", evaluation.getStrengths());
         result.put("weaknesses", evaluation.getWeaknesses());
+        result.put("passRecommended", evaluation.isPassRecommended());
         result.put("aiReport", report);
 
         return ResponseEntity.ok(ApiResponse.ok(result));
@@ -215,37 +215,51 @@ public class InterviewController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> getInterviewGuide() {
         Map<String, Object> guide = new LinkedHashMap<>();
         guide.put("title", "面试官操作指南");
-        guide.put("version", "1.0");
-        guide.put("sections", List.of(
+        guide.put("version", "2.0");
+        guide.put("rounds", List.of(
                 Map.of(
-                        "title", "面试前准备",
-                        "content", "1. 仔细阅读候选人简历，标记关键经历和技能点\n" +
-                                   "2. 查看岗位 JD，明确招聘需求和核心能力要求\n" +
-                                   "3. 准备面试问题，确保覆盖技术能力、行为能力和综合能力\n" +
-                                   "4. 确保面试环境安静、网络稳定"
+                        "round", "screening",
+                        "name", "初筛面试",
+                        "focusAreas", List.of("基础知识考察", "项目经验核实", "沟通表达能力"),
+                        "sampleQuestions", List.of(
+                                "请做一个简短的自我介绍",
+                                "请介绍你最近参与的一个项目",
+                                "你为什么对这个岗位感兴趣？"
+                        ),
+                        "riskFactors", List.of("经验不符", "沟通障碍", "薪资期望过高")
                 ),
                 Map.of(
-                        "title", "面试进行中",
-                        "content", "1. 先做简短介绍，让候选人放松\n" +
-                                   "2. 按照准备好的问题有序提问\n" +
-                                   "3. 注意倾听，适时追问深入了解\n" +
-                                   "4. 记录关键回答要点，作为评分依据\n" +
-                                   "5. 控制面试时间，确保覆盖所有评估维度"
+                        "round", "technical",
+                        "name", "技术面试",
+                        "focusAreas", List.of("技术深度", "架构设计能力", "问题解决能力", "编码能力"),
+                        "sampleQuestions", List.of(
+                                "请描述一个你解决过的复杂技术问题",
+                                "你是如何进行系统架构设计的？",
+                                "请谈谈你在性能优化方面的经验"
+                        ),
+                        "riskFactors", List.of("技术栈不匹配", "缺乏深度", "理论脱离实践")
                 ),
                 Map.of(
-                        "title", "面试评分",
-                        "content", "1. 技术能力（40%）：考察技术深度和广度\n" +
-                                   "2. 项目经验（25%）：考察实际项目贡献和解决问题的能力\n" +
-                                   "3. 沟通表达（15%）：考察思路清晰度和表达逻辑\n" +
-                                   "4. 团队协作（10%）：考察团队合作意识和冲突处理能力\n" +
-                                   "5. 学习能力（10%）：考察学习新技术的主动性和方法"
+                        "round", "behavioral",
+                        "name", "行为面试",
+                        "focusAreas", List.of("团队协作", "冲突处理", "领导力", "抗压能力"),
+                        "sampleQuestions", List.of(
+                                "请分享一个你在团队中解决冲突的经历",
+                                "描述一次你主动承担额外责任的经历",
+                                "你是如何在截止日期压力下工作的？"
+                        ),
+                        "riskFactors", List.of("团队融入困难", "沟通协作问题", "抗压能力不足")
                 ),
                 Map.of(
-                        "title", "面试后反馈",
-                        "content", "1. 面试结束后及时填写面试反馈\n" +
-                                   "2. 给出客观评分和建议\n" +
-                                   "3. 明确是否推荐进入下一轮\n" +
-                                   "4. 提供详细的 AI 辅助分析报告"
+                        "round", "final",
+                        "name", "终面",
+                        "focusAreas", List.of("综合能力评估", "文化匹配度", "发展潜力", "薪资谈判"),
+                        "sampleQuestions", List.of(
+                                "你的职业规划是什么？",
+                                "你如何看待我们公司的文化？",
+                                "你有什么问题想问我们？"
+                        ),
+                        "riskFactors", List.of("文化不匹配", "发展期望不一致", "薪资无法达成一致")
                 )
         ));
         return ResponseEntity.ok(ApiResponse.ok(guide));
@@ -253,8 +267,14 @@ public class InterviewController {
 
     @GetMapping("/interviewers")
     @PreAuthorize("hasAnyRole('RECRUITER','MANAGER','ADMIN')")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> listInterviewers() {
-        List<User> interviewers = userRepository.findByRole("interviewer");
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> listInterviewers(
+            @RequestParam(required = false) String name) {
+        List<User> interviewers;
+        if (name != null && !name.isBlank()) {
+            interviewers = userRepository.findByRoleAndNameContainingIgnoreCase("interviewer", name);
+        } else {
+            interviewers = userRepository.findByRole("interviewer");
+        }
         List<Map<String, Object>> result = interviewers.stream().map(u -> {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", u.getId());
@@ -278,6 +298,76 @@ public class InterviewController {
             sessions = sessionRepository.findAll();
         }
         return ResponseEntity.ok(ApiResponse.ok(sessions));
+    }
+
+    // ---- InterviewAssignment endpoints ----
+
+    @PostMapping("/assignments")
+    @PreAuthorize("hasAnyRole('RECRUITER','MANAGER','ADMIN')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> createAssignment(
+            @Valid @RequestBody CreateAssignmentRequest req) {
+        // Validate interviewer exists
+        userRepository.findById(req.getInterviewerId())
+                .orElseThrow(() -> new IllegalArgumentException("Interviewer not found: " + req.getInterviewerId()));
+
+        // Look up interviewer name
+        String interviewerName = req.getInterviewerName();
+        if (interviewerName == null || interviewerName.isBlank()) {
+            interviewerName = userRepository.findById(req.getInterviewerId())
+                    .map(User::getName)
+                    .orElse("");
+        }
+
+        InterviewAssignment assignment = InterviewAssignment.builder()
+                .interviewId(req.getInterviewId())
+                .round(req.getRound())
+                .interviewerId(req.getInterviewerId())
+                .interviewerName(interviewerName)
+                .scheduledAt(req.getScheduledAt())
+                .location(req.getLocation())
+                .status("SCHEDULED")
+                .notes(req.getNotes())
+                .build();
+        assignment = assignmentRepository.save(assignment);
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created(Map.of("id", assignment.getId())));
+    }
+
+    @PutMapping("/assignments/{id}/status")
+    @PreAuthorize("hasAnyRole('INTERVIEWER','RECRUITER','MANAGER','ADMIN')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> updateAssignmentStatus(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateAssignmentStatusRequest req) {
+        InterviewAssignment assignment = assignmentRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Assignment not found: " + id));
+
+        assignment.setStatus(req.getStatus());
+        if (req.getNotes() != null) {
+            assignment.setNotes(req.getNotes());
+        }
+        assignment = assignmentRepository.save(assignment);
+
+        return ResponseEntity.ok(ApiResponse.ok(Map.of(
+                "id", assignment.getId(),
+                "status", assignment.getStatus()
+        )));
+    }
+
+    @GetMapping("/assignments/by-interview/{interviewId}")
+    @PreAuthorize("hasAnyRole('INTERVIEWER','RECRUITER','MANAGER','ADMIN')")
+    public ResponseEntity<ApiResponse<List<InterviewAssignment>>> getAssignmentsByInterview(
+            @PathVariable Long interviewId) {
+        List<InterviewAssignment> assignments = assignmentRepository.findByInterviewId(interviewId);
+        return ResponseEntity.ok(ApiResponse.ok(assignments));
+    }
+
+    @GetMapping("/assignments/my")
+    @PreAuthorize("hasAnyRole('INTERVIEWER','RECRUITER','MANAGER','ADMIN')")
+    public ResponseEntity<ApiResponse<List<InterviewAssignment>>> getMyAssignments(Authentication auth) {
+        Long userId = (Long) auth.getDetails();
+        List<InterviewAssignment> assignments = assignmentRepository.findByInterviewerId(userId);
+        return ResponseEntity.ok(ApiResponse.ok(assignments));
     }
 
     // ---- Request DTOs ----
@@ -326,5 +416,26 @@ public class InterviewController {
         private String questionId;
         private String question;
         private String answer;
+    }
+
+    @Data
+    public static class CreateAssignmentRequest {
+        @NotNull
+        private Long interviewId;
+        @NotNull
+        private Integer round;
+        @NotNull
+        private Long interviewerId;
+        private String interviewerName;
+        private LocalDateTime scheduledAt;
+        private String location;
+        private String notes;
+    }
+
+    @Data
+    public static class UpdateAssignmentStatusRequest {
+        @NotNull
+        private String status;
+        private String notes;
     }
 }

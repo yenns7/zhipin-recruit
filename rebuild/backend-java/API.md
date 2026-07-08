@@ -399,9 +399,15 @@ GET /api/v1/health
 | GET | `/api/v1/interviews/{id}` | 已认证 | 面试反馈详情 |
 | POST | `/api/v1/interviews/start` | RECRUITER / MANAGER / ADMIN | AI 面试开始 |
 | POST | `/api/v1/interviews/submit` | INTERVIEWER / RECRUITER / MANAGER / ADMIN | 提交 AI 面试答案 |
-| GET | `/api/v1/interviews/guide` | 已认证 | 面试指南 |
-| GET | `/api/v1/interviews/interviewers` | RECRUITER / MANAGER / ADMIN | 面试官列表 |
+| GET | `/api/v1/interviews/guide` | 已认证 | 面试指南（按轮次） |
+| GET | `/api/v1/interviews/interviewers` | RECRUITER / MANAGER / ADMIN | 面试官列表（支持按姓名搜索） |
 | GET | `/api/v1/interviews/assignments` | INTERVIEWER / RECRUITER / MANAGER / ADMIN | 面试任务分配 |
+| POST | `/api/v1/interviews/assignments` | RECRUITER / MANAGER / ADMIN | 创建面试安排 |
+| PUT | `/api/v1/interviews/assignments/{id}/status` | INTERVIEWER / RECRUITER / MANAGER / ADMIN | 更新面试安排状态 |
+| GET | `/api/v1/interviews/assignments/by-interview/{interviewId}` | INTERVIEWER / RECRUITER / MANAGER / ADMIN | 按 interview 查询安排 |
+| GET | `/api/v1/interviews/assignments/my` | INTERVIEWER / RECRUITER / MANAGER / ADMIN | 我的面试安排 |
+
+> AI 面试评估现已基于 LLM（通过 LlmClient），LLM 不可用时自动降级为关键词规则评估。评分从 1-5 分（LLM 原生）或映射 0-100 分到 1-5 分。
 
 ### POST `/api/v1/interviews/feedback` — 提交面试反馈
 
@@ -417,7 +423,7 @@ GET /api/v1/health
 }
 ```
 
-> `score` 取值范围: 1-5。`qaJson`、`aiReport` 为可选 JSON 字符串。
+> `score` 取值范围: 1-5。`qaJson`、`aiReport` 为可选 JSON 字符串。`reasonTags`、`evaluationJson`、`passScore` 为新增字段。
 
 ### POST `/api/v1/interviews/schedule` — 安排面试
 
@@ -432,7 +438,7 @@ GET /api/v1/health
 
 > 仅 `recruiter / manager / admin` 可操作。返回 `{id, status}` (status = `draft`)。
 
-### POST `/api/v1/interviews/start` — AI 面试开始
+### POST `/api/v1/interviews/start` — AI 面试开始（LLM 生成题目）
 
 **请求体**:
 ```json
@@ -450,13 +456,21 @@ GET /api/v1/health
     "sessionId": 1,
     "session": { ... },
     "questions": [
-      { "questionId": "q1", "question": "请描述一次解决复杂问题的经历" }
+      {
+        "id": "q-1",
+        "question": "请谈谈你在 Java 方面的项目经验？",
+        "type": "technical",
+        "expectedKeywords": "Java,Spring,项目经验",
+        "maxScore": 25
+      }
     ]
   }
 }
 ```
 
-### POST `/api/v1/interviews/submit` — 提交 AI 面试答案
+> 题目由 LLM 根据职位描述（JD）动态生成，涵盖技术、行为、文化三个维度。LLM 不可用时自动降级为关键词模板生成。
+
+### POST `/api/v1/interviews/submit` — 提交 AI 面试答案（LLM 评估）
 
 **请求体**:
 ```json
@@ -478,14 +492,21 @@ GET /api/v1/health
   "code": 200,
   "data": {
     "sessionId": 1,
-    "score": 85,
-    "summary": "候选人表现出良好的技术能力和沟通能力",
-    "strengths": ["Java 经验丰富", "架构设计能力强"],
-    "weaknesses": ["项目管理经验稍显不足"],
+    "score": 4,
+    "summary": "候选人表现良好，技术基础扎实。",
+    "strengths": ["Java经验丰富", "沟通表达清晰"],
+    "weaknesses": ["微服务经验稍显不足"],
+    "passRecommended": true,
     "aiReport": "详细AI评估报告..."
   }
 }
 ```
+
+> `score` 为 1-5 分（LLM 评估结果）。`passRecommended` 基于平均分 >= 3.5 判定。LLM 不可用时降级为关键词匹配 + 回答长度评估。
+
+### GET `/api/v1/interviews/guide`
+
+返回按轮次划分的面试指南（v2.0），包含四轮：screening → technical → behavioral → final。每轮包含 focusAreas、sampleQuestions、riskFactors。
 
 ### GET `/api/v1/interviews`
 
@@ -495,11 +516,50 @@ GET /api/v1/health
 
 ### GET `/api/v1/interviews/interviewers`
 
-返回可选面试官列表 `[{id, name, email}, ...]`。
+**参数**: `?name=张`（可选，按姓名模糊搜索）
+
+返回可选面试官列表 `[{id, name, email}, ...]`。支持按姓名搜索。
 
 ### GET `/api/v1/interviews/assignments`
 
 > `interviewer` 角色只返回自己的面试任务分配。
+
+### POST `/api/v1/interviews/assignments` — 创建面试安排
+
+**请求体**:
+```json
+{
+  "interviewId": 1,
+  "round": 1,
+  "interviewerId": 5,
+  "interviewerName": "面试官姓名",
+  "scheduledAt": "2026-07-15T14:00:00",
+  "location": "会议室A",
+  "notes": "首轮技术面试"
+}
+```
+
+> `interviewerName`、`scheduledAt`、`location`、`notes` 为可选字段。`status` 默认为 `SCHEDULED`。
+
+### PUT `/api/v1/interviews/assignments/{id}/status` — 更新面试安排状态
+
+**请求体**:
+```json
+{
+  "status": "COMPLETED",
+  "notes": "面试已完成"
+}
+```
+
+> `status` 可选值：`SCHEDULED` / `COMPLETED` / `CANCELLED`。`notes` 为可选字段。
+
+### GET `/api/v1/interviews/assignments/by-interview/{interviewId}`
+
+返回指定 interview 的所有安排记录（按轮次排序）。
+
+### GET `/api/v1/interviews/assignments/my`
+
+返回当前登录用户的面试安排。
 
 ---
 
@@ -1095,7 +1155,7 @@ GET /api/v1/health
 | 岗位管理 | `JobController` | 6 | Job | ✅ JPA |
 | 候选人管理 | `CandidateController` | 6 | Candidate | ✅ JPA |
 | 招聘需求 | `DemandController` | 7 | RecruitmentDemand | ✅ Flyway V10 |
-| 面试管理 | `InterviewController` | 9 | InterviewFeedback, InterviewSession | ✅ 实体 + ❌ 评估(rule-based) |
+| 面试管理 | `InterviewController` | 14 | InterviewFeedback, InterviewSession, InterviewAssignment | ✅ 实体 + ✅ LLM 评估(LLM/降级规则) |
 | 流程管理 | `PipelineController` | 9 | PipelineStage | ✅ JPA |
 | 简历上传与解析 | `ResumeController` | 4 | Candidate, UploadBatch, CandidateTag | ✅ JPA + ✅ Flyway V13 |
 | 商业智能 | `BiController` | 3 | - | ⚡ JPA 聚合 (rule-based) |
@@ -1108,18 +1168,18 @@ GET /api/v1/health
 | 系统治理 | `SystemGovernanceController` | 4 | - | ❌ in-memory (demo) |
 | 管理员用户治理 | `AdminUserController` | 3 | User | ✅ JPA |
 | 人才地图 | `TalentMapController` | 8 | TalentMap, Company, Person | ✅ JPA |
-| **合计** | **17** | **98** | | |
+| **合计** | **17** | **105** | | |
 
 ### HTTP 方法分布
 
 | 方法 | 数量 |
 |------|------|
-| GET | 53 |
-| POST | 30 |
-| PUT | 3 |
+| GET | 57 |
+| POST | 32 |
+| PUT | 4 |
 | PATCH | 10 |
 | DELETE | 2 |
-| **总计** | **98** |
+| **总计** | **105** |
 
 ### 权限分布
 
@@ -1140,5 +1200,5 @@ GET /api/v1/health
 | **Demo 数据** | 匹配 | 算法已移植，数据为本地样例 |
 | **Rule-Based** | BI | JPA 聚合，非真实数仓；概览按角色范围区分 |
 | **进程内存** | Agent 会话 | 对话数据存于 `ConcurrentHashMap`，重启丢失 |
-| **Rule-Based** | AI 面试评估 | 实体已建表，评估逻辑为 rule-based |
+| **LLM + 降级** | AI 面试评估 | LLM 驱动评估与出题，LLM 不可用时降级为 rule-based |
 | **占位写入** | 简历解析 | 简历上传后写入数据库，但 JSON 解析内容暂为 `{}` 占位 |
