@@ -179,4 +179,75 @@ describe('InterviewReportView', () => {
     expect(wrapper.text()).toContain('面试官尚未提交反馈')
     expect(wrapper.text()).toContain('请尽快完成评分、结论与备注')
   })
+
+  it('interviewer submits feedback and sees submitted status', async () => {
+    const pendingInterview = {
+      id: 5,
+      candidateId: 2,
+      jobId: 1,
+      interviewerId: 3,
+      score: null,
+      passRecommended: null,
+      qaJson: null,
+      aiReport: null,
+      createdAt: '2026-07-08',
+      reopenedAt: null,
+      reopened: false,
+    }
+    const submittedInterview = {
+      ...pendingInterview,
+      score: 4,
+      passRecommended: true,
+      aiReport: '沟通清晰',
+    }
+
+    const fetchMock = fetch as any
+    // First GET (load) -> pending interview
+    fetchMock.mockResolvedValueOnce(jsonResponse(buildApiResponse(pendingInterview)))
+
+    router.push('/interviews/5')
+    await router.isReady()
+
+    const wrapper = mount(InterviewReportView, {
+      global: { plugins: [router] },
+    })
+
+    await flushPromises()
+    await flushPromises()
+
+    // Feedback form is visible because feedback is pending
+    expect(wrapper.get('[data-testid="feedback-form"]').isVisible()).toBe(true)
+
+    // Fill in the form
+    await wrapper.get('[data-testid="feedback-score"]').setValue('4')
+    await wrapper.get('[data-testid="feedback-pass"]').setValue('true')
+    await wrapper.get('[data-testid="feedback-notes"]').setValue('沟通清晰')
+
+    // POST feedback -> { id: 5 }
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ code: 201, message: 'created', data: { id: 5 } }),
+    )
+    // Reload GET -> submitted interview
+    fetchMock.mockResolvedValueOnce(jsonResponse(buildApiResponse(submittedInterview)))
+
+    await wrapper.get('[data-testid="feedback-form"]').trigger('submit.prevent')
+    await flushPromises()
+    await flushPromises()
+
+    // Assert POST was called to the feedback endpoint
+    const postCall = fetchMock.mock.calls.find(
+      (call: any[]) => call[0] === '/api/v1/interviews/feedback',
+    )
+    expect(postCall).toBeTruthy()
+    expect(postCall[1].method).toBe('POST')
+    const body = JSON.parse(postCall[1].body)
+    expect(body.score).toBe(4)
+    expect(body.passRecommended).toBe(true)
+    expect(body.candidateId).toBe(2)
+    expect(body.jobId).toBe(1)
+
+    // Success message visible and form is gone (status flipped)
+    expect(wrapper.text()).toContain('反馈已提交')
+    expect(wrapper.find('[data-testid="feedback-form"]').exists()).toBe(false)
+  })
 })

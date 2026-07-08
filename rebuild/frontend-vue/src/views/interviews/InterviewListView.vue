@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { api } from '@/api/http'
 import type { Role } from '@/types'
 import type { InterviewListItem, PaginatedResponse } from '@/types/api'
 
+const router = useRouter()
 const currentRole = ref<Role>((localStorage.getItem('hireinsight_role') as Role | null) || 'recruiter')
 const items = ref<InterviewListItem[]>([])
 const pageInfo = ref<PaginatedResponse<InterviewListItem>>({
@@ -56,6 +58,10 @@ function goPrev() {
   if (!canGoPrev.value) return
   page.value -= 1
   void loadInterviews()
+}
+
+function goToDetail(id: number) {
+  router.push({ name: 'InterviewReport', params: { interviewId: String(id) } })
 }
 
 async function submitSchedule() {
@@ -161,10 +167,16 @@ onMounted(async () => {
             <th class="px-4 py-3 font-medium">状态</th>
             <th class="px-4 py-3 font-medium">评分</th>
             <th class="px-4 py-3 font-medium">创建时间</th>
+            <th class="px-4 py-3 font-medium">操作</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in items" :key="item.id" class="border-b border-hairline/50 hover:bg-surface-soft">
+          <tr
+            v-for="item in items"
+            :key="item.id"
+            class="border-b border-hairline/50 hover:bg-surface-soft cursor-pointer"
+            @click="goToDetail(item.id)"
+          >
             <td class="px-4 py-3 text-body">{{ item.candidate_name }}</td>
             <td class="px-4 py-3 text-muted">{{ item.job_title }}</td>
             <td class="px-4 py-3">
@@ -175,6 +187,14 @@ onMounted(async () => {
               <span v-else class="text-xs text-muted">--</span>
             </td>
             <td class="px-4 py-3 text-muted">{{ item.created_at?.slice(0, 10) }}</td>
+            <td class="px-4 py-3">
+              <a
+                data-testid="interview-detail-link"
+                href="#"
+                class="text-sm font-medium text-ink underline-offset-2 hover:underline"
+                @click.prevent="goToDetail(item.id)"
+              >查看报告</a>
+            </td>
           </tr>
         </tbody>
       </table>

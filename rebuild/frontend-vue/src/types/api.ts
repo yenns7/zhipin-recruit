@@ -441,6 +441,19 @@ export interface InterviewDetailItem {
   reopened?: boolean
 }
 
+export interface InterviewFeedbackInput {
+  candidateId: number
+  jobId: number
+  score: number
+  passRecommended: boolean
+  qaJson: string
+  aiReport: string
+}
+
+export interface InterviewFeedbackResult {
+  id: number
+}
+
 export interface AgentConversationSummary {
   id: string
   title: string

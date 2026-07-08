@@ -9,6 +9,8 @@ import type {
   InterviewDetailItem,
   InterviewListItem,
   InterviewListQuery,
+  InterviewFeedbackInput,
+  InterviewFeedbackResult,
   JobListItem,
   JobListQuery,
   JobCreateInput,
@@ -382,6 +384,11 @@ export const api = {
 
   getInterview: (id: number) =>
     request<InterviewDetailItem>(`/interviews/${id}`),
+  submitInterviewFeedback: (payload: InterviewFeedbackInput) =>
+    request<InterviewFeedbackResult>('/interviews/feedback', {
+      method: 'POST',
+      body: payload,
+    }),
   scheduleInterview: (payload: InterviewSchedulePayload) =>
     request<InterviewScheduleResponse>('/interviews/schedule', {
       method: 'POST',

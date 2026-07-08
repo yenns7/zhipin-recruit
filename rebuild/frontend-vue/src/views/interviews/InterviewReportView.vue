@@ -11,6 +11,13 @@ const interview = ref<InterviewDetailItem | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
 
+const feedbackScore = ref<number>(0)
+const feedbackPass = ref<boolean>(true)
+const feedbackNotes = ref('')
+const submitting = ref(false)
+const feedbackSuccess = ref('')
+const feedbackError = ref('')
+
 type QaEntry = {
   question: string
   answer: string
@@ -198,6 +205,33 @@ function goBack() {
   router.push({ name: 'Interviews' })
 }
 
+async function submitFeedback() {
+  const current = interview.value
+  if (!current) {
+    feedbackError.value = '面试记录尚未加载，无法提交反馈。'
+    return
+  }
+  submitting.value = true
+  feedbackError.value = ''
+  feedbackSuccess.value = ''
+  try {
+    const result = await api.submitInterviewFeedback({
+      candidateId: current.candidateId,
+      jobId: current.jobId,
+      score: feedbackScore.value,
+      passRecommended: feedbackPass.value,
+      qaJson: JSON.stringify([{ question: '面试备注', answer: feedbackNotes.value }]),
+      aiReport: feedbackNotes.value || '{}',
+    })
+    feedbackSuccess.value = `反馈已提交，记录 #${result.id}`
+    await loadInterview()
+  } catch (err) {
+    feedbackError.value = err instanceof Error ? err.message : '提交反馈失败，请稍后重试。'
+  } finally {
+    submitting.value = false
+  }
+}
+
 const report = computed(() => parseReport(interview.value?.aiReport))
 const qaEntries = computed(() => parseQaEntries(interview.value?.qaJson))
 const rawQaText = computed(() => {
@@ -350,6 +384,66 @@ onMounted(loadInterview)
           </span>
         </div>
       </div>
+
+      <form
+        v-if="!hasSubmittedFeedback"
+        data-testid="feedback-form"
+        class="rounded-2xl bg-white p-6 shadow-card space-y-4"
+        @submit.prevent="submitFeedback"
+      >
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.22em] text-muted">提交面试反馈</p>
+          <h3 class="mt-2 font-display text-lg text-ink">面试反馈表单</h3>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="text-sm text-muted">
+            综合评分（0-5，步进 0.5）
+            <input
+              v-model.number="feedbackScore"
+              data-testid="feedback-score"
+              type="number"
+              min="0"
+              max="5"
+              step="0.5"
+              required
+              class="mt-1 w-full rounded-lg border border-hairline px-3 py-2 text-body"
+            >
+          </label>
+          <label class="text-sm text-muted">
+            结论建议
+            <select
+              v-model="feedbackPass"
+              data-testid="feedback-pass"
+              class="mt-1 w-full rounded-lg border border-hairline px-3 py-2 text-body"
+            >
+              <option :value="true">推荐</option>
+              <option :value="false">暂不推荐</option>
+            </select>
+          </label>
+        </div>
+        <label class="block text-sm text-muted">
+          面试备注（选填）
+          <textarea
+            v-model="feedbackNotes"
+            data-testid="feedback-notes"
+            rows="4"
+            class="mt-1 w-full rounded-lg border border-hairline px-3 py-2 text-body"
+            placeholder="可补充候选人表现亮点、待提升点、后续建议等。"
+          />
+        </label>
+        <p v-if="feedbackError" class="text-sm text-danger">{{ feedbackError }}</p>
+        <p v-if="feedbackSuccess" class="text-sm text-emerald-700">{{ feedbackSuccess }}</p>
+        <div class="flex justify-end">
+          <button
+            type="submit"
+            data-testid="submit-feedback"
+            class="rounded-lg bg-ink px-5 py-2 text-sm font-medium text-white disabled:opacity-60"
+            :disabled="submitting"
+          >
+            {{ submitting ? '提交中…' : '提交面试反馈' }}
+          </button>
+        </div>
+      </form>
 
       <div class="rounded-2xl bg-white p-6 shadow-card">
         <div class="flex items-center justify-between gap-4">
