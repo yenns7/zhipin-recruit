@@ -146,3 +146,21 @@ BI 页面必须用白话解释协同归属：HR 负责候选人推进，推进�
 4. 候选人在 Kanban 推进 → 全程留痕。
 5. 管理者在 BI 看板看各专员漏斗与效能并下钻。
 6. 专员只能看自己候选人；PII 脱敏、审计日志可查。
+
+## 6. Java 重构版（rebuild/）状态
+
+上述 PRD 功能已在 `rebuild/`（Java Spring Boot + Vue）中完成 1:1 功能复现，具体实现差异：
+
+| PRD 模块 | Java 实现状态 | 差异说明 |
+|---|---|---|
+| A 简历导入与处理 | ✅ 基础能力（同步写入，简历 JSON 占位） | 异步解析链路待接 |
+| B 岗位管理与人岗匹配 | ✅ Match 模块（`JobMatcher` 移植） | demo 样例数据 |
+| C AI 预筛面试 | ✅ AI Interview 扩充（rule-based） | 非真实 LLM |
+| D 招聘流水线 | ✅ Pipeline + Job/Candidate 生命周期 | Offer/Onboard/Reject 为阶段记录 |
+| E BI 监控看板 | ✅ BI 深度复现（HR 归因 + 岗位漏斗） | rule-based 聚合 |
+| F 系统支撑 | ✅ RBAC + Events + 负责人转派 | 非生产级 |
+| G BOSS 直聘闭环 | ✅ Demo Stub（17 接口） | in-memory，非真实集成 |
+| H AI 助手增强 | ✅ 调用日志 + Tools + 会话 CRUD | 会话进程内存，调用日志持久化 |
+
+> 详细 API 口径见 [superpowers/specs/2026-07-06-java-springboot-vue-rebuild-api.md](./superpowers/specs/2026-07-06-java-springboot-vue-rebuild-api.md)
+> 测试数据：后端 129 测试全绿，前端 79 测试全绿，TypeScript 0 错误。

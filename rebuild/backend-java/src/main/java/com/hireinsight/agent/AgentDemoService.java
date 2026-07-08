@@ -45,6 +45,37 @@ public class AgentDemoService {
         );
     }
 
+    public Map<String, Object> createConversation(String title, String description) {
+        String id = "conv-" + System.nanoTime();
+        ConversationState state = new ConversationState(
+                id,
+                title != null ? title : "新助手会话",
+                description != null ? description : "",
+                new CopyOnWriteArrayList<>()
+        );
+        conversations.put(id, state);
+        return summary(state);
+    }
+
+    public Map<String, Object> updateConversation(String conversationId, String title, String description) {
+        ConversationState state = conversations.get(conversationId);
+        if (state == null) {
+            return null;
+        }
+        ConversationState updated = new ConversationState(
+                state.id(),
+                title != null ? title : state.title(),
+                description != null ? description : state.description(),
+                state.messages()
+        );
+        conversations.put(conversationId, updated);
+        return summary(updated);
+    }
+
+    public boolean deleteConversation(String conversationId) {
+        return conversations.remove(conversationId) != null;
+    }
+
     public Map<String, Object> appendMessage(String conversationId, String content, String role) {
         ConversationState state = conversations.computeIfAbsent(conversationId, this::newConversation);
         String timestamp = Instant.now().toString();

@@ -71,4 +71,33 @@ public class TalentMapController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created(talentMapService.addPerson(mapId, req, userId, isAdminOrManager)));
     }
+
+    @PatchMapping("/{mapId}")
+    public ResponseEntity<ApiResponse<TalentMapDetail>> updateMap(
+            @PathVariable Long mapId, @RequestBody UpdateMapRequest req, Authentication auth) {
+        Long userId = (Long) auth.getDetails();
+        boolean isAdminOrManager = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MANAGER"));
+        return ResponseEntity.ok(ApiResponse.ok(talentMapService.update(mapId, req, userId, isAdminOrManager)));
+    }
+
+    @PatchMapping("/{mapId}/companies/{companyId}")
+    public ResponseEntity<ApiResponse<CompanyItem>> updateCompany(
+            @PathVariable Long mapId, @PathVariable Long companyId,
+            @RequestBody UpdateCompanyRequest req, Authentication auth) {
+        Long userId = (Long) auth.getDetails();
+        boolean isAdminOrManager = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MANAGER"));
+        return ResponseEntity.ok(ApiResponse.ok(talentMapService.updateCompany(mapId, companyId, req, userId, isAdminOrManager)));
+    }
+
+    @PatchMapping("/{mapId}/people/{personId}")
+    public ResponseEntity<ApiResponse<PersonItem>> updatePerson(
+            @PathVariable Long mapId, @PathVariable Long personId,
+            @RequestBody UpdatePersonRequest req, Authentication auth) {
+        Long userId = (Long) auth.getDetails();
+        boolean isAdminOrManager = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MANAGER"));
+        return ResponseEntity.ok(ApiResponse.ok(talentMapService.updatePerson(mapId, personId, req, userId, isAdminOrManager)));
+    }
 }

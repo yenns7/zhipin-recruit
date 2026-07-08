@@ -1,7 +1,8 @@
 # 智聘重构后端（Java Spring Boot）
 
 > 路径：`rebuild/backend-java/`
-> 口径目标：把“哪些能力已经落到本地数据库”“哪些仍是 demo / rule-based / 非生产壳层”分开说明，避免再把当前后端误写成纯 `in-memory`。
+> 口径目标：把”哪些能力已经落到本地数据库””哪些仍是 demo / rule-based / 非生产壳层”分开说明，避免再把当前后端误写成纯 `in-memory`。
+> 测试状态：**129 tests, 0 failures**（从最初 39 个增长到 129 个）| Flyway: V1~V12
 
 ## 当前状态
 
@@ -20,7 +21,7 @@
 
 ## 已持久化到本地数据库的能力
 
-以下能力已经写入本地数据库，不应继续描述为“仅前端内存态”或“纯 in-memory”：
+以下能力已经写入本地数据库，不应继续描述为”仅前端内存态”或”纯 in-memory”：
 
 - 登录账号
   - 表：`users`
@@ -34,10 +35,41 @@
 - 人才地图与管理员用户治理
   - `TalentMap` / `TalentMapCompany` / `TalentMapPerson` 已有 JPA 实体和 `V9__create_talent_map_tables.sql`
   - 管理员用户治理复用 `users` 表完成 create / edit / reset-password demo 闭环
+- **RecruitmentDemand 用人需求**（Flyway V10）
+  - 新实体 `RecruitmentDemand` + `V10__create_recruitment_demand_table.sql`
+  - 7 个接口：列表/创建/详情/更新/关闭/恢复/降级
+  - 完整生命周期管理：需求状态流转 (`active → closed`, `closed → active`, 优先级 A/B/C 调整)
+  - 业务原因弹窗记录：关闭/恢复/降级操作强制填写原因
+- **Match 匹配模块**（Flyway 已有表，新增服务层）
+  - 新包 `com.hireinsight.match`，移植 Python `job_matcher.py` → Java `JobMatcher`
+  - 3 个接口：通用匹配、岗位匹配预览、匹配并加入流程
+  - 提供候选人-岗位技能匹配排名（命中/欠缺标签可视化）
+- **AI Interview 面试扩充**（Flyway V11）
+  - 新实体 `InterviewSession` + `V11__create_interview_sessions_table.sql`
+  - `InterviewAIService` (rule-based) 生成面试题目与评估报告
+  - 5 个接口：开始面试/提交作答/面试引导/面试官列表/面试任务分配
+  - 面试引导返回按 JD 定制的结构化题目，候选人作答后生成分项评分报告
+- **Agent 调用日志 + Tools**（Flyway V12）
+  - 新实体 `AgentCallLog` + `V12__create_agent_call_logs_table.sql`
+  - 7 个接口：调用日志列表/详情、Tools 列表/执行、会话 CRUD
+  - 记录每次 AI 调用的输入输出/模型/token/耗时/工具链，支持管理员审计
+- **BOSS 直聘 Demo Stub**（in-memory）
+  - 新包 `com.hireinsight.boss` + `BossDemoService`
+  - 17 个接口覆盖 BOSS 全部功能场景：账号/岗位/候选人/收件箱/消息/面试邀请/导出等
+  - 所有数据为 in-memory 静态样例，不代表真实 BOSS 集成
+- **Job 生命周期 + Candidate 归属**（扩展已有表）
+  - Job: PUT 更新岗位 + POST close/restore
+  - Candidate: owner-options 归属选项 + pipelines 流程列表 + journey 轨迹 + reassign 转派负责人
+  - TalentMap: 3 个 PATCH 端点（更新公司/人员信息）
+  - Pipeline Offer: GET/PUT Offer 信息
+  - Notifications: GET unread-count 未读数
+- **BI 深度复现**（基于已有表聚合）
+  - `GET /api/v1/bi/staff/{hrId}` — HR 归因分析
+  - `GET /api/v1/bi/job/{jobId}` — 岗位级漏斗
 
 ## 仍然是 demo / 非生产 / 非真实集成的部分
 
-“已持久化到本地数据库”不等于“已经是真实生产系统”。当前仍需明确保留这些限制：
+“已持久化到本地数据库”不等于”已经是真实生产系统”。当前仍需明确保留这些限制：
 
 - **非生产环境**
   - 默认仍是本机 PostgreSQL + `ddl-auto: validate`
@@ -46,23 +78,33 @@
   - `V5__integration_persistence.sql` 记录了集成账号和抓取任务目标表结构
   - 当前 `IntegrationDemoService` 仍是 demo / in-memory 快照，不代表真实授权或真实抓取
   - 没有真实 BOSS/猎聘在线授权、真实抓取、真实第三方回调
+- **BOSS 直聘为 demo-stub**
+  - `BossDemoService` + `com.hireinsight.boss` 包提供 17 个 BOSS 风格接口，但所有数据为 in-memory 静态样例
+  - 不代表真实 BOSS 直聘在线授权、真实抓取、真实消息收发或真实面试邀请回调
+  - Chrome 扩展 / Cookie 采集 / 扫码登录等生产级 BOSS 集成链路暂未接入
+- **AI 面试为 rule-based demo**
+  - `InterviewAIService` 使用规则模板生成面试题和评估报告
+  - 不是真实 LLM 驱动的 AI 面试引擎，评估报告不涉及自然语言推理
+  - 面试会话状态保存在 `InterviewSession` 表中，但评估逻辑为规则而非 AI
 - **非真实配置中心**
   - 系统设置里的系统治理壳层通过 `/api/v1/admin/system/**` 返回 demo / in-memory 参数、模型和审计日志
   - 没有接入 Nacos / Apollo / Consul 一类真实配置中心
 - **通知待办仍是进程内存覆盖状态**
   - `/api/v1/notifications/todos` 的完成/归档只保存在当前 Java 进程
   - 重启服务后会恢复默认演示待办
-- **Agent 仍是进程内存态**
-  - `AgentDemoService` 使用 `ConcurrentHashMap` 保存会话
-  - 写操作只返回 `confirm-first` 确认卡片，不执行真实业务写入
+- **Agent 会话仍是进程内存态（但调用日志已持久化）**
+  - 会话由 `AgentDemoService` 使用 `ConcurrentHashMap` 保存，重启后丢失
+  - **调用日志已写入 `agent_call_logs` 表**（Flyway V12），支持管理员审计查询
+  - Tools 列表和执行通过 `AgentToolService` 管理，但写操作只返回 `confirm-first` 确认卡片，不执行真实业务写入
 - **BI 仍是 rule-based 演示口径**
   - `BiController` 当前按 JPA Repository 做最小聚合
   - 招聘专员按自己的 `owner_hr_id` 范围统计岗位和候选人
   - 负责人/管理员当前按全局范围统计（demo 阶段未引入团队归属模型，未按团队细分）
+  - 新增 `GET /bi/staff/{hrId}` HR 归因和 `GET /bi/job/{jobId}` 岗位漏斗，均为 rule-based 聚合
   - 不是基于真实数仓、真实渠道或真实生产统计口径
-- **匹配仍是 demo 服务**
-  - 推荐结果由 `MatchDemoService` 提供演示数据
-  - 不是生产匹配流水，也没有真实模型推理链路
+- **匹配引擎已移植但仍是 demo 数据**
+  - Java `JobMatcher` 已移植 Python `job_matcher.py` 的匹配算法逻辑
+  - 但推荐结果基于本地样例数据，不是基于真实简历池的生产推理流水线
 
 ## 推荐文案口径
 

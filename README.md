@@ -7,8 +7,10 @@
 用自然语言驱动的企业招聘平台 — 简历解析、智能匹配、AI 面试、数据看板，一站式闭环
 
 [![Backend](https://img.shields.io/badge/backend-Flask%203.1-000000)](https://flask.palletsprojects.com/)
+[![Backend (Rebuild)](https://img.shields.io/badge/rebuild-Java%20Spring%20Boot%203.4-brightgreen)](https://spring.io/projects/spring-boot)
 [![Frontend](https://img.shields.io/badge/frontend-React%2018%20%2B%20Vite%208-61dafb)](https://react.dev/)
 [![AI](https://img.shields.io/badge/AI-LangGraph%20%2B%20DeepSeek-ff6b6b)](https://langchain-ai.github.io/langgraph/)
+[![Tests](https://img.shields.io/badge/tests-129%20backend%20%2B%2079%20frontend-success)](https://flask.palletsprojects.com/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 </div>
@@ -68,40 +70,63 @@
 
 ## 🏗️ 技术架构
 
+### 主线版本（Python Flask + React）
+
 ```
-┌─────────────────────────────────────────────────────────┐
-│  前端 SPA  (React 18 + Vite 8 + TS + Tailwind + GSAP)    │
-│  12 页面 · recharts 图表 · 近黑 Cal.com 设计语言           │
-└──────────────────────────┬──────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  前端 SPA  (React 18 + Vite 8 + TS + Tailwind + GSAP)        │
+│  12 页面 · recharts 图表 · 近黑 Cal.com 设计语言               │
+└──────────────────────────┬──────────────────────────────────┘
                            │ /api (Vite 代理 / Flask 同源托管)
-┌──────────────────────────▼──────────────────────────────┐
-│  后端  Flask 3.1 + SQLAlchemy + JWT/RBAC  (27 路由)       │
-│  ┌────────────┬────────────┬──────────────────────────┐  │
-│  │ auth       │ resume     │ jobs / match / pipeline   │  │
-│  │ interview  │ bi         │ agent (LangGraph SSE)     │  │
-│  └────────────┴────────────┴──────────────────────────┘  │
-└──────────────────────────┬──────────────────────────────┘
+┌──────────────────────────▼──────────────────────────────────┐
+│  后端  Flask 3.1 + SQLAlchemy + JWT/RBAC  (27 路由)           │
+│  ┌────────────┬────────────┬──────────────────────────────┐  │
+│  │ auth       │ resume     │ jobs / match / pipeline       │  │
+│  │ interview  │ bi         │ agent (LangGraph SSE)         │  │
+│  └────────────┴────────────┴──────────────────────────────┘  │
+└──────────────────────────┬──────────────────────────────────┘
                            │ 复用
-┌──────────────────────────▼──────────────────────────────┐
-│  base_agent/  LLM 客户端(DeepSeek) · 简历解析 · 匹配算法   │
-└──────────────────────────────────────────────────────────┘
+┌──────────────────────────▼──────────────────────────────────┐
+│  base_agent/  LLM 客户端(DeepSeek) · 简历解析 · 匹配算法       │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 重构版本（Java Spring Boot + Vue，`rebuild/`）
+
+```
+┌───────────────────────────────────────────────────────────────┐
+│  前端 SPA  (Vue 3 + TypeScript + Vite + Tailwind + GSAP)       │
+│  覆盖 Java 后端全部模块入口                                       │
+└────────────────────────────┬──────────────────────────────────┘
+                             │ /api (Vite 代理 / Spring Boot 同源托管)
+┌────────────────────────────▼──────────────────────────────────┐
+│  后端  Java Spring Boot 3.4 + JPA + PostgreSQL + JWT/RBAC      │
+│  129 tests · 51+ 新增接口 · Flyway V1~V12 迁移                 │
+│  ┌──────────┬──────────┬──────────┬──────────┬──────────────┐ │
+│  │ auth     │ resume   │ jobs     │ pipeline │ demand       │ │
+│  │ match    │ interview│ agent    │ boss     │ bi           │ │
+│  │ notify   │ talentmap│ admin    │ health   │              │ │
+│  └──────────┴──────────┴──────────┴──────────┴──────────────┘ │
+└────────────────────────────────────────────────────────────────┘
 ```
 
 **技术栈**
 
-| 层 | 技术 |
-|----|------|
-| 前端 | React 18.3 · Vite 8 · TypeScript 5.9 · Tailwind 3.4 · GSAP 3.15 · recharts 3.8 · React Router 6 |
-| 后端 | Flask 3.1 · SQLAlchemy 2.0 · SQLite/PostgreSQL · PyJWT |
-| AI | LangGraph 1.2 · DeepSeek v4 (OpenAI 兼容) · pdfplumber · python-docx |
-| 数据 | SQLite（开发）/ PostgreSQL（生产） |
+| 层 | 主线版本 | 重构版本 (rebuild/) |
+|----|----------|---------------------|
+| 前端 | React 18.3 · Vite 8 · TypeScript 5.9 · Tailwind 3.4 · GSAP 3.15 · recharts 3.8 | Vue 3 · Vite · TypeScript · Tailwind · GSAP |
+| 后端 | Flask 3.1 · SQLAlchemy 2.0 · SQLite/PostgreSQL · PyJWT | Spring Boot 3.4 · Spring Data JPA · PostgreSQL · JWT |
+| AI | LangGraph 1.2 · DeepSeek v4 · pdfplumber · python-docx | Rule-based demo (匹配/面试) |
+| 数据 | SQLite（开发）/ PostgreSQL（生产） | PostgreSQL（dev profile）/ H2（test profile） |
 
 ## 🚀 快速开始
 
-### 环境要求
+### 主线版本（Python Flask + React）
+
+#### 环境要求
 - Python 3.9+ · Node.js 18+ · npm 9+
 
-### 1. 后端
+#### 1. 后端
 ```bash
 cd backend
 python -m pip install --upgrade pip
@@ -110,28 +135,44 @@ cp .env.example .env          # 填入 LLM API Key
 PORT=5001 python run.py       # 开发联调后端：http://localhost:5001
 ```
 
-### 2. 演示数据（可选，无需 LLM Key）
+#### 2. 演示数据（可选，无需 LLM Key）
 ```bash
 cd backend && python seed_dev.py
 ```
 
-真实 HR 试点前不要带演示数据。先预览清理范围：
-
-```bash
-python backend/scripts/cleanup_demo_data.py --dry-run
-```
-
-确认备份和清理范围后，再执行：
-
-```bash
-python backend/scripts/cleanup_demo_data.py --confirm
-```
-
-### 3. 前端
+#### 3. 前端
 ```bash
 cd frontend
 npm install
 npm run dev                   # http://localhost:5173，代理到 :5001
+```
+
+### 重构版本（Java Spring Boot + Vue，`rebuild/`）
+
+#### 环境要求
+- JDK 21+ · Maven 3.9+ · Node.js 18+ · PostgreSQL 15+
+
+#### 1. 后端
+```bash
+cd rebuild/backend-java
+mvn spring-boot:run -Dspring-boot.run.profiles=dev
+# 后端监听 http://localhost:8080
+```
+
+默认连接本机 PostgreSQL `hireinsight` 库，`dev` profile 自动初始化演示账号。
+
+#### 2. 前端（Vue）
+```bash
+cd rebuild/frontend-vue
+npm install
+npm run dev                   # http://localhost:5173，代理到 :8080
+```
+
+#### 3. 真实试点
+```bash
+cd rebuild/backend-java
+mvn spring-boot:run -Dspring-boot.run.profiles=pilot
+# `pilot` profile 不创建 demo 账号，启动前校验 JWT/CORS/数据库等环境配置
 ```
 
 ### MVP 内部试用账号（统一密码 `Zhipin2026`）
@@ -145,28 +186,39 @@ npm run dev                   # http://localhost:5173，代理到 :5001
 | 招聘专员 | hr03@mvp.local |
 | 面试官 | interviewer01@mvp.local |
 
-面试官账号用于查看分配给自己的面试任务、候选人详情和填写反馈；不会显示“推进 Offer/淘汰”等流程按钮，招聘流程推进仍由 HR/经理/管理员完成。
+面试官账号用于查看分配给自己的面试任务、候选人详情和填写反馈；不会显示”推进 Offer/淘汰”等流程按钮，招聘流程推进仍由 HR/经理/管理员完成。
 
 > 完整部署指南（生产/gunicorn/systemd/公网穿透）见 [DEPLOYMENT.md](DEPLOYMENT.md)
+> Java 重构版运行说明见 [rebuild/RUNNING.md](rebuild/RUNNING.md)
 
 ## 📁 项目结构
 
 ```
 .
-├── backend/          Flask 后端（app-factory + 蓝图）
-│   ├── app/api/      9 个 API 蓝图
-│   ├── app/services/ 业务服务（agent / match / resume / interview）
-│   └── run.py        启动入口
-├── frontend/         Vite + React 前端
+├── backend/                Flask 后端（app-factory + 蓝图）
+│   ├── app/api/            9 个 API 蓝图
+│   ├── app/services/       业务服务（agent / match / resume / interview）
+│   └── run.py              启动入口
+├── frontend/               Vite + React 前端
 │   └── src/
-│       ├── pages/    12 个页面
-│       ├── components/ UI 基元 + 业务组件
-│       └── lib/      api 客户端 / auth / agent 流式
-├── rebuild/          Java Spring Boot + Vue 重构 MVP（脚手架阶段）
-├── base_agent/       复用的 LLM/解析/匹配模块
-├── docs/             需求 / PRD / 设计文档
+│       ├── pages/          12 个页面
+│       ├── components/     UI 基元 + 业务组件
+│       └── lib/            api 客户端 / auth / agent 流式
+├── rebuild/                Java Spring Boot + Vue 重构 MVP（当前为技术主流程可运行）
+│   ├── backend-java/       Spring Boot 3.4 后端（129 tests, 51+ APIs, Flyway V1~V12）
+│   │   ├── src/main/java/  13 个业务包（auth/resume/jobs/pipeline/demand/match/interview/agent/boss/bi/notify/admin/health）
+│   │   ├── src/main/resources/db/migration/  Flyway 迁移（V1~V12）
+│   │   └── src/test/       129 个测试
+│   └── frontend-vue/       Vue 3 + TypeScript 前端（79 tests）
+├── base_agent/             复用的 LLM/解析/匹配模块
+├── docs/                   需求 / PRD / 设计文档
+│   ├── 01_PRD.md           PRD 文档
+│   ├── 15_JavaSpringBootVue重构MVP状态报告.md
+│   ├── 16_JavaVue真实用户小范围试点交付包.md
+│   ├── 17_JavaVue真实试点前落地准备清单.md
+│   └── superpowers/specs/  重构版 API / PRD 口径说明
 ├── README.md
-└── DEPLOYMENT.md     部署文档
+└── DEPLOYMENT.md           部署文档
 ```
 
 ## 🤖 AI 助手用法示例

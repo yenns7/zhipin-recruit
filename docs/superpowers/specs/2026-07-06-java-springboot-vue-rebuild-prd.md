@@ -1,7 +1,8 @@
 # Java Spring Boot + Vue 重构版口径修正 PRD
 
-> 日期：2026-07-07
+> 日期：2026-07-08（更新）
 > 目标：把前端页面、README 与说明文档里最容易误导协作者的几处口径收口到同一套事实。
+> 本轮 (2026-07-08) 完成 1:1 功能复现，新增 7 大模块，详见第 5 节。
 
 ## 1. 这次要修正的试点缺口
 
@@ -124,7 +125,34 @@ Agent 口径统一为：
 - `revert-lite 仅用于 demo / legacy correction`
 - `Offer / Onboard / Reject 当前只表示阶段记录边界`
 
-## 5. 验收标准
+## 5. 新增模块：1:1 功能复现（2026-07-08）
+
+本轮完成 7 大模块的新增，后端 129 测试全绿，前端 79 测试全绿：
+
+| 模块 | 接口数 | 核心内容 | 限制 |
+|---|---|---|---|
+| RecruitmentDemand | 7 | 需求创建/列表/详情/更新/关闭/恢复/降级 | Flyway V10 持久化 |
+| Match 匹配 | 3 | 通用匹配/岗位预览/匹配加入流程 | 移植 `JobMatcher`，demo 数据 |
+| AI Interview | 5 | 开始/提交/引导/面试官/任务分配 | rule-based `InterviewAIService` |
+| Agent 调用日志 + Tools | 7 | 日志/详情/Tools/执行/会话 CRUD | 调用日志持久化，会话进程内存 |
+| BOSS 直聘 Demo Stub | 17 | 全场景 BOSS 接口覆盖 | in-memory 静态样例 |
+| Job 生命周期 + Candidate 归属 | 10 | 岗位更新/关闭/恢复、候选人转派/轨迹/Offer | 扩展已有表 |
+| BI 深度复现 | 2 | HR 归因分析 + 岗位漏斗 | rule-based JPA 聚合 |
+
+### 前端适配
+
+- Vue 前端已为所有新模块预留或接入页面入口
+- GSAP 动画保留在 React 前端（主线版本），Vue 前端未迁移 GSAP 动画
+- TypeScript 0 错误
+
+### 模块边界
+
+- BOSS 直聘是 demo-stub（`BossDemoService`），不是真实 BOSS 直聘集成
+- AI 面试是 rule-based demo（`InterviewAIService`），不是 LLM 驱动的 AI 面试引擎
+- Match 匹配算法已移植但使用本地样例数据，不是生产推理流水线
+- Agent 会话仍为进程内存态（`ConcurrentHashMap`），重启丢失；调用日志已持久化（Flyway V12）
+
+## 7. 验收标准
 
 - 页面文案、README 与说明文档不再互相打架。
 - 前端测试覆盖上传入口、候选人加入流程、经理团队看板提示、安排面试入口。

@@ -111,4 +111,27 @@ public final class TalentMapModels {
             String status,
             String keyword
     ) {}
+
+    public record UpdateCompanyRequest(
+            String companyName,
+            String city,
+            String region,
+            String industry,
+            String priority,
+            String note
+    ) {}
+
+    public record UpdatePersonRequest(
+            Long companyId,
+            String name,
+            String title,
+            String city,
+            List<String> tags,
+            String salaryRange,
+            String contactStatus,
+            String evaluation,
+            String source,
+            LocalDate nextFollowAt,
+            String note
+    ) {}
 }

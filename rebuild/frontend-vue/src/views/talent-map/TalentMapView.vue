@@ -108,7 +108,7 @@ async function loadMaps() {
   if (token) headers['Authorization'] = `Bearer ${token}`
 
   try {
-    const res = await fetch('/api/talent-maps', { headers })
+    const res = await fetch('/api/v1/talent-maps', { headers })
     if (!res.ok) throw new Error('加载地图列表失败')
     const payload = await res.json()
     const data = unwrapPayload<TalentMapSummary[]>(payload) ?? (Array.isArray(payload) ? payload : [])
@@ -142,7 +142,7 @@ async function loadDetail() {
   const suffix = search.toString() ? `?${search.toString()}` : ''
 
   try {
-    const res = await fetch(`/api/talent-maps/${activeMapId.value}${suffix}`, { headers })
+    const res = await fetch(`/api/v1/talent-maps/${activeMapId.value}${suffix}`, { headers })
     if (!res.ok) throw new Error('加载地图详情失败')
     const payload = await res.json()
     const data = unwrapPayload<TalentMap>(payload) ?? (isRecord(payload) ? payload as unknown as TalentMap : null)
@@ -174,7 +174,7 @@ async function handleCreateMap() {
   if (token) headers['Authorization'] = `Bearer ${token}`
 
   try {
-    const res = await fetch('/api/talent-maps', {
+    const res = await fetch('/api/v1/talent-maps', {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -214,7 +214,7 @@ async function handleAddCompany() {
   if (token) headers['Authorization'] = `Bearer ${token}`
 
   try {
-    const res = await fetch(`/api/talent-maps/${activeMap.value.id}/companies`, {
+    const res = await fetch(`/api/v1/talent-maps/${activeMap.value.id}/companies`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -248,7 +248,7 @@ async function handleAddPerson() {
   if (token) headers['Authorization'] = `Bearer ${token}`
 
   try {
-    const res = await fetch(`/api/talent-maps/${activeMap.value.id}/people`, {
+    const res = await fetch(`/api/v1/talent-maps/${activeMap.value.id}/people`, {
       method: 'POST',
       headers,
       body: JSON.stringify({

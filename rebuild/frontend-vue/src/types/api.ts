@@ -594,3 +594,204 @@ export interface TalentMapFilters {
   status?: string
   keyword?: string
 }
+
+// ---- Demand types ----
+
+export interface DemandListItem {
+  id: number
+  jobId: number | null
+  ownerHrId: number
+  requestNo: string
+  requesterName: string
+  department: string
+  hiringManagerName: string
+  requestedAt: string | null
+  acceptedAt: string | null
+  targetDate: string | null
+  priority: string
+  headcount: number
+  status: string
+  closeReason: string | null
+  downgradeReason: string | null
+  note: string | null
+  createdAt: string | null
+  updatedAt: string | null
+  _demandMetrics?: Record<string, unknown>
+  _riskFlags?: Record<string, unknown>
+}
+
+export interface DemandCreateInput {
+  requestNo: string
+  requesterName: string
+  department: string
+  hiringManagerName: string
+  priority?: string
+  headcount?: number
+  targetDate?: string | null
+  note?: string
+}
+
+export interface DemandUpdateInput {
+  requestNo?: string
+  requesterName?: string
+  department?: string
+  hiringManagerName?: string
+  priority?: string
+  headcount?: number
+  targetDate?: string | null
+  note?: string
+  jobId?: number
+}
+
+export interface DemandIdResponse {
+  id: number
+}
+
+// ---- Match types ----
+
+export interface MatchCandidateResult {
+  candidateId: number
+  candidateName: string
+  score: number
+  matchedRequiredSkills: string[]
+  matchedPreferredSkills: string[]
+  missingRequiredSkills: string[]
+  yearsOfExperience: number
+  summary: string
+}
+
+// ---- Agent types ----
+
+export interface AgentCallLogItem {
+  id: number
+  conversationId: number | null
+  userId: number
+  action: string
+  toolName: string | null
+  inputJson: string | null
+  outputJson: string | null
+  status: string
+  durationMs: number | null
+  createdAt: string | null
+}
+
+export interface AgentCallLogResponse {
+  items: AgentCallLogItem[]
+  total: number
+  page: number
+  size: number
+  totalPages: number
+}
+
+export interface AgentToolDefinition {
+  name: string
+  description: string
+  parameters: string
+  enabled: boolean
+}
+
+export interface AgentToolExecuteRequest {
+  toolName: string
+  parameters?: Record<string, unknown>
+}
+
+export interface AgentConversationCreateInput {
+  title?: string
+  description?: string
+}
+
+export interface AgentConversationUpdateInput {
+  title?: string
+  description?: string
+}
+
+// ---- BOSS types ----
+
+export interface BossStatusResponse {
+  loggedIn: boolean
+  cookieImported: boolean
+  cookieExpiresAt: string | null
+  [key: string]: unknown
+}
+
+export interface BossLoginResponse {
+  qrCodeUrl: string
+  expiresIn: number
+  [key: string]: unknown
+}
+
+export interface BossBrowserCookieResponse {
+  cookieImported: boolean
+  cookieExpiresAt: string | null
+  [key: string]: unknown
+}
+
+export interface BossJobItem {
+  id: string
+  title: string
+  status: string
+  [key: string]: unknown
+}
+
+export interface BossCandidateItem {
+  id: string
+  name: string
+  [key: string]: unknown
+}
+
+export interface BossAccountItem {
+  id: string
+  name: string
+  [key: string]: unknown
+}
+
+export interface BossLabelItem {
+  id: string
+  name: string
+  [key: string]: unknown
+}
+
+export interface BossBatchImportResponse {
+  imported: number
+  skipped: number
+  errors: string[]
+  [key: string]: unknown
+}
+
+export interface BossAiScreenResponse {
+  screened: number
+  [key: string]: unknown
+}
+
+export interface BossExportResponse {
+  downloadUrl: string
+  [key: string]: unknown
+}
+
+// ---- Pipeline Offer types ----
+
+export interface PipelineOfferData {
+  candidateId: number
+  jobId: number
+  salary: string
+  onboardDate: string
+  notes: string
+}
+
+export interface PipelineOfferInput {
+  salary: string
+  onboardDate: string
+  notes: string
+}
+
+// ---- BI types ----
+
+export interface BiStaffResponse {
+  hrId: number
+  [key: string]: unknown
+}
+
+export interface BiJobResponse {
+  jobId: number
+  [key: string]: unknown
+}

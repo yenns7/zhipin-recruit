@@ -1,11 +1,33 @@
 import type {
+  AgentCallLogResponse,
+  AgentCallLogItem,
+  AgentConversationCreateInput,
   AgentConversationDetailResponse,
   AgentConversationListResponse,
+  AgentConversationUpdateInput,
   AgentSendMessageResponse,
+  AgentToolDefinition,
+  AgentToolExecuteRequest,
   AuthLogoutResponse,
+  BiJobResponse,
+  BiStaffResponse,
+  BossAccountItem,
+  BossAiScreenResponse,
+  BossBatchImportResponse,
+  BossBrowserCookieResponse,
+  BossCandidateItem,
+  BossExportResponse,
+  BossJobItem,
+  BossLabelItem,
+  BossLoginResponse,
+  BossStatusResponse,
   CandidateListItem,
   CandidateListQuery,
   DashboardStatsResponse,
+  DemandCreateInput,
+  DemandIdResponse,
+  DemandListItem,
+  DemandUpdateInput,
   InterviewDetailItem,
   InterviewListItem,
   InterviewListQuery,
@@ -15,6 +37,7 @@ import type {
   JobListQuery,
   JobCreateInput,
   JobCreateResult,
+  MatchCandidateResult,
   NotificationTodoMutationResponse,
   NotificationTodoResponse,
   PaginatedResponse,
@@ -24,6 +47,8 @@ import type {
   PipelineHistoryResponse,
   PipelineMovePayload,
   PipelineMoveResponse,
+  PipelineOfferData,
+  PipelineOfferInput,
   PipelineRevisePayload,
   PipelineReviseResponse,
   InterviewSchedulePayload,
@@ -484,6 +509,223 @@ export const api = {
   createTalentMapPerson: (mapId: number, payload: TalentMapPersonInput) =>
     request<TalentMapPerson>(`/talent-maps/${mapId}/people`, { method: 'POST', body: payload }),
 
-  updateTalentMapPerson: (personId: number, payload: Partial<TalentMapPersonInput>) =>
-    request<TalentMapPerson>(`/talent-map-people/${personId}`, { method: 'PATCH', body: payload }),
+  updateTalentMapCompany: (mapId: number, companyId: number, payload: Partial<TalentMapCompanyInput>) =>
+    request<TalentMapCompany>(`/talent-maps/${mapId}/companies/${companyId}`, { method: 'PATCH', body: payload }),
+
+  updateTalentMapPerson: (mapId: number, personId: number, payload: Partial<TalentMapPersonInput>) =>
+    request<TalentMapPerson>(`/talent-maps/${mapId}/people/${personId}`, { method: 'PATCH', body: payload }),
+
+  // ---- Demand ----
+
+  listDemands: (status?: string) =>
+    request<DemandListItem[]>(buildPath('/demands', { status })),
+
+  createDemand: (payload: DemandCreateInput) =>
+    request<DemandIdResponse>('/demands', { method: 'POST', body: payload }),
+
+  getDemand: (id: number) =>
+    request<DemandListItem>(`/demands/${id}`),
+
+  updateDemand: (id: number, payload: DemandUpdateInput) =>
+    request<DemandIdResponse>(`/demands/${id}`, { method: 'PATCH', body: payload }),
+
+  closeDemand: (id: number, closeReason?: string) =>
+    request<DemandIdResponse>(`/demands/${id}/close`, {
+      method: 'POST',
+      body: { closeReason },
+    }),
+
+  restoreDemand: (id: number) =>
+    request<DemandIdResponse>(`/demands/${id}/restore`, { method: 'POST' }),
+
+  downgradeDemand: (id: number, downgradeReason?: string) =>
+    request<DemandIdResponse>(`/demands/${id}/downgrade`, {
+      method: 'POST',
+      body: { downgradeReason },
+    }),
+
+  // ---- Match ----
+
+  matchCandidates: (jobId: number, candidateIds: number[]) =>
+    request<MatchCandidateResult[]>('/match', {
+      method: 'POST',
+      body: { jobId, candidateIds },
+    }),
+
+  previewMatch: (jobId: number) =>
+    request<MatchCandidateResult[]>(`/match/jobs/${jobId}/preview`),
+
+  matchAndAddToPipeline: (jobId: number, candidateIds: number[]) =>
+    request<MatchCandidateResult[]>(`/match/jobs/${jobId}/match`, {
+      method: 'POST',
+      body: { candidateIds },
+    }),
+
+  // ---- Interview new endpoints ----
+
+  startAiInterview: (jobId: number, candidateId: number) =>
+    request<Record<string, unknown>>('/interviews/start', {
+      method: 'POST',
+      body: { jobId, candidateId },
+    }),
+
+  submitAiInterview: (sessionId: number, answers: { questionId: string; question: string; answer: string }[]) =>
+    request<Record<string, unknown>>('/interviews/submit', {
+      method: 'POST',
+      body: { sessionId, answers },
+    }),
+
+  getInterviewGuide: () =>
+    request<Record<string, unknown>>('/interviews/guide'),
+
+  listInterviewers: () =>
+    request<{ id: number; name: string; email: string }[]>('/interviews/interviewers'),
+
+  listInterviewAssignments: () =>
+    request<Record<string, unknown>[]>('/interviews/assignments'),
+
+  // ---- Agent new endpoints ----
+
+  listAgentCallLogs: (page = 0, size = 20, action?: string) =>
+    request<AgentCallLogResponse>(buildPath('/agent/call-logs', { page, size, action })),
+
+  getAgentCallLog: (id: number) =>
+    request<AgentCallLogItem>(`/agent/call-logs/${id}`),
+
+  listAgentTools: () =>
+    request<AgentToolDefinition[]>('/agent/tools'),
+
+  executeAgentTool: (payload: AgentToolExecuteRequest) =>
+    request<Record<string, unknown>>('/agent/execute', { method: 'POST', body: payload }),
+
+  createAgentConversation: (payload: AgentConversationCreateInput) =>
+    request<Record<string, unknown>>('/agent/conversations', { method: 'POST', body: payload }),
+
+  updateAgentConversation: (conversationId: string, payload: AgentConversationUpdateInput) =>
+    request<Record<string, unknown>>(`/agent/conversations/${conversationId}`, {
+      method: 'PATCH',
+      body: payload,
+    }),
+
+  deleteAgentConversation: (conversationId: string) =>
+    request<void>(`/agent/conversations/${conversationId}`, { method: 'DELETE' }),
+
+  // ---- BOSS ----
+
+  getBossStatus: () =>
+    request<BossStatusResponse>('/boss/status'),
+
+  bossLogin: () =>
+    request<BossLoginResponse>('/boss/login', { method: 'POST' }),
+
+  importBossBrowserCookie: (payload?: Record<string, unknown>) =>
+    request<BossBrowserCookieResponse>('/boss/browser-cookie', {
+      method: 'POST',
+      body: payload,
+    }),
+
+  listBossJobs: () =>
+    request<BossJobItem[]>('/boss/jobs'),
+
+  listBossRecommendedCandidates: () =>
+    request<BossCandidateItem[]>('/boss/candidates/recommend'),
+
+  listBossInboxCandidates: () =>
+    request<BossCandidateItem[]>('/boss/candidates/inbox'),
+
+  getBossCandidateResume: (id: string) =>
+    request<Record<string, unknown>>(`/boss/candidates/${id}/resume`),
+
+  getBossResumeDownloadUrl: (candidateId = 'bc1') =>
+    request<Record<string, unknown>>(`/boss/resume/download?candidateId=${candidateId}`),
+
+  bossBatchImport: (payload: Record<string, unknown>) =>
+    request<BossBatchImportResponse>('/boss/batch-import', { method: 'POST', body: payload }),
+
+  bossAiScreen: (payload: Record<string, unknown>) =>
+    request<BossAiScreenResponse>('/boss/ai-screen', { method: 'POST', body: payload }),
+
+  listBossAccounts: () =>
+    request<BossAccountItem[]>('/boss/accounts'),
+
+  activateBossAccount: (payload: Record<string, unknown>) =>
+    request<Record<string, unknown>>('/boss/accounts/activate', { method: 'POST', body: payload }),
+
+  deleteBossAccount: (id: string) =>
+    request<Record<string, unknown>>(`/boss/accounts/${id}`, { method: 'DELETE' }),
+
+  verifyBossAccount: (payload: Record<string, unknown>) =>
+    request<Record<string, unknown>>('/boss/accounts/verify', { method: 'POST', body: payload }),
+
+  listBossLabels: () =>
+    request<BossLabelItem[]>('/boss/labels'),
+
+  bossChat: (payload: Record<string, unknown>) =>
+    request<Record<string, unknown>>('/boss/chat', { method: 'POST', body: payload }),
+
+  bossExport: () =>
+    request<BossExportResponse>('/boss/export'),
+
+  getBossExtensionDownload: () =>
+    request<Record<string, unknown>>('/boss/extension/download'),
+
+  // ---- Job ----
+
+  updateJob: (id: number, payload: { title?: string; jdText?: string }) =>
+    request<JobListItem>(`/jobs/${id}`, { method: 'PUT', body: payload }),
+
+  closeJob: (id: number) =>
+    request<JobListItem>(`/jobs/${id}/close`, { method: 'POST' }),
+
+  restoreJob: (id: number) =>
+    request<JobListItem>(`/jobs/${id}/restore`, { method: 'POST' }),
+
+  // ---- Candidate ----
+
+  getCandidateOwnerOptions: () =>
+    request<{ id: number; name: string }[]>('/candidates/owner-options'),
+
+  getCandidatePipelines: (candidateId: number) =>
+    request<Record<string, unknown>[]>(`/candidates/${candidateId}/pipelines`),
+
+  getCandidateJourney: (candidateId: number) =>
+    request<Record<string, unknown>[]>(`/candidates/${candidateId}/journey`),
+
+  reassignCandidateOwner: (candidateId: number, ownerHrId: number) =>
+    request<Record<string, unknown>>(`/candidates/${candidateId}/owner`, {
+      method: 'PATCH',
+      body: { ownerHrId },
+    }),
+
+  // ---- Pipeline Offer ----
+
+  getPipelineOffer: (jobId: number, candidateId: number) =>
+    request<PipelineOfferData>(`/pipeline/${jobId}/candidates/${candidateId}/offer`),
+
+  savePipelineOffer: (jobId: number, candidateId: number, payload: PipelineOfferInput) =>
+    request<PipelineOfferData>(`/pipeline/${jobId}/candidates/${candidateId}/offer`, {
+      method: 'PUT',
+      body: payload,
+    }),
+
+  // ---- Notifications ----
+
+  getNotificationTodoUnreadCount: () =>
+    request<{ count: number }>('/notifications/todos/unread-count'),
+
+  // ---- BI ----
+
+  getStaffBi: (hrId: number) =>
+    request<BiStaffResponse>(`/bi/staff/${hrId}`),
+
+  getJobBi: (jobId: number) =>
+    request<BiJobResponse>(`/bi/job/${jobId}`),
+
+  // ---- Auth ----
+
+  register: (payload: { email: string; password: string; name?: string }) =>
+    request<{ id: number; email: string; role: string }>('/auth/register', {
+      method: 'POST',
+      body: payload,
+    }),
 }

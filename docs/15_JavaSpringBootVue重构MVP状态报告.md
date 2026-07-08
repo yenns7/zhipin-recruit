@@ -1,23 +1,32 @@
 # 15 · Java Spring Boot + Vue 重构 MVP 状态报告
 
-> 日期：2026-07-07
+> 日期：2026-07-08（更新）
 > 目标：记录 `rebuild/` 当前与前端壳层直接相关的真实状态，特别是这轮收口的 Java 环境、PostgreSQL dev 数据库、前端入口和 demo 边界。
 
 ## 1. 当前结论
 
-`rebuild/` 当前更准确的状态是：**技术主流程可运行，且四类角色的小范围产品试点路径已经具备最小可用入口；但仍保留明确的 demo-only 与非生产边界。**
+`rebuild/` 当前更准确的状态是：**技术主流程可运行 + 产品可试用关键路径补齐。后端 129 测试全绿、前端 79 测试全绿、TypeScript 0 错误。**
+
+BOSS 直聘为 demo-stub，AI 面试为 rule-based demo，GSAP 动画保留在 React 前端。Java 后端覆盖招聘全流程的 7 大新增模块。
 
 这轮已经对齐的点：
 
 - `AdminUsersView` 已补到最小可用的 `list + create + edit + reset-password`
-- `CandidateListView` 已移除“异步解析还没真实入库”的旧说法，改成“解析成功后真实写入 Java rebuild PostgreSQL dev 数据库”
+- `CandidateListView` 已移除”异步解析还没真实入库”的旧说法，改成”解析成功后真实写入 Java rebuild PostgreSQL dev 数据库”
 - `/upload` 上传简历路由和侧边栏入口已补齐，候选人空态可直接去上传
-- 简历库已提供“加入流程”入口，可把候选人加入有效岗位的 AI 初筛
+- 简历库已提供”加入流程”入口，可把候选人加入有效岗位的 AI 初筛
 - 面试任务页已提供安排面试草稿入口；面试官列表由后端按本人 interviewer_id 收敛
 - 经理/负责人工作台已补团队看板提示，覆盖岗位进展、候选人归属、招聘专员绩效和流程卡点
 - AI 助手、通知待办、系统设置里的系统治理已有 Java demo 端点和 Vue 入口，但仍保留 demo / in-memory 边界
 - `revert-lite` 已重新标注为 demo / legacy correction path
-- `offer / onboarded / rejected` 的说明已改成“阶段记录边界”，不再冒充完整业务闭环
+- `offer / onboarded / rejected` 的说明已改成”阶段记录边界”，不再冒充完整业务闭环
+- **RecruitmentDemand 用人需求**：7 接口，完整生命周期管理，Flyway V10
+- **Match 匹配模块**：3 接口，移植 Python `job_matcher.py` → Java `JobMatcher`
+- **AI Interview 扩充**：5 接口，rule-based `InterviewAIService`，Flyway V11
+- **Agent 调用日志 + Tools**：7 接口，调用日志持久化，Flyway V12
+- **BOSS 直聘 Demo Stub**：17 接口，in-memory 全部 BOSS 场景
+- **Job 生命周期 + Candidate 归属**：10 接口，覆盖岗位更新/关闭/恢复、候选人转派/轨迹/Pipeline
+- **BI 深度复现**：2 接口，HR 归因 + 岗位漏斗
 
 ## 2. 与本轮直接相关的前端事实
 
@@ -83,6 +92,76 @@
 - Java + Vue `dev` profile 的本地演示账号已对齐原 Python 版 `backend/seed_dev.py`：`admin01@mvp.local`、`manager01@mvp.local`、`lead01@mvp.local`、`hr01@mvp.local`、`hr02@mvp.local`、`hr03@mvp.local`、`interviewer01@mvp.local`，统一密码 `Zhipin2026`。
 - 侧边栏核心入口文字已向原 Python 版靠拢：`简历库`、`招聘管理`、`候选人流程`、`数据看板`、`系统设置`。
 
+## 2.8 新增模块：1:1 功能复现工作
+
+本轮大规模 1:1 功能复现新增以下模块（后端 129 测试全绿，前端 79 测试全绿）：
+
+### RecruitmentDemand 用人需求（7 接口）
+
+- `GET/POST /api/v1/demands` — 列表/创建
+- `GET/PATCH /api/v1/demands/{id}` — 详情/更新
+- `POST /api/v1/demands/{id}/close|restore|downgrade` — 生命周期（关闭/恢复/降级）
+- 新实体 `RecruitmentDemand` + Flyway V10
+- 状态流转：`active ↔ closed`，优先级 A/B/C 调整
+- 关闭/恢复/降级强制填写业务原因
+
+### Match 匹配模块（3 接口）
+
+- `POST /api/v1/match` — 通用匹配
+- `GET /api/v1/match/jobs/{jobId}/preview` — 岗位匹配预览
+- `POST /api/v1/match/jobs/{jobId}/match` — 匹配并加入流程
+- 移植 Python `job_matcher.py` → Java `JobMatcher`，新包 `com.hireinsight.match`
+- 候选人-岗位技能匹配排名（命中/欠缺标签可视化）
+
+### AI Interview 扩充（5 接口）
+
+- `POST /api/v1/interviews/start|submit` — 开始面试/提交作答
+- `GET /api/v1/interviews/guide|interviewers|assignments` — 面试引导/面试官列表/任务分配
+- 新实体 `InterviewSession` + `InterviewAIService`（rule-based）
+- Flyway V11
+- 面试引导返回按 JD 定制的结构化题目，候选人作答后生成分项评分报告
+
+### Agent 调用日志 + Tools（7 接口）
+
+- `GET /api/v1/agent/call-logs`、`call-logs/{id}` — 调用日志列表/详情
+- `GET /api/v1/agent/tools`、`POST /api/v1/agent/execute` — Tools 列表/执行
+- `POST|PATCH|DELETE /api/v1/agent/conversations` — 会话 CRUD
+- 新实体 `AgentCallLog` + Flyway V12
+- 记录每次 AI 调用的输入输出/模型/token/耗时/工具链，支持管理员审计
+
+### BOSS 直聘 Demo Stub（17 接口）
+
+- 全部 17 个 BOSS 风格接口，in-memory demo 数据
+- 新包 `com.hireinsight.boss` + `BossDemoService`
+- 覆盖：账号/岗位/候选人/收件箱/消息/面试邀请/导出等全场景
+- 不代表真实 BOSS 直聘集成
+
+### Job 生命周期 + Candidate 归属（10 接口）
+
+- Job: PUT 更新 + POST close/restore
+- Candidate: owner-options/pipelines/journey/reassign
+- TalentMap: 3 个 PATCH 端点
+- Pipeline Offer: GET/PUT
+- Notifications: unread-count
+
+### BI 深度复现（2 接口）
+
+- `GET /api/v1/bi/staff/{hrId}` — HR 归因
+- `GET /api/v1/bi/job/{jobId}` — 岗位漏斗
+
+### 模块边界说明
+
+| 模块 | 是否持久化 | 说明 |
+|---|---|---|
+| RecruitmentDemand | ✅ 是（Flyway V10） | 需求表 + 生命周期 |
+| Match | ⚡ 算法移植 + demo 数据 | `JobMatcher` 可运行，但数据为本地样例 |
+| AI Interview | ⚡ 实体持久化 + rule-based | `InterviewAIService` 规则生成，非 LLM 驱动 |
+| Agent Call Logs | ✅ 是（Flyway V12） | 调用日志已持久化 |
+| Agent 会话 | ❌ 进程内存 | `ConcurrentHashMap`，重启丢 |
+| Agent Tools | ✅ 定义可查询 | 执行仅为 confirm-first |
+| BOSS 直聘 | ❌ in-memory demo | `BossDemoService` 静态样例 |
+| BI 深度复现 | ⚡ 基于 JPA 聚合 | rule-based，非真实数仓 |
+
 ## 3. 仍需明确保留的边界
 
 ### 3.1 `revert-lite`
@@ -141,7 +220,7 @@
 
 当前判断更新为：
 
-- 技术可运行：是。
-- 产品可试用：是。
+- 技术可运行：是（后端 129 测试全绿 + 前端 79 测试全绿 + TypeScript 0 错误）。
+- 产品可试用：是（7 大模块补齐，51+ 新增接口覆盖招聘全流程关键路径）。
 - 真实用户小范围试点：完成服务器配置、首次备份和角色账号冒烟后可以进入。
-- 生产上线：否。
+- 生产上线：否（BOSS 为 demo-stub，AI 面试为 rule-based demo，Agent 会话为进程内存态）。

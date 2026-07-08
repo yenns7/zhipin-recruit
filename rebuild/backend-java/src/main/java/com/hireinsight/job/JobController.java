@@ -62,11 +62,47 @@ public class JobController {
                 .body(ApiResponse.created(Map.of("id", job.getId())));
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<Job>> updateJob(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateJobRequest req) {
+        Job job = jobRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Job not found: " + id));
+        if (req.getTitle() != null) job.setTitle(req.getTitle());
+        if (req.getJdText() != null) job.setJdText(req.getJdText());
+        job = jobRepository.save(job);
+        return ResponseEntity.ok(ApiResponse.ok(job));
+    }
+
+    @PostMapping("/{id}/close")
+    public ResponseEntity<ApiResponse<Job>> closeJob(@PathVariable Long id) {
+        Job job = jobRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Job not found: " + id));
+        job.setStatus("closed");
+        job = jobRepository.save(job);
+        return ResponseEntity.ok(ApiResponse.ok(job));
+    }
+
+    @PostMapping("/{id}/restore")
+    public ResponseEntity<ApiResponse<Job>> restoreJob(@PathVariable Long id) {
+        Job job = jobRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Job not found: " + id));
+        job.setStatus("active");
+        job = jobRepository.save(job);
+        return ResponseEntity.ok(ApiResponse.ok(job));
+    }
+
     @Data
     public static class CreateJobRequest {
         @NotBlank
         private String title;
         @NotBlank
+        private String jdText;
+    }
+
+    @Data
+    public static class UpdateJobRequest {
+        private String title;
         private String jdText;
     }
 }

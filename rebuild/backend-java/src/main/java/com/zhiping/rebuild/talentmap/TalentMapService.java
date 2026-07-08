@@ -131,6 +131,50 @@ public class TalentMapService {
     }
 
     @Transactional
+    public CompanyItem updateCompany(Long mapId, Long companyId, UpdateCompanyRequest req, Long userId, boolean isAdminOrManager) {
+        TalentMap map = talentMapRepository.findById(mapId)
+                .orElseThrow(() -> new IllegalArgumentException("人才地图不存在: " + mapId));
+        if (!isAdminOrManager && !map.getOwnerHrId().equals(userId)) {
+            throw new IllegalArgumentException("无权修改此人才地图");
+        }
+        TalentMapCompany company = companyRepository.findById(companyId)
+                .orElseThrow(() -> new IllegalArgumentException("公司不存在: " + companyId));
+        if (req.companyName() != null) company.setCompanyName(req.companyName());
+        if (req.city() != null) company.setCity(req.city());
+        if (req.region() != null) company.setRegion(req.region());
+        if (req.industry() != null) company.setIndustry(req.industry());
+        if (req.priority() != null) company.setPriority(req.priority());
+        if (req.note() != null) company.setNote(req.note());
+        company = companyRepository.save(company);
+        return toCompanyItem(company);
+    }
+
+    @Transactional
+    public PersonItem updatePerson(Long mapId, Long personId, UpdatePersonRequest req, Long userId, boolean isAdminOrManager) {
+        TalentMap map = talentMapRepository.findById(mapId)
+                .orElseThrow(() -> new IllegalArgumentException("人才地图不存在: " + mapId));
+        if (!isAdminOrManager && !map.getOwnerHrId().equals(userId)) {
+            throw new IllegalArgumentException("无权修改此人才地图");
+        }
+        TalentMapPerson person = personRepository.findById(personId)
+                .orElseThrow(() -> new IllegalArgumentException("联系人不存在: " + personId));
+        if (req.name() != null) person.setName(req.name());
+        if (req.title() != null) person.setTitle(req.title());
+        if (req.city() != null) person.setCity(req.city());
+        if (req.tags() != null) person.setTags(toTagsJson(req.tags()));
+        if (req.salaryRange() != null) person.setSalaryRange(req.salaryRange());
+        if (req.contactStatus() != null) person.setContactStatus(req.contactStatus());
+        if (req.evaluation() != null) person.setEvaluation(req.evaluation());
+        if (req.source() != null) person.setSource(req.source());
+        if (req.nextFollowAt() != null) person.setNextFollowAt(req.nextFollowAt());
+        if (req.note() != null) person.setNote(req.note());
+        if (req.companyId() != null) person.setCompanyId(req.companyId());
+        person = personRepository.save(person);
+        String companyName = resolveCompanyName(person.getCompanyId());
+        return toPersonItem(person, companyName);
+    }
+
+    @Transactional
     public PersonItem addPerson(Long mapId, CreatePersonRequest req, Long userId, boolean isAdminOrManager) {
         TalentMap map = talentMapRepository.findById(mapId)
                 .orElseThrow(() -> new IllegalArgumentException("人才地图不存在: " + mapId));

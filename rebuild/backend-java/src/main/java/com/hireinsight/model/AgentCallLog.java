@@ -1,0 +1,51 @@
+package com.hireinsight.model;
+
+import jakarta.persistence.*;
+import lombok.*;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import java.time.Instant;
+
+@Entity
+@Table(name = "agent_call_logs")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@EntityListeners(AuditingEntityListener.class)
+public class AgentCallLog {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "conversation_id")
+    private Long conversationId;
+
+    @Column(name = "user_id")
+    private Long userId;
+
+    @Column(nullable = false, length = 100)
+    private String action;
+
+    @Column(name = "tool_name", length = 100)
+    private String toolName;
+
+    @Column(columnDefinition = "jsonb")
+    private String inputJson;
+
+    @Column(columnDefinition = "jsonb")
+    private String outputJson;
+
+    @Column(length = 20)
+    @Builder.Default
+    private String status = "success";
+
+    @Column(name = "duration_ms")
+    private Long durationMs;
+
+    @CreatedDate
+    @Column(name = "created_at", updatable = false)
+    private Instant createdAt;
+}

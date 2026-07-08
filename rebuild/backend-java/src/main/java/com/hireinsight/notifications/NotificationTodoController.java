@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static java.util.stream.Collectors.toList;
+
 @RestController
 @RequestMapping("/api/v1/notifications/todos")
 public class NotificationTodoController {
@@ -51,6 +53,19 @@ public class NotificationTodoController {
                 "items", items
         );
         return ResponseEntity.ok(ApiResponse.ok(payload));
+    }
+
+    @GetMapping("/unread-count")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> unreadCount(Authentication authentication) {
+        String role = role(authentication);
+        long openCount = defaultItems(role).stream()
+                .filter(item -> {
+                    String id = String.valueOf(item.get("id"));
+                    String status = statuses.getOrDefault(id, "open");
+                    return "open".equals(status);
+                })
+                .count();
+        return ResponseEntity.ok(ApiResponse.ok(Map.of("count", openCount)));
     }
 
     @PostMapping("/{todoId}/complete")

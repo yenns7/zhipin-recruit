@@ -8,4 +8,5 @@ import java.util.List;
 public interface JobRepository extends JpaRepository<Job, Long> {
     List<Job> findByOwnerHrId(Long ownerHrId);
     List<Job> findByStatus(String status);
+    long countByOwnerHrIdAndStatus(Long hrId, String status);
 }

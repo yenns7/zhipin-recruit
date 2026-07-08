@@ -1,7 +1,8 @@
 # Java Spring Boot + Vue 重构版 API 口径说明
 
-> 日期：2026-07-07
-> 目标：把当前重构壳层里“已经能用的最小接口”“仍是 demo-only 的边界”“不该再写成未实现的项”一次说清。
+> 日期：2026-07-08（更新）
+> 目标：把当前重构壳层里”已经能用的最小接口””仍是 demo-only 的边界””不该再写成未实现的项”一次说清。
+> 本轮 (2026-07-08) 新增 7 大模块约 51 个接口，覆盖招聘全流程关键路径。详见下方第 12 节。
 
 ## 1. Admin Users 最小契约
 
@@ -199,3 +200,96 @@
 - `revert-lite 可作为完整回滚引擎`
 - `Offer / Onboard / Reject 已具备完整业务闭环`
 - `第三方集成已经真实授权打通`
+
+## 12. 新增模块（2026-07-08 1:1 功能复现）
+
+本轮大规模 1:1 功能复现新增以下模块（后端 129 测试全绿 / 前端 79 测试全绿）：
+
+### 12.1 RecruitmentDemand（7 接口 + Flyway V10）
+
+| 方法 | 路径 | body/说明 |
+|---|---|---|
+| `GET` | `/api/v1/demands` | 需求列表（支持分页/筛选） |
+| `POST` | `/api/v1/demands` | `{title,description,jobId,priority,reason}` - 创建需求 |
+| `GET` | `/api/v1/demands/{id}` | 需求详情 |
+| `PATCH` | `/api/v1/demands/{id}` | `{title,description,jobId,priority}` - 更新需求 |
+| `POST` | `/api/v1/demands/{id}/close` | 关闭需求（body: `{reason}`） |
+| `POST` | `/api/v1/demands/{id}/restore` | 恢复需求（body: `{reason}`） |
+| `POST` | `/api/v1/demands/{id}/downgrade` | 降级优先级（body: `{priority,reason}`） |
+
+### 12.2 Match 匹配（3 接口 + 新包 `com.hireinsight.match`）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `POST` | `/api/v1/match` | 通用匹配：按候选人/岗位计算匹配度 |
+| `GET` | `/api/v1/match/jobs/{jobId}/preview` | 岗位匹配预览：返回候选人与该岗位的匹配排名 |
+| `POST` | `/api/v1/match/jobs/{jobId}/match` | 匹配并加入流程：选定候选人直接进入岗位流程 |
+
+### 12.3 AI Interview（5 接口 + Flyway V11 + `InterviewAIService`）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `POST` | `/api/v1/interviews/start` | 开始面试：为候选人+岗位创建面试会话，返回题目列表 |
+| `POST` | `/api/v1/interviews/submit` | 提交面试作答：候选人回答后生成评估报告 |
+| `GET` | `/api/v1/interviews/guide` | 面试引导：返回按 JD 定制的结构化面试题目模板 |
+| `GET` | `/api/v1/interviews/interviewers` | 面试官列表：返回可选面试官 |
+| `GET` | `/api/v1/interviews/assignments` | 面试任务分配列表 |
+
+### 12.4 Agent 调用日志 + Tools（7 接口 + Flyway V12）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | `/api/v1/agent/call-logs` | 调用日志列表（支持分页/筛选/管理员看全部） |
+| `GET` | `/api/v1/agent/call-logs/{id}` | 调用日志详情：输入输出/模型/token/耗时/工具链 |
+| `GET` | `/api/v1/agent/tools` | Tools 列表：系统支持的 Agent 工具清单 |
+| `POST` | `/api/v1/agent/execute` | 执行工具：触发指定工具并返回结果 |
+| `POST` | `/api/v1/agent/conversations` | 创建会话（会话 data 暂存进程内存） |
+| `PATCH` | `/api/v1/agent/conversations/{id}` | 更新会话（重命名等） |
+| `DELETE` | `/api/v1/agent/conversations/{id}` | 删除/归档会话 |
+
+### 12.5 BOSS 直聘 Demo Stub（17 接口 + `com.hireinsight.boss` + `BossDemoService`）
+
+所有接口返回 in-memory 静态样例数据，不代表真实 BOSS 集成。
+
+| 方向 | 接口数 | 说明 |
+|---|---|---|
+| 账号与认证 | 3 | 登录/状态/账号管理 |
+| 岗位操作 | 4 | 列表/详情/创建/更新 |
+| 候选人操作 | 4 | 搜索/详情/沟通/收藏 |
+| 收件箱与消息 | 3 | 收件箱/发送消息/消息列表 |
+| 面试与导出 | 3 | 邀请面试/确认面试/导出候选人 |
+
+### 12.6 Job 生命周期 + Candidate 归属（10 接口）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `PUT` | `/api/v1/jobs/{id}` | 更新岗位基本信息 |
+| `POST` | `/api/v1/jobs/{id}/close` | 关闭岗位 |
+| `POST` | `/api/v1/jobs/{id}/restore` | 恢复岗位 |
+| `GET` | `/api/v1/candidates/{id}/owner-options` | 候选人负责人可选列表 |
+| `GET` | `/api/v1/candidates/{id}/pipelines` | 候选人在各岗位的流程状态 |
+| `GET` | `/api/v1/candidates/{id}/journey` | 候选人流转轨迹 |
+| `POST` | `/api/v1/candidates/{id}/reassign` | 转派候选人负责人 |
+| `PATCH` | `/api/v1/talent-map/companies/{id}` | 更新人才地图公司信息 |
+| `GET` | `/api/v1/pipeline/offer/{pipelineId}` | 获取 Offer 信息 |
+| `PUT` | `/api/v1/pipeline/offer/{pipelineId}` | 更新 Offer 信息 |
+| `GET` | `/api/v1/notifications/unread-count` | 未读通知数 |
+
+### 12.7 BI 深度复现（2 接口）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | `/api/v1/bi/staff/{hrId}` | HR 归因分析：该 HR 负责候选人的阶段分布/推进统计 |
+| `GET` | `/api/v1/bi/job/{jobId}` | 岗位漏斗：该岗位各阶段候选人数量/转化率 |
+
+### 12.8 各模块持久化状态
+
+| 模块 | 持久化 | 说明 |
+|---|---|---|
+| RecruitmentDemand | ✅ Flyway V10 | `recruitment_demand` 表 |
+| Match | ❌ demo 数据 | 算法已移植，数据为本地样例 |
+| AI Interview | ✅ 实体 + ❌ 评估 | `interview_session` 表已建，评估为 rule-based |
+| Agent Call Logs | ✅ Flyway V12 | `agent_call_logs` 表 |
+| Agent 会话 | ❌ 进程内存 | `ConcurrentHashMap`，重启丢失 |
+| BOSS 直聘 | ❌ in-memory | `BossDemoService` 静态样例 |
+| BI 深度复现 | ⚡ JPA 聚合 | rule-based，非真实数仓 |

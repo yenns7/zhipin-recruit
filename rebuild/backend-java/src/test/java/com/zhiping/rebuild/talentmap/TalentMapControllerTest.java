@@ -241,6 +241,91 @@ class TalentMapControllerTest {
                 .andExpect(status().is(anyOf(is(401), is(403))));
     }
 
+    @Test
+    void updateMapReturnsOk() throws Exception {
+        String createJson = mockMvc.perform(post("/api/v1/talent-maps")
+                        .header("Authorization", "Bearer " + recruiterToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"原始名称\",\"jobId\":%d}".formatted(jobId)))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        Long mapId = extractFirstId(createJson);
+
+        mockMvc.perform(patch("/api/v1/talent-maps/{mapId}", mapId)
+                        .header("Authorization", "Bearer " + recruiterToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"更新后的名称\",\"department\":\"新部门\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.name").value("更新后的名称"))
+                .andExpect(jsonPath("$.data.department").value("新部门"));
+    }
+
+    @Test
+    void updateCompanyReturnsOk() throws Exception {
+        String createJson = mockMvc.perform(post("/api/v1/talent-maps")
+                        .header("Authorization", "Bearer " + recruiterToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"测试地图\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        Long mapId = extractFirstId(createJson);
+
+        String coJson = mockMvc.perform(post("/api/v1/talent-maps/{mapId}/companies", mapId)
+                        .header("Authorization", "Bearer " + recruiterToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"companyName\":\"原公司\",\"city\":\"深圳\",\"priority\":\"medium\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        Long companyId = extractFirstId(coJson);
+
+        mockMvc.perform(patch("/api/v1/talent-maps/{mapId}/companies/{companyId}", mapId, companyId)
+                        .header("Authorization", "Bearer " + recruiterToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"companyName\":\"更新公司\",\"city\":\"北京\",\"priority\":\"high\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.companyName").value("更新公司"))
+                .andExpect(jsonPath("$.data.city").value("北京"))
+                .andExpect(jsonPath("$.data.priority").value("high"));
+    }
+
+    @Test
+    void updatePersonReturnsOk() throws Exception {
+        String createJson = mockMvc.perform(post("/api/v1/talent-maps")
+                        .header("Authorization", "Bearer " + recruiterToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"测试地图\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        Long mapId = extractFirstId(createJson);
+
+        String personJson = mockMvc.perform(post("/api/v1/talent-maps/{mapId}/people", mapId)
+                        .header("Authorization", "Bearer " + recruiterToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"张三","title":"销售总监","contactStatus":"未接触"}
+                                """))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        Long personId = extractFirstId(personJson);
+
+        mockMvc.perform(patch("/api/v1/talent-maps/{mapId}/people/{personId}", mapId, personId)
+                        .header("Authorization", "Bearer " + recruiterToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"李四","title":"高级总监","contactStatus":"已接触","evaluation":"经验丰富"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.name").value("李四"))
+                .andExpect(jsonPath("$.data.title").value("高级总监"))
+                .andExpect(jsonPath("$.data.contactStatus").value("已接触"));
+    }
+
+    @Test
+    void updateMapWithoutAuthReturns401() throws Exception {
+        mockMvc.perform(patch("/api/v1/talent-maps/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"test\"}"))
+                .andExpect(status().is(anyOf(is(401), is(403))));
+    }
+
     private String bearerToken(User user) {
         String token = jwtTokenProvider.createToken(user.getId(), user.getRole());
         demoAuthSessionService.activate(token);
