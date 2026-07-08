@@ -2,6 +2,8 @@ package com.hireinsight.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -29,9 +31,11 @@ public class InterviewFeedback {
     @Column(name = "interviewer_id")
     private Long interviewerId;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "qa_json", columnDefinition = "jsonb")
     private String qaJson;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "ai_report", columnDefinition = "jsonb")
     private String aiReport;
 

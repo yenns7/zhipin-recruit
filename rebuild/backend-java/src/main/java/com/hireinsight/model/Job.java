@@ -2,6 +2,8 @@ package com.hireinsight.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -26,6 +28,7 @@ public class Job {
     @Column(name = "jd_text", nullable = false, columnDefinition = "text")
     private String jdText;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "jd_structured", columnDefinition = "jsonb")
     private String jdStructured;
 

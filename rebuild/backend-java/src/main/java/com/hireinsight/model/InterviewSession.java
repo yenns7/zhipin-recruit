@@ -2,6 +2,8 @@ package com.hireinsight.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -34,14 +36,17 @@ public class InterviewSession {
     @Builder.Default
     private String status = "pending";
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "questions_json", columnDefinition = "jsonb")
     private String questionsJson;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "answers_json", columnDefinition = "jsonb")
     private String answersJson;
 
     private Integer score;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "ai_report", columnDefinition = "jsonb")
     private String aiReport;
 

@@ -2,6 +2,8 @@ package com.hireinsight.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -32,6 +34,7 @@ public class Event {
     @Column(name = "entity_type", length = 50)
     private String entityType;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private String payload;
 

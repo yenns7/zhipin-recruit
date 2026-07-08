@@ -2,6 +2,8 @@ package com.hireinsight.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -32,6 +34,7 @@ public class Candidate {
     @Column(name = "phone_masked", length = 20)
     private String phoneMasked;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "resume_json", columnDefinition = "jsonb")
     private String resumeJson;
 

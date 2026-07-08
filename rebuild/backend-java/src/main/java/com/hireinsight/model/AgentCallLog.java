@@ -2,6 +2,8 @@ package com.hireinsight.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -32,9 +34,11 @@ public class AgentCallLog {
     @Column(name = "tool_name", length = 100)
     private String toolName;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private String inputJson;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private String outputJson;
 
