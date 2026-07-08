@@ -1,4 +1,4 @@
-# 智聘重构 MVP（Java Spring Boot + Vue）
+# 智聘重构 MVP（Java Spring Boot + React）
 
 `rebuild/` 当前状态：**技术主流程可运行 + 产品可试用关键路径补齐**。后端 129 个测试全绿、前端 79 个测试全绿 + TypeScript 0 错误。BOSS 直聘为 demo-stub，AI 面试为 rule-based demo。
 
@@ -51,12 +51,12 @@
   - 写操作只生成确认卡片，并继续受当前账号权限约束
   - 新增 Agent 调用日志审计、Tools 列表和执行、会话 CRUD 管理
   - 仍不应包装成生产级会话中心、真实自动写操作或完整可观测平台
-- 通知待办 / 系统设置里的系统治理：已有 Vue 入口和 Java demo API
+- 通知待办 / 系统设置里的系统治理：已有 React 入口和 Java demo API
   - 相关状态当前明确标注为 demo / in-memory，不代表真实配置中心或生产审计
 - Pipeline 壳层：`offer / onboarded / rejected` 可用于演示阶段流转与样例数据校验
   - 但不代表完整 Offer 审批、入职办理、淘汰合规闭环已经完成
   - 误推进已有历史查看与纠正入口；误淘汰、误关闭、负责人分错仍是试点风险
-- **新模块 UI 入口**：Match 匹配页、AI 面试引导页、用人需求列表、Agent Tools 管理页、BOSS 直聘看板等已在 Vue 前端接入或预留入口
+- **新模块 UI 入口**：Match 匹配页、AI 面试引导页、用人需求列表、Agent Tools 管理页、BOSS 直聘看板等已在 React 前端接入或预留入口
 
 ## 本轮需要特别注意的边界
 
@@ -82,8 +82,8 @@
 
 - 运行说明见 [RUNNING.md](./RUNNING.md)
 - 真实试点部署说明见 [DEPLOYMENT.md](./DEPLOYMENT.md)
-- API 口径见 [../docs/superpowers/specs/2026-07-06-java-springboot-vue-rebuild-api.md](../docs/superpowers/specs/2026-07-06-java-springboot-vue-rebuild-api.md)
-- PRD 口径见 [../docs/superpowers/specs/2026-07-06-java-springboot-vue-rebuild-prd.md](../docs/superpowers/specs/2026-07-06-java-springboot-vue-rebuild-prd.md)
-- 状态报告见 [../docs/15_JavaSpringBootVue重构MVP状态报告.md](../docs/15_JavaSpringBootVue重构MVP状态报告.md)
-- 试点交付包见 [../docs/16_JavaVue真实用户小范围试点交付包.md](../docs/16_JavaVue真实用户小范围试点交付包.md)
-- 试点前落地准备清单见 [../docs/17_JavaVue真实试点前落地准备清单.md](../docs/17_JavaVue真实试点前落地准备清单.md)
+- API 口径见 [../docs/superpowers/specs/2026-07-06-java-springboot-react-rebuild-api.md](../docs/superpowers/specs/2026-07-06-java-springboot-react-rebuild-api.md)
+- PRD 口径见 [../docs/superpowers/specs/2026-07-06-java-springboot-react-rebuild-prd.md](../docs/superpowers/specs/2026-07-06-java-springboot-react-rebuild-prd.md)
+- 状态报告见 [../docs/15_JavaSpringBootReact重构MVP状态报告.md](../docs/15_JavaSpringBootReact重构MVP状态报告.md)
+- 试点交付包见 [../docs/16_JavaReact真实用户小范围试点交付包.md](../docs/16_JavaReact真实用户小范围试点交付包.md)
+- 试点前落地准备清单见 [../docs/17_JavaReact真实试点前落地准备清单.md](../docs/17_JavaReact真实试点前落地准备清单.md)

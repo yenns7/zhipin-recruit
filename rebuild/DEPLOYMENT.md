@@ -1,14 +1,14 @@
-# Java + Vue 重构版真实用户小范围试点部署说明
+# Java + React 重构版真实用户小范围试点部署说明
 
-本文件只覆盖 `rebuild/` 下的 Java Spring Boot + Vue 重构版。当前目标是**真实用户小范围试点更稳**，不是生产上线。
+本文件只覆盖 `rebuild/` 下的 Java Spring Boot + React 重构版。当前目标是**真实用户小范围试点更稳**，不是生产上线。
 
-如果要交给试点负责人逐项执行，使用 [../docs/17_JavaVue真实试点前落地准备清单.md](../docs/17_JavaVue真实试点前落地准备清单.md)。本文保留部署说明和命令样例。
+如果要交给试点负责人逐项执行，使用 [../docs/17_JavaReact真实试点前落地准备清单.md](../docs/17_JavaReact真实试点前落地准备清单.md)。本文保留部署说明和命令样例。
 
 ## 1. 试点运行形态
 
 推荐服务器形态：
 
-- 前端：`rebuild/frontend-vue` 构建静态文件，由 Nginx 托管。
+- 前端：`rebuild/frontend` 构建静态文件，由 Nginx 托管。
 - 后端：`rebuild/backend-java` 以 `pilot` profile 启动，监听 `127.0.0.1:8080` 或内网端口。
 - 数据库：PostgreSQL，保存账号、岗位、候选人、流程、面试反馈等真实试点数据。
 - 上传文件：保存到持久目录，例如 `/srv/hireinsight/uploads`，不要放在 `/tmp`。
@@ -57,7 +57,7 @@ GRANT ALL PRIVILEGES ON DATABASE hireinsight TO hireinsight_app;
 前端构建：
 
 ```bash
-cd rebuild/frontend-vue
+cd rebuild/frontend
 npm install
 npm run build
 ```
@@ -95,7 +95,7 @@ server {
     listen 443 ssl;
     server_name hr-pilot.example.com;
 
-    root /srv/hireinsight/rebuild/frontend-vue/dist;
+    root /srv/hireinsight/rebuild/frontend/dist;
     index index.html;
 
     location / {

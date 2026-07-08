@@ -6,7 +6,7 @@
 
 用自然语言驱动的企业招聘平台 — 简历解析、智能匹配、AI 面试、数据看板，一站式闭环
 
-[![Backend](https://img.shields.io/badge/backend-Flask%203.1-000000)](https://flask.palletsprojects.com/)
+[![Backend (Legacy)](https://img.shields.io/badge/legacy-Flask%203.1-000000)](https://flask.palletsprojects.com/)
 [![Backend (Rebuild)](https://img.shields.io/badge/rebuild-Java%20Spring%20Boot%203.4-brightgreen)](https://spring.io/projects/spring-boot)
 [![Frontend](https://img.shields.io/badge/frontend-React%2018%20%2B%20Vite%208-61dafb)](https://react.dev/)
 [![AI](https://img.shields.io/badge/AI-LangGraph%20%2B%20DeepSeek-ff6b6b)](https://langchain-ai.github.io/langgraph/)
@@ -70,14 +70,14 @@
 
 ## 🏗️ 技术架构
 
-### 主线版本（Python Flask + React）
+### Legacy（Python Flask + React，已归档）
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  前端 SPA  (React 18 + Vite 8 + TS + Tailwind + GSAP)        │
 │  12 页面 · recharts 图表 · 近黑 Cal.com 设计语言               │
 └──────────────────────────┬──────────────────────────────────┘
-                           │ /api (Vite 代理 / Flask 同源托管)
+                           │ /api (Vite 代理 / Legacy 同源托管)
 ┌──────────────────────────▼──────────────────────────────────┐
 │  后端  Flask 3.1 + SQLAlchemy + JWT/RBAC  (27 路由)           │
 │  ┌────────────┬────────────┬──────────────────────────────┐  │
@@ -91,11 +91,11 @@
 └──────────────────────────────────────────────────────────────┘
 ```
 
-### 重构版本（Java Spring Boot + Vue，`rebuild/`）
+### 重构版本（Java Spring Boot + React，`rebuild/`）
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│  前端 SPA  (Vue 3 + TypeScript + Vite + Tailwind + GSAP)       │
+│  前端 SPA  (React 18 + TypeScript + Vite + Tailwind + GSAP)     │
 │  覆盖 Java 后端全部模块入口                                       │
 └────────────────────────────┬──────────────────────────────────┘
                              │ /api (Vite 代理 / Spring Boot 同源托管)
@@ -114,14 +114,14 @@
 
 | 层 | 主线版本 | 重构版本 (rebuild/) |
 |----|----------|---------------------|
-| 前端 | React 18.3 · Vite 8 · TypeScript 5.9 · Tailwind 3.4 · GSAP 3.15 · recharts 3.8 | Vue 3 · Vite · TypeScript · Tailwind · GSAP |
+| 前端 | React 18.3 · Vite 8 · TypeScript 5.9 · Tailwind 3.4 · GSAP 3.15 · recharts 3.8 | React 18 · Vite · TypeScript · Tailwind · GSAP |
 | 后端 | Flask 3.1 · SQLAlchemy 2.0 · SQLite/PostgreSQL · PyJWT | Spring Boot 3.4 · Spring Data JPA · PostgreSQL · JWT |
 | AI | LangGraph 1.2 · DeepSeek v4 · pdfplumber · python-docx | Rule-based demo (匹配/面试) |
 | 数据 | SQLite（开发）/ PostgreSQL（生产） | PostgreSQL（dev profile）/ H2（test profile） |
 
 ## 🚀 快速开始
 
-### 主线版本（Python Flask + React）
+### 主线版本（Python Flask + React，已归档）
 
 #### 环境要求
 - Python 3.9+ · Node.js 18+ · npm 9+
@@ -147,7 +147,7 @@ npm install
 npm run dev                   # http://localhost:5173，代理到 :5001
 ```
 
-### 重构版本（Java Spring Boot + Vue，`rebuild/`）
+### 重构版本（Java Spring Boot + React，`rebuild/`）
 
 #### 环境要求
 - JDK 21+ · Maven 3.9+ · Node.js 18+ · PostgreSQL 15+
@@ -161,9 +161,9 @@ mvn spring-boot:run -Dspring-boot.run.profiles=dev
 
 默认连接本机 PostgreSQL `hireinsight` 库，`dev` profile 自动初始化演示账号。
 
-#### 2. 前端（Vue）
+#### 2. 前端（React）
 ```bash
-cd rebuild/frontend-vue
+cd frontend
 npm install
 npm run dev                   # http://localhost:5173，代理到 :8080
 ```
@@ -204,12 +204,12 @@ mvn spring-boot:run -Dspring-boot.run.profiles=pilot
 │       ├── pages/          12 个页面
 │       ├── components/     UI 基元 + 业务组件
 │       └── lib/            api 客户端 / auth / agent 流式
-├── rebuild/                Java Spring Boot + Vue 重构 MVP（当前为技术主流程可运行）
+├── rebuild/                Java Spring Boot + React 重构 MVP（当前为技术主流程可运行）
 │   ├── backend-java/       Spring Boot 3.4 后端（129 tests, 51+ APIs, Flyway V1~V12）
 │   │   ├── src/main/java/  13 个业务包（auth/resume/jobs/pipeline/demand/match/interview/agent/boss/bi/notify/admin/health）
 │   │   ├── src/main/resources/db/migration/  Flyway 迁移（V1~V12）
 │   │   └── src/test/       129 个测试
-│   └── frontend-vue/       Vue 3 + TypeScript 前端（79 tests）
+│   └── frontend/           React 18 + TypeScript 前端（79 tests）
 ├── base_agent/             复用的 LLM/解析/匹配模块
 ├── docs/                   需求 / PRD / 设计文档
 │   ├── 01_PRD.md           PRD 文档

@@ -1,5 +1,7 @@
 # BOSS CLI 数据集成计划
 
+> **本文档对应的 Python 实现已迁移至 Java Spring Boot。后端服务类参见 `rebuild/backend-java/.../boss/BossService.java`，Controller 参见 `rebuild/backend-java/.../boss/BossController.java`，具体实现以 Java 代码为准。**
+
 > 版本：v1.0 | 日期：2026-06-29 | 状态：待实施
 
 ## 1. 背景
@@ -19,13 +21,13 @@ boss-cli（kabi-boss-cli）提供了完整的 BOSS 直聘招聘端能力。当�
 | 能力 | 后端方法 | API 端点 | 前端使用 | 数据去向 |
 |------|----------|----------|----------|----------|
 | 登录态检测 | `status()` | `GET /boss/status` | BossPage 状态栏 | — |
-| 职位列表 | `recruiter_jobs()` | `GET /boss/jobs` | BossPage 岗位 tab | — |
-| 收件箱列表 | `recruiter_inbox()` | `GET /boss/candidates/inbox` | BossInboxWorkbench | 勾选后批量导入 |
-| 推荐候选人 | `recruiter_recommend()` | `GET /boss/candidates/recommend` | BossPage 推荐 tab | 查看/下载简历 |
-| 简历详情（JSON） | `recruiter_resume()` | `GET /boss/candidates/:id/resume` | BossPage 简历弹窗 | — |
-| 简历下载（Markdown） | `recruiter_resume_download()` | `GET /boss/candidates/:id/resume/download` | 下载按钮 | 批量导入时存入 `resume_json.raw_markdown` |
-| 批量导入 | `BossPipelineService.batch_import()` | `POST /boss/candidates/batch-import` | BossInboxWorkbench | 创建 Candidate 记录 |
-| AI 初筛 | `BossPipelineService.ai_screen()` | `POST /boss/candidates/ai-screen` | BossInboxWorkbench | 写 Interview + 推进 ai_screen 阶段 |
+| 职位列表 | `recruiterJobs()` | `GET /boss/jobs` | BossPage 岗位 tab | — |
+| 收件箱列表 | `recruiterInbox()` | `GET /boss/candidates/inbox` | BossInboxWorkbench | 勾选后批量导入 |
+| 推荐候选人 | `recruiterRecommend()` | `GET /boss/candidates/recommend` | BossPage 推荐 tab | 查看/下载简历 |
+| 简历详情（JSON） | `recruiterResume()` | `GET /boss/candidates/:id/resume` | BossPage 简历弹窗 | — |
+| 简历下载（Markdown） | `recruiterResumeDownload()` | `GET /boss/candidates/:id/resume/download` | 下载按钮 | 批量导入时存入 `resumeJson.rawMarkdown` |
+| 批量导入 | `BossPipelineService.batchImport()` | `POST /boss/candidates/batch-import` | BossInboxWorkbench | 创建 Candidate 记录 |
+| AI 初筛 | `BossPipelineService.aiScreen()` | `POST /boss/candidates/ai-screen` | BossInboxWorkbench | 写 Interview + 推进 ai_screen 阶段 |
 | 账号管理 | CRUD 方法 | `GET/POST/DELETE /boss/accounts/*` | BossAccountManager | BossAccount 表 |
 
 ### 2.2 未接入（数据断点）
@@ -51,30 +53,13 @@ boss-cli（kabi-boss-cli）提供了完整的 BOSS 直聘招聘端能力。当�
 **目标**：收件箱标签从 boss-cli 动态获取，替代写死的 3 个选项。
 
 **改动文件**：
-- `backend/app/services/boss_service.py` — 新增 `recruiter_labels()` 方法
-- `backend/app/api/boss.py` — 新增 `GET /boss/labels` 端点
-- `frontend/src/features/boss/pages/BossInboxWorkbench.tsx` — 标签从 API 加载
-- `frontend/src/lib/api.ts` — 新增 `bossLabels()` 方法
-- `frontend/src/types/index.ts` — 新增 `BossLabel` 类型
+- `rebuild/backend-java/.../boss/BossService.java` — 新增 `recruiterLabels()` 方法
+- `rebuild/backend-java/.../boss/BossController.java` — 新增 `GET /boss/labels` 端点
+- `rebuild/frontend/.../pages/BossInboxWorkbench.tsx` — 标签从 API 加载
+- `rebuild/frontend/.../lib/api.ts` — 新增 `bossLabels()` 方法
+- `rebuild/frontend/.../types/index.ts` — 新增 `BossLabel` 类型
 
-**后端实现**：
-```python
-# boss_service.py
-def recruiter_labels(self, cookies_override=None):
-    return _run(["recruiter", "labels"], timeout=30, cookies_override=cookies_override)
-```
-
-```python
-# boss.py
-@bp.get("/boss/labels")
-@require_auth
-@require_role(*_RECRUITER_ROLES)
-def boss_labels():
-    cookies, err = _active_cookies_or_409()
-    if err is not None:
-        return err
-    return _ok_or_fail(_svc.recruiter_labels(cookies_override=cookies))
-```
+**后端实现**：参考 Java 实现
 
 **前端改动**：
 ```typescript
@@ -104,75 +89,13 @@ useEffect(() => {
 **目标**：批量导入时同步拉取聊天记录，AI 初筛时结合简历 + 聊天上下文做评估。
 
 **改动文件**：
-- `backend/app/services/boss_service.py` — 新增 `recruiter_chat(friend_id)` 方法
-- `backend/app/services/boss_pipeline_service.py` — `batch_import` 中拉取聊天记录并存储；`_load_resume_text` 拼接聊天上下文
-- `backend/app/api/boss.py` — 新增 `GET /boss/candidates/:id/chat` 按需查询端点
-- `frontend/src/features/boss/pages/BossInboxWorkbench.tsx` — 导入后展示聊天记录
-- `frontend/src/lib/api.ts` — 新增 `bossChat()` 方法
+- `rebuild/backend-java/.../boss/BossService.java` — 新增 `recruiterChat(friendId)` 方法
+- `rebuild/backend-java/.../boss/BossPipelineService.java` — `batchImport` 中拉取聊天记录并存储；`loadResumeText` 拼接聊天上下文
+- `rebuild/backend-java/.../boss/BossController.java` — 新增 `GET /boss/candidates/:id/chat` 按需查询端点
+- `rebuild/frontend/.../pages/BossInboxWorkbench.tsx` — 导入后展示聊天记录
+- `rebuild/frontend/.../lib/api.ts` — 新增 `bossChat()` 方法
 
-**后端实现**：
-
-```python
-# boss_service.py
-def recruiter_chat(self, friend_id, cookies_override=None):
-    try:
-        fid = int(friend_id)
-    except (TypeError, ValueError):
-        return {"ok": False, "data": None, "error": {"code": "invalid_params", "message": "friend_id 必须为整数"}}
-    return _run(["recruiter", "chat", str(fid)], timeout=30, cookies_override=cookies_override)
-```
-
-```python
-# boss_pipeline_service.py — batch_import 中增加聊天拉取
-# 在下载简历后，如果 friend_id 存在，拉取聊天记录
-friend_id = item.get("friend_id")
-chat_history = []
-if friend_id:
-    chat_result = self.boss.recruiter_chat(friend_id, cookies_override=cookies_override)
-    if chat_result.get("ok"):
-        chat_history = chat_result.get("data", [])
-        if isinstance(chat_history, list):
-            # 只保留最近 50 条，避免数据过大
-            chat_history = chat_history[-50:]
-    # 节流：与简历下载共用间隔
-    if interval_sec > 0:
-        time.sleep(interval_sec)
-
-# 存入 resume_json.boss.chat_history
-candidate = Candidate(
-    ...
-    resume_json={
-        "source": "boss",
-        "raw_markdown": md_text,
-        "boss": {
-            "geek_id": geek_id,
-            "friend_id": friend_id,
-            "job": ...,
-            "chat_history": chat_history,  # 新增
-        },
-    },
-    ...
-)
-```
-
-```python
-# boss_pipeline_service.py — _load_resume_text 增加聊天上下文
-def _load_resume_text(self, candidate):
-    rj = candidate.resume_json if isinstance(candidate.resume_json, dict) else {}
-    text = rj.get("raw_markdown") or ""
-    # 拼接聊天记录上下文
-    boss_info = rj.get("boss") or {}
-    chat = boss_info.get("chat_history") or []
-    if chat:
-        chat_text = "\n\n## 沟通记录\n"
-        for msg in chat:
-            role = "招聘者" if msg.get("isBoss") else "候选人"
-            content = msg.get("content") or msg.get("text") or ""
-            if content:
-                chat_text += f"- [{role}] {content}\n"
-        text += chat_text
-    return text
-```
+**后端实现**：参考 Java 实现（`BossService.java` + `BossPipelineService.java`）
 
 **数据流**：
 ```
@@ -192,35 +115,10 @@ BOSS 收件箱 → boss-cli chat → 批量导入时存储 → resume_json.boss.
 **目标**：批量导入时额外获取结构化 JSON 简历，自动提取技能/经历标签。
 
 **改动文件**：
-- `backend/app/services/boss_pipeline_service.py` — `batch_import` 中调用 `recruiter_resume` 获取 JSON
-- `backend/app/models.py` — Candidate 模型增加 `boss_structured_resume` 字段（或复用 `resume_json`）
+- `rebuild/backend-java/.../boss/BossPipelineService.java` — `batchImport` 中调用 `recruiterResume` 获取 JSON
+- `rebuild/backend-java/.../entity/Candidate.java` — Candidate 实体增加 `bossStructuredResume` 字段（或复用 `resumeJson`）
 
-**后端实现**：
-```python
-# boss_pipeline_service.py — batch_import 中增加结构化简历
-structured = self.boss.recruiter_resume(
-    encrypt_geek_id=geek_id,
-    job=_safe_str(item.get("job") or boss_job, 64) or None,
-    security_id=_safe_str(item.get("security_id"), 80) or None,
-    cookies_override=cookies_override,
-)
-structured_resume = structured.get("data") if structured.get("ok") else None
-
-# 存入 resume_json.boss.structured_resume
-candidate = Candidate(
-    ...
-    resume_json={
-        "source": "boss",
-        "raw_markdown": md_text,
-        "boss": {
-            "geek_id": geek_id,
-            "structured_resume": structured_resume,  # 新增
-            "chat_history": chat_history,
-        },
-    },
-    ...
-)
-```
+**后端实现**：参考 Java 实现（`BossPipelineService.java`）
 
 **数据流**：
 ```
@@ -239,33 +137,13 @@ BOSS 简历 → boss-cli resume (JSON) → 批量导入时存储 → resume_json
 **目标**：新增搜索 tab，支持关键词 + 城市 + 经验 + 学历 + 薪资筛选。
 
 **改动文件**：
-- `backend/app/services/boss_service.py` — 新增 `recruiter_search()` 方法
-- `backend/app/api/boss.py` — 新增 `GET /boss/candidates/search` 端点
-- `frontend/src/features/boss/pages/BossPage.tsx` — 新增搜索 tab
-- `frontend/src/lib/api.ts` — 新增 `bossSearchCandidates()` 方法
-- `frontend/src/types/index.ts` — 新增 `BossSearchParams` 类型
+- `rebuild/backend-java/.../boss/BossService.java` — 新增 `recruiterSearch()` 方法
+- `rebuild/backend-java/.../boss/BossController.java` — 新增 `GET /boss/candidates/search` 端点
+- `rebuild/frontend/.../pages/BossPage.tsx` — 新增搜索 tab
+- `rebuild/frontend/.../lib/api.ts` — 新增 `bossSearchCandidates()` 方法
+- `rebuild/frontend/.../types/index.ts` — 新增 `BossSearchParams` 类型
 
-**后端实现**：
-```python
-# boss_service.py
-def recruiter_search(self, keyword, city=None, exp=None, degree=None,
-                     salary=None, job=None, page=1, cookies_override=None):
-    kw = _safe_text(keyword, 80)
-    if not kw:
-        return {"ok": False, "data": None, "error": {"code": "invalid_params", "message": "keyword 不能为空"}}
-    try:
-        page = max(1, int(page))
-    except (TypeError, ValueError):
-        page = 1
-    args = ["recruiter", "search", kw]
-    args += _opt("-c", city)
-    args += _opt("--exp", exp)
-    args += _opt("--degree", degree)
-    args += _opt("--salary", salary)
-    args += _opt("--job", job)
-    args += ["-p", str(page)]
-    return _run(args, timeout=45, cookies_override=cookies_override)
-```
+**后端实现**：参考 Java 实现（`BossService.java`）
 
 **前端改动**：
 ```typescript
@@ -292,45 +170,12 @@ type TabKey = 'inbox' | 'search' | 'recommend' | 'jobs';
 **目标**：在系统内直接回复候选人消息、请求简历、交换联系方式。
 
 **改动文件**：
-- `backend/app/services/boss_service.py` — 新增 `recruiter_reply()`、`recruiter_request_resume()`、`recruiter_exchange_phone()`、`recruiter_exchange_wechat()` 方法
-- `backend/app/api/boss.py` — 新增对应 POST 端点
-- `frontend/src/features/boss/pages/BossInboxWorkbench.tsx` — 聊天记录区增加操作按钮
-- `frontend/src/lib/api.ts` — 新增对应 API 方法
+- `rebuild/backend-java/.../boss/BossService.java` — 新增 `recruiterReply()`、`recruiterRequestResume()`、`recruiterExchangePhone()`、`recruiterExchangeWechat()` 方法
+- `rebuild/backend-java/.../boss/BossController.java` — 新增对应 POST 端点
+- `rebuild/frontend/.../pages/BossInboxWorkbench.tsx` — 聊天记录区增加操作按钮
+- `rebuild/frontend/.../lib/api.ts` — 新增对应 API 方法
 
-**后端实现**：
-```python
-# boss_service.py
-def recruiter_reply(self, friend_id, message, cookies_override=None):
-    try:
-        fid = int(friend_id)
-    except (TypeError, ValueError):
-        return {"ok": False, "data": None, "error": {"code": "invalid_params", "message": "friend_id 必须为整数"}}
-    msg = _safe_text(message, 500)
-    if not msg:
-        return {"ok": False, "data": None, "error": {"code": "invalid_params", "message": "message 不能为空"}}
-    return _run(["recruiter", "reply", str(fid), msg, "-y"], timeout=30, cookies_override=cookies_override)
-
-def recruiter_request_resume(self, friend_id, cookies_override=None):
-    try:
-        fid = int(friend_id)
-    except (TypeError, ValueError):
-        return {"ok": False, "data": None, "error": {"code": "invalid_params", "message": "friend_id 必须为整数"}}
-    return _run(["recruiter", "request-resume", str(fid), "-y"], timeout=30, cookies_override=cookies_override)
-
-def recruiter_exchange_phone(self, friend_id, cookies_override=None):
-    try:
-        fid = int(friend_id)
-    except (TypeError, ValueError):
-        return {"ok": False, "data": None, "error": {"code": "invalid_params", "message": "friend_id 必须为整数"}}
-    return _run(["recruiter", "exchange-phone", str(fid), "-y"], timeout=30, cookies_override=cookies_override)
-
-def recruiter_exchange_wechat(self, friend_id, cookies_override=None):
-    try:
-        fid = int(friend_id)
-    except (TypeError, ValueError):
-        return {"ok": False, "data": None, "error": {"code": "invalid_params", "message": "friend_id 必须为整数"}}
-    return _run(["recruiter", "exchange-wechat", str(fid), "-y"], timeout=30, cookies_override=cookies_override)
-```
+**后端实现**：参考 Java 实现（`BossService.java`）
 
 **前端改动**：
 ```
@@ -355,26 +200,11 @@ def recruiter_exchange_wechat(self, friend_id, cookies_override=None):
 **目标**：支持标记不合适、导出候选人数据。
 
 **改动文件**：
-- `backend/app/services/boss_service.py` — 新增 `recruiter_mark_unsuitable()`、`recruiter_export()` 方法
-- `backend/app/api/boss.py` — 新增对应端点
-- `frontend/src/features/boss/pages/BossPage.tsx` — 推荐/收件箱增加「标记不合适」按钮
+- `rebuild/backend-java/.../boss/BossService.java` — 新增 `recruiterMarkUnsuitable()`、`recruiterExport()` 方法
+- `rebuild/backend-java/.../boss/BossController.java` — 新增对应端点
+- `rebuild/frontend/.../pages/BossPage.tsx` — 推荐/收件箱增加「标记不合适」按钮
 
-**后端实现**：
-```python
-# boss_service.py
-def recruiter_mark_unsuitable(self, encrypt_geek_id, job=None, cookies_override=None):
-    gid = _safe_text(encrypt_geek_id, 64)
-    if not gid:
-        return {"ok": False, "data": None, "error": {"code": "invalid_params", "message": "encrypt_geek_id 不能为空"}}
-    args = ["recruiter", "mark-unsuitable", gid]
-    args += _opt("--job", job)
-    args += ["-y"]
-    return _run(args, timeout=30, cookies_override=cookies_override)
-
-def recruiter_export(self, format="json", cookies_override=None):
-    return _run(["recruiter", "export", "--format", format], timeout=60,
-                want_json=(format == "json"), cookies_override=cookies_override)
-```
+**后端实现**：参考 Java 实现（`BossService.java`）
 
 **预期收益**：淘汰候选人可直接标记，无需回到 BOSS 网页端；批量导出方便数据分析。
 

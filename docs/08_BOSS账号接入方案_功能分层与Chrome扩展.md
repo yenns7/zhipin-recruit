@@ -1,5 +1,7 @@
 # 08 BOSS 账号接入方案：功能分层与 Chrome 浏览器扩展
 
+> **本文档对应的 Python 实现已迁移至 Java Spring Boot。后端服务类参见 `BossService.java`，Controller 参见 `BossController.java`，端口改为 `8080`。**
+
 > 版本：v1.0 | 日期：2026-06-27 | 状态：实施完成
 
 > **2026-06-29 重大更新：stoken 采集链路已全部移除**
@@ -197,7 +199,7 @@ extension/
 
 **目标**：扫码成功即保存账号，Tier-1 功能立即可用
 
-**后端改动**（`boss_qr_service.py` + `boss.py`）：
+**后端改动**（`BossService.java` + `BossController.java`）：
 - `boss_qr_login_confirm`：移除缺 stoken 时的 409 拦截，改为 200 保存（`has_stoken=False`）
 - 新增 `has_stoken` 字段标记账号 cookie 完整度
 - Tier-2 接口调用时，若缺 stoken 返回友好提示（而非 502 原始错误）
@@ -274,7 +276,7 @@ BOSS 会话 cookie 有有效期，过期后 Tier-1/Tier-2 均不可用。
 
 ### 5.3 安全性
 
-- 扩展仅访问 `*.zhipin.com` 域，仅 POST 到 `localhost:5001`
+- 扩展仅访问 `*.zhipin.com` 域，仅 POST 到 `localhost:8080`
 - Cookie 在传输中不经第三方服务器
 - 后端对提交的 Cookie 做 `boss status` 校验后才落库
 - 扩展不存储 Cookie，仅做中转

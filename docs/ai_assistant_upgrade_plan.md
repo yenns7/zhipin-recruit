@@ -1,5 +1,7 @@
 # AI 助手模块高可用改造计划
 
+> **本文档对应的 Python/Flask 实现已迁移至 Java Spring Boot。后端类参见 `AgentService.java`、`LlmClient.java`、`AgentController.java`，具体实现以 Java 代码为准。**
+
 > 把 AI 助手从"能跑但简陋"改造成高可用 Agent：会话不丢、调用有 log、能审计、能引用全系统功能（含 BOSS CLI）、能按已登录 BOSS 账号选择、前端丰富好看。
 > v1.0 ｜ 2026-06-26 ｜ 关联 [01 PRD](./01_PRD.md)、[02 改造实施计划](./02_改造实施计划.md)
 
@@ -10,7 +12,7 @@
 基于代码级调研，AI 助手模块当前问题分三类（每条均带代码证据，见 [附录 A](#附录-a问题定位证据清单)）：
 
 - **A 类 历史会话管理缺失**（用户最直接感知的"切换后数据丢失"）：前端无会话列表/切换/新建 UI；`messages` 只存内存不持久化；恢复逻辑只认单个 conversationId，其它历史会话不可达；无删除/重命名。
-- **B 类 AI 调用日志完全缺失**：无任何输入/输出/工具/耗时/成本记录，事后无法审计排障（后端 `agent_service.py:580` 自承待办）；多轮上下文只回传纯文本，丢失 tool_calls/thoughts。
+- **B 类 AI 调用日志完全缺失**：无任何输入/输出/工具/耗时/成本记录，事后无法审计排障（后端 `AgentService.java` 自承待办）；多轮上下文只回传纯文本，丢失 tool_calls/thoughts。
 - **C 类 功能简陋 + 健壮性/体验问题**：BOSS CLI 闭环功能 AI 不可触达（工具表无 BOSS 工具）；AI 助手不感知 BOSS 账号；前端工具元信息与后端不同步（`web_search` 缺标签）；写操作确认逻辑脆弱；限流按 IP。
 
 **改造目标**：阶段 0-2 先解决 A、B 两类（数据不丢 + 调用有 log + 可审计），阶段 3-5 再解决 C 类（BOSS 接入 + 账号选择 + 前端重设计 + 健壮性）。本次先落地 P0（阶段 0-2）。
@@ -69,53 +71,53 @@
 
 ### 任务 0.1 新增 `AgentCallLog` 模型与迁移
 
-- **动作**：`backend/app/models.py` 新增 `AgentCallLog` 类（字段见 2.1）；按项目现有迁移方式（Alembic 或 `migrations/`）生成迁移脚本；`seed_dev.py` 不预置（log 运行期产生）。
+- **动作**：在 Java 实体包中新增 `AgentCallLog` 实体类（字段见 2.1）；按项目现有迁移方式（Flyway 或 `db/migration/`）生成迁移脚本；不预置 seed 数据（log 运行期产生）。
 - **为什么**：审计/排障/统计的前提是有结构化数据，先建表。
 - **验收**：迁移可正向执行；`AgentCallLog.query` 可用；单测覆盖字段与默认值。
 
 ### 任务 0.2 `Conversation` 扩展 `archived` / `title_source` + 迁移
 
-- **动作**：`models.py` 的 `Conversation` 加两字段（默认值见 2.2）；迁移脚本；现有数据 `title_source` 回填为 `auto_first`。
+- **动作**：`Conversation` 实体加两字段（默认值见 2.2）；Flyway 迁移脚本；现有数据 `titleSource` 回填为 `AUTO_FIRST`。
 - **验收**：迁移正向执行；现有会话默认未归档、标题来源为 `auto_first`。
 
 ### 任务 0.3 LLM 调用埋点（成功 + 失败）
 
-- **动作**：`base_agent/llm_client.py` 在 `chat`/`route_model` 出口记录 `model / prompt_tokens / completion_tokens / duration_ms / status / error_msg`，封装成一个 `_log_call` 辅助函数（不直接写库，返回结构化 dict，由调用方决定入库时机，避免环形依赖）。
+- **动作**：`LlmClient.java` 在 `chat`/`routeModel` 出口记录 `model / promptTokens / completionTokens / durationMs / status / errorMsg`，封装成一个 `logCall` 辅助函数（不直接写库，返回结构化对象，由调用方决定入库时机，避免环形依赖）。
 - **关键**：DeepSeek/OpenAI 兼容响应的 `usage` 字段已含 token，直接取；失败时 `prompt_tokens` 可能为 0，记 `status=error` + `error_msg`。
-- **为什么**：`LLMClient` 当前只在失败 `logging.warning`（`llm_client.py:261,291`），成功调用零记录。
+- **为什么**：`LLMClient` 当前只在失败 `logging.warning`（`LlmClient.java`），成功调用零记录。
 - **验收**：单测 mock 一次成功 + 一次失败调用，断言返回的 log dict 字段完整。
 
 ### 任务 0.4 `/agent/chat` 流式 done 后写 `AgentCallLog`
 
-- **动作**：`backend/app/api/agent.py:170-186` 在写 `ConversationMessage` 之后，聚合本次 `LLMClient` 返回的 log dict + ReAct 循环里的 tool_calls/thoughts，写一条 `AgentCallLog(kind="chat")`。
+- **动作**：`AgentController.java` 在写 `ConversationMessage` 之后，聚合本次 `LLMClient` 返回的 log dict + ReAct 循环里的 tool_calls/thoughts，写一条 `AgentCallLog(kind="chat")`。
 - **注意 token 预算**：`input_text`/`output_text` 超过阈值（如 8KB）截断并标记 `…(truncated)`。
-- **验收**：集成测试发起一次 chat，断言 `AgentCallLog` 有对应记录且字段非空；异常路径（`agent.py:166-168` error 事件）也写一条 `status=error`。
+- **验收**：集成测试发起一次 chat，断言 `AgentCallLog` 有对应记录且字段非空；异常路径（`AgentController.java` error 事件）也写一条 `status=error`。
 
 ### 任务 0.5 工具调用与写操作执行埋点
 
 - **动作**：
-  - 只读工具：`agent_service.py` 的 `_tools_node`（`agent_service.py:756`）执行后，把工具名/入参/结果摘要/耗时收进本次会话的 tool_calls（最终随 0.4 的 chat log 一起入库，无需单独表）。
-  - 写工具：`execute_write_tool`（`agent_service.py:586`）执行后单独写一条 `AgentCallLog(kind="tool_write")`，含 RBAC 校验结果、执行结果。
-- **为什么**：现有 `record_event` 只记业务事件（`agent_service.py:395,422,425,450,469`），不记 AI 调用细节。
+  - 只读工具：`AgentService.java` 的 `toolsNode` 执行后，把工具名/入参/结果摘要/耗时收进本次会话的 tool_calls（最终随 0.4 的 chat log 一起入库，无需单独表）。
+  - 写工具：`executeWriteTool` 执行后单独写一条 `AgentCallLog(kind="tool_write")`，含 RBAC 校验结果、执行结果。
+- **为什么**：现有 `recordEvent` 只记业务事件（`AgentService.java`），不记 AI 调用细节。
 - **验收**：单测覆盖只读工具结果聚合 + 写工具 log 写入。
 
 ### 任务 0.6 新增会话管理接口（新建/删除/重命名/归档）
 
-- **动作**：`backend/app/api/agent.py` 新增：
+- **动作**：`AgentController.java` 新增：
   - `POST /api/agent/conversations` → 新建空会话，返回 `{id, title:"新对话", archived:false}`。
   - `DELETE /api/agent/conversations/<id>` → 软删（`archived=true`），按 `user_id` 鉴权。
   - `PATCH /api/agent/conversations/<id>` → 改 `title`（`title_source="manual"`）/ 归档/取消归档。
   - `GET /api/agent/conversations` 补 `archived` 过滤参数 + 分页 + 按 `updated_at` 倒序。
-- **鉴权**：均 `@require_auth` + `@require_role("recruiter","manager","admin")`，按 `user_id` 隔离（跨用户 403，复用 `agent.py:60-61` 模式）。
-- **为什么**：现状会话只增不减、不可改名（`agent.py` 无 DELETE/rename），历史无限累积。
+- **鉴权**：均 `@requireAuth` + `@requireRole("recruiter","manager","admin")`，按 `userId` 隔离（跨用户 403，复用 `AgentController.java` 模式）。
+- **为什么**：现状会话只增不减、不可改名（`AgentController.java` 无 DELETE/rename），历史无限累积。
 - **验收**：测试覆盖新建/删除/重命名/跨用户 403/归档过滤。
 
 ### 任务 0.7 `AgentCallLog` 查询接口
 
-- **动作**：`backend/app/api/agent.py` 新增：
+- **动作**：`AgentController.java` 新增：
   - `GET /api/agent/call-logs` → 列表，支持 `conversation_id` / `status` / `kind` / 时间范围筛选 + 分页；管理员看全部、非管理员只看自己的。
   - `GET /api/agent/call-logs/<id>` → 详情（含完整 input/output/tool_calls/thoughts）；鉴权同上。
-- **鉴权模式**：复用 `admin.py:101` 的 `audit-logs` 思路。
+- **鉴权模式**：复用 `AdminController.java` 的 `audit-logs` 思路。
 - **验收**：测试覆盖筛选/分页/跨用户隔离。
 
 ---
@@ -155,9 +157,9 @@
 
 - **动作**：
   - 前端 `AgentPage.tsx:79-89` `buildHistory` 改为回传结构化 history：含上一轮 assistant 的 tool_calls 摘要 + thoughts 摘要（控 token，超长截断）。
-  - 后端 `agent_service.py:867-868` 接收结构化 history，拼进 LLM messages（工具结果以 `tool` 角色或 system 摘要注入）。
+  - 后端 `AgentService.java` 接收结构化 history，拼进 LLM messages（工具结果以 `tool` 角色或 system 摘要注入）。
   - token 预算：历史工具结果超长时只保留最近 N 轮 + 摘要。
-- **为什么**：现状 history 只回传纯文本（`AgentPage.tsx:79-89`），DB 里的 tool_calls/thoughts（`agent.py:178-184`）不参与 LLM 上下文，导致重复调工具/上下文断裂。
+- **为什么**：现状 history 只回传纯文本（`AgentPage.tsx:79-89`），DB 里的 tool_calls/thoughts 不参与 LLM 上下文，导致重复调工具/上下文断裂。
 - **验收**：多轮对话中 AI 能引用上一轮工具结果；token 用量可观测（从阶段 0 的 log 看）。
 
 ---
@@ -172,7 +174,7 @@
   - 列表：时间、用户、会话、模型、token、耗时、状态、工具调用数；支持筛选与分页。
   - 点击展开详情：完整 input/output/tool_calls/thoughts（复用 `components/agent/ThoughtTrace.tsx`、`ToolCallCard.tsx`）。
   - 统计卡：今日调用数、平均耗时、总 token、错误率、各工具调用频次（前端聚合或后端口子）。
-- **为什么**：当前 `AiArchitecturePage` 只展示静态提示词/工具清单（`api.ts:487`），无运行时调用记录，无法审计排障。
+- **为什么**：当前 `AiArchitecturePage` 只展示静态提示词/工具清单，无运行时调用记录，无法审计排障。
 - **验收**：管理员可见全部调用日志；非管理员只能看自己；详情可展开。
 
 ### 任务 2.2 用户自己的调用记录入口（可选，P0 收尾）
@@ -184,9 +186,9 @@
 
 ## 6. 后续阶段概览（本次 P0 不实施，先记录方向）
 
-- **阶段 3 BOSS CLI 接入 AI 助手（P1）**：后端把 BOSS 只读/写工具注册进 `_TOOL_DEFS`/`_WRITE_TOOL_DEFS`（复用 `BossService`/`BossPipelineService`）；`AgentState` 加 `boss_account_id`；`/agent/chat` 接收账号参数；`BossService` 补 `cookies_header_for_account(user_id, account_id)`。前端 `AgentPage` 加 BOSS 账号选择器（复用 `api.bossAccounts()` + `BossAccountManager` 扫码逻辑）。
+- **阶段 3 BOSS CLI 接入 AI 助手（P1）**：后端把 BOSS 只读/写工具注册进 `TOOL_DEFS`/`WRITE_TOOL_DEFS`（复用 `BossService`/`BossPipelineService`）；`AgentState` 加 `bossAccountId`；`/agent/chat` 接收账号参数；`BossService` 补 `cookiesHeaderForAccount(userId, accountId)`。前端 `AgentPage` 加 BOSS 账号选择器（复用 `api.bossAccounts()` + `BossAccountManager` 扫码逻辑）。
 - **阶段 4 前端重设计（P1）**：三栏布局（会话列表 + 对话区 + 上下文面板）；空态能力云按分类展示；输入区 `/` 快捷指令 + `@` 引用候选人/岗位；写操作确认卡片用独立 proposalStore 修复快照脆弱问题（`AgentPage.tsx:233-241`）。
-- **阶段 5 健壮性收尾（P2）**：限流按 user（`rate_limit.py:37`）；`web_search` 未配置降级提示；会话标题 LLM 异步生成；错误体可读提示。
+- **阶段 5 健壮性收尾（P2）**：限流按 user（`RateLimitFilter.java`）；`web_search` 未配置降级提示；会话标题 LLM 异步生成；错误体可读提示。
 
 ---
 
@@ -230,24 +232,24 @@
 
 | 编号 | 问题 | 证据 |
 |---|---|---|
-| A1 | 前端无会话列表/切换/新建 UI | `AgentPage.tsx`（696 行）全文无侧边栏/列表/新建按钮；后端有 `GET /api/agent/conversations`（`agent.py:36-52`）但前端从未调用（全 `frontend/src` 仅 `agentChat.tsx:139` 命中按 id 取单条）；`api.ts` 无封装（仅 `getAdminAiArchitecture`，`api.ts:487`） |
+| A1 | 前端无会话列表/切换/新建 UI | `AgentPage.tsx`（696 行）全文无侧边栏/列表/新建按钮；后端有 `GET /api/agent/conversations`（`AgentController.java`）但前端从未调用（全 `frontend/src` 仅 `agentChat.tsx:139` 命中按 id 取单条）；`api.ts` 无封装（仅 `getAdminAiArchitecture`，`api.ts:487`） |
 | A2 | 切换/刷新后内存态丢失 | `messages` 仅 `useState`（`agentChat.tsx:122`）不写 localStorage；仅 `conversationId` 写 localStorage（`agentChat.tsx:18,98-108`）；恢复只读一个 id（`agentChat.tsx:168-188`），失败即清空（`agentChat.tsx:180-184`）；`loadConversationMessages`/`hydrateMessagesFromDb` 已 export 但无主动调用方 |
-| A3 | 无删除/重命名，会话只增不减 | `agent.py`（5 接口）无 DELETE/rename（`agent.py:28-201`）；新建只在 chat 不带 id 时隐式创建（`agent.py:122-126`）；标题首条消息截断 30 字（`agent.py:199-201`）创建后不更新 |
+| A3 | 无删除/重命名，会话只增不减 | `AgentController.java`（5 接口）无 DELETE/rename；新建只在 chat 不带 id 时隐式创建；标题首条消息截断 30 字，创建后不更新 |
 
 ### B 类 AI 调用日志缺失
 
 | 编号 | 问题 | 证据 |
 |---|---|---|
-| B1 | 无任何 AI 调用日志 | `backend/app` 搜 `record_event("agent` / `record_event("ai.` / `llm_call` 零命中；`record_event` 仅业务事件（`agent_service.py:395,422,425,450,469`）；`LLMClient` 仅失败 `logging.warning`（`llm_client.py:261,291`）；后端自承待办（`agent_service.py:580`） |
-| B2 | 多轮上下文丢工具/thoughts | 前端 `buildHistory` 只取纯文本（`AgentPage.tsx:79-89`）；后端用此拼 messages（`agent_service.py:867-868`）；DB 的 tool_calls/thoughts（`agent.py:178-184`）不参与 LLM 上下文 |
+| B1 | 无任何 AI 调用日志 | Java 后端搜 `recordEvent("agent` / `recordEvent("ai.` / `llmCall` 零命中；`recordEvent` 仅业务事件（`AgentService.java`）；`LLMClient` 仅失败 `logging.warning`（`LlmClient.java`）；后端自承待办（`AgentService.java`） |
+| B2 | 多轮上下文丢工具/thoughts | 前端 `buildHistory` 只取纯文本（`AgentPage.tsx:79-89`）；后端用此拼 messages（`AgentService.java`）；DB 的 tool_calls/thoughts 不参与 LLM 上下文 |
 
 ### C 类 功能简陋 + 健壮性（本次 P0 不修，记录备查）
 
 | 编号 | 问题 | 证据 |
 |---|---|---|
-| C1 | BOSS CLI 闭环 AI 不可达 | `_TOOL_DEFS`/`_WRITE_TOOL_DEFS`（`agent_service.py:320,475`）无 BOSS 工具，全文件 grep `boss` 零命中；`BossPipelineService` 闭环仅前端可触发 |
-| C2 | AI 不感知 BOSS 账号 | `AgentState` 只 `user_id/role`（`agent_service.py:609-619`）；`/agent/chat` 只接 `user_id/role`（`agent.py:131-132`）；`AgentPage` 无账号选择器。注：BOSS 多账号基础设施已就绪（`BossAccount` `models.py:318-335`、`BossService.list_accounts/activate_account` `boss_service.py:459-590`） |
-| C3 | 前端工具元信息与后端不同步 | 后端 8 只读工具含 `web_search`（`agent_service.py:363-368`）；前端 `TOOL_META` 漏 `web_search`（`agent.ts:66-79`），fallback 英文原名 + wrench |
+| C1 | BOSS CLI 闭环 AI 不可达 | `TOOL_DEFS`/`WRITE_TOOL_DEFS`（`AgentService.java`）无 BOSS 工具；`BossPipelineService` 闭环仅前端可触发 |
+| C2 | AI 不感知 BOSS 账号 | `AgentState` 只 `userId/role`（`AgentService.java`）；`/agent/chat` 只接 `userId/role`（`AgentController.java`）；`AgentPage` 无账号选择器。注：BOSS 多账号基础设施已就绪（`BossAccount` 实体、`BossService.listAccounts/activateAccount` `BossService.java`） |
+| C3 | 前端工具元信息与后端不同步 | 后端 8 只读工具含 `web_search`（`AgentService.java`）；前端 `TOOL_META` 漏 `web_search`（`agent.ts:66-79`），fallback 英文原名 + wrench |
 | C4 | 写操作确认逻辑脆弱 | `resolveProposal` 注释自述曾卡死（`AgentPage.tsx:233-236`），现读 `messages` 闭包快照（`AgentPage.tsx:237-241,294`），streaming 期间可能过期 |
-| C5 | 限流按 IP 而非用户 | `rate_limit.py:37` `bucket_key=f"{name}:{_client_ip()}"`，未用 `g.user_id` |
-| C6 | web_search 未配置即报错 | `_tool_web_search` 找不到 anysearch CLI 即 error（`agent_service.py:282-286`），无降级提示 |
+| C5 | 限流按 IP 而非用户 | `RateLimitFilter.java` `bucket_key` 按客户端 IP，未用用户 ID |
+| C6 | web_search 未配置即报错 | `toolWebSearch` 找不到 anysearch CLI 即 error（`AgentService.java`），无降级提示 |
