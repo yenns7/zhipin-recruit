@@ -38,6 +38,37 @@ npm run dev
 - `/api/v1` 请求会通过 Vite 代理转发到 `http://localhost:8080`
 - 如后端不在 8080，可用 `VITE_API_BASE_URL` 覆盖
 
+## LLM 配置（简历解析）
+
+简历解析功能依赖 LLM API。可以通过环境变量或 `application.yml` 配置：
+
+```bash
+# OpenAI（默认）
+export LLM_PROVIDER=openai
+export LLM_API_KEY=sk-your-key-here
+export LLM_API_URL=https://api.openai.com/v1/chat/completions
+export LLM_MODEL_FAST=gpt-4o-mini
+export LLM_MODEL_THINK=gpt-4o
+export LLM_MODEL_PRO=o3-mini
+
+# DeepSeek
+export LLM_PROVIDER=deepseek
+export LLM_API_KEY=sk-your-deepseek-key
+export LLM_API_URL=https://api.deepseek.com/v1/chat/completions
+export LLM_MODEL_FAST=deepseek-v4-flash
+export LLM_MODEL_THINK=deepseek-v4-flash
+export LLM_MODEL_PRO=deepseek-v4-pro
+```
+
+如未配置 API Key，解析服务会返回 mock 数据，确保开发阶段不阻塞。
+
+模型路由：
+| 路由 | 用途 | 默认模型 |
+|------|------|---------|
+| `fast` | 结构化信息抽取（简历解析） | gpt-4o-mini |
+| `think` | 中等复杂度推理 | gpt-4o |
+| `pro` | 高难度推理 | o3-mini |
+
 ## 后端
 
 本地空库联调可先启动 PostgreSQL。Docker / Colima 示例：

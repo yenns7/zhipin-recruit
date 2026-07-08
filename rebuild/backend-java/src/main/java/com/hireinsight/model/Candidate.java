@@ -41,6 +41,16 @@ public class Candidate {
     @Column(name = "raw_file_path")
     private String rawFilePath;
 
+    @Column(name = "parse_status", length = 20)
+    @Builder.Default
+    private String parseStatus = "pending";
+
+    @Column(name = "batch_id")
+    private Long batchId;
+
+    @Column(name = "parse_error", length = 2000)
+    private String parseError;
+
     @CreatedDate
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;

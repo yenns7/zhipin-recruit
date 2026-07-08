@@ -609,13 +609,20 @@ GET /api/v1/health
 
 | 方法 | 路径 | 权限 | 说明 |
 |------|------|------|------|
-| POST | `/api/v1/resumes/upload` | 已认证 | 上传简历文件 |
+| POST | `/api/v1/resumes/upload` | 已认证 | 上传简历文件（支持批量） |
+| GET | `/api/v1/resumes/search` | 已认证 | 按技能标签搜索候选人 |
+| GET | `/api/v1/resumes/{candidateId}/parse-status` | 已认证 | 查询解析状态 |
+| POST | `/api/v1/resumes/{candidateId}/retry-parse` | 已认证 | 重新解析简历 |
 
 ### POST `/api/v1/resumes/upload`
 
 > multipart/form-data，支持批量上传。
 
-**参数**: `files` — List of MultipartFile
+**参数**: 
+- `files` — List of MultipartFile (必填)
+- `source` — 来源标识，默认 `manual`（可选）
+- `channel` — 渠道（可选）
+- `notes` — 备注（可选）
 
 **响应** (HTTP 202):
 ```json
@@ -623,15 +630,30 @@ GET /api/v1/health
   "code": 202,
   "data": {
     "queued": 2,
+    "batchId": 1,
     "results": [
-      { "file": "resume1.pdf", "candidateId": 101 },
-      { "file": "resume2.pdf", "candidateId": 102 }
+      { "file": "resume1.pdf", "candidateId": 101, "parseStatus": "processing" },
+      { "file": "resume2.pdf", "candidateId": 102, "parseStatus": "processing" }
     ]
   }
 }
 ```
 
-> 上传后简历真实写入 PostgreSQL，简历 JSON 暂为 `{}` 占位，尚未接入真实异步解析链路。
+> 上传后简历实时写入 PostgreSQL，异步 LLM 解析自动触发，`parseStatus` 为 `processing`。解析完成后候选人的 `resumeJson` 包含结构化字段（姓名/邮箱/电话/教育/经历/技能/技能评分1-5），并写入 `candidate_tag` 表支持按技能搜索。
+
+### GET `/api/v1/resumes/search`
+
+**参数**: `?skill=Java`（必填）
+
+按技能标签搜索已解析的候选人。recruiter 只返回自己范围内的候选人；manager/admin 返回全部。
+
+### GET `/api/v1/resumes/{candidateId}/parse-status`
+
+查询指定候选人的解析状态。返回 `parseStatus`（pending/processing/ok/failed）和 `parseError`（失败时的错误信息）。
+
+### POST `/api/v1/resumes/{candidateId}/retry-parse`
+
+重新解析指定候选人的简历（清除之前的标签并重新执行异步解析）。只能操作本人负责的候选人（manager/admin 不受限）。
 
 ---
 
@@ -1051,7 +1073,7 @@ GET /api/v1/health
 | 招聘需求 | `DemandController` | 7 | RecruitmentDemand | ✅ Flyway V10 |
 | 面试管理 | `InterviewController` | 9 | InterviewFeedback, InterviewSession | ✅ 实体 + ❌ 评估(rule-based) |
 | 流程管理 | `PipelineController` | 9 | PipelineStage | ✅ JPA |
-| 简历上传 | `ResumeController` | 1 | Candidate (占位) | ✅ JPA (同步写入) |
+| 简历上传与解析 | `ResumeController` | 4 | Candidate, UploadBatch, CandidateTag | ✅ JPA + ✅ Flyway V13 |
 | 商业智能 | `BiController` | 3 | - | ⚡ JPA 聚合 (rule-based) |
 | Agent / AI 助手 | `AgentController` | 10 | AgentCallLog, Conversation | ✅ 调用日志 + ❌ 会话(进程内存) |
 | 匹配 | `MatchController` | 3 | - | ❌ demo 数据 |
