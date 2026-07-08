@@ -123,7 +123,9 @@ public class ResumeParserService {
     }
 
     /**
-     * Retry parsing a candidate's resume.
+     * Retry parsing a candidate's resume (synchronous). <br>
+     * NOTE: Currently unused — the controller calls {@link #parseResumeAsync(Long)} directly.
+     * Kept as a convenience for potential synchronous flow.
      */
     public void retryParse(Long candidateId) {
         Candidate candidate = candidateRepository.findById(candidateId)
@@ -325,7 +327,7 @@ public class ResumeParserService {
         if (count > 1 && hasYears) return 4;
         if (count > 1) return 3;
         if (hasYears) return 3;
-        return 2;
+        return 1;
     }
 
     // ========== JSON Enrichment ==========
@@ -356,13 +358,14 @@ public class ResumeParserService {
     // ========== Candidate Tag Persistence ==========
 
     private void saveCandidateTags(Long candidateId, Map<String, Integer> skillScores) {
+        List<CandidateTag> tags = new ArrayList<>(skillScores.size());
         for (Map.Entry<String, Integer> entry : skillScores.entrySet()) {
-            CandidateTag tag = CandidateTag.builder()
+            tags.add(CandidateTag.builder()
                     .candidateId(candidateId)
                     .tag(entry.getKey())
                     .score(entry.getValue())
-                    .build();
-            candidateTagRepository.save(tag);
+                    .build());
         }
+        candidateTagRepository.saveAll(tags);
     }
 }

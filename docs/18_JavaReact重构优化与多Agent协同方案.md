@@ -78,11 +78,11 @@
 
 > 这一项解决「Vue→React」的技术栈回归。**先做，再并行功能项。**
 
-#### Agent-FE-0：前端栈回归 React + API 契约切换
+#### Agent-FE-0：删除 Vue + 确认 React 基线
 
 - **目标**：删除 `rebuild/frontend-vue/` 目录（git 跟踪 69 文件）；以 `frontend/`（React 18）为唯一前端基线。经核实 `API_BASE` 已是 `/api/v1`，无需切换 base，仅做少量端点契约适配与冒烟验证。
 - **关键上下文**：
-  - API 层入口：`frontend/src/lib/api.ts:86` `const API_BASE = '/api';` → 改 `/api/v1`
+  - API 层入口：`frontend/src/lib/api.ts:86` `const API_BASE = '/api/v1';`（**已是 `/api/v1`，无需改**）
   - Agent 流式：`frontend/src/lib/agent.ts`（SSE，需对接 Java 后端，见 Agent-BE-3）
   - 路由：`frontend/src/App.tsx` + `frontend/src/app/featureRegistry.ts`
   - 已知契约差异（须逐一适配）：
@@ -209,54 +209,54 @@
 
 ### 2.4 前端补齐（依赖 Agent-FE-0 完成）
 
-> 所有前端任务以 `frontend/`（React）为基线。原 React 前端已实现大部分页面，主要工作是 **API 契约切换 + 缺失页面对接新后端**。
+> 所有前端任务以 `frontend/`（React）为基线。原 React 前端已实现大部分页面且 API 已对齐 `/api/v1`，主要工作是 **冒烟验证 + 缺失页面对接 + 少量契约适配**。
 
 #### Agent-FE-1：Demands 招聘需求管理页
 
 - **现状**：React `features/demands/pages/DemandsPage.tsx`（741 行）已存在；Java 后端 `/api/v1/demands` 7 端点已就位。
-- **任务**：API 契约切换（`/api`→`/api/v1`），验证创建/关闭/降级/恢复/风险标记/岗位关联全链路。
+- **任务**：API 已是 `/api/v1`，验证创建/关闭/降级/恢复/风险标记/岗位关联全链路冒烟通过。
 - **依赖**：Agent-FE-0。
 
 #### Agent-FE-2：BOSS 工作台（4 页）
 
 - **现状**：React `features/boss/pages/`（BossPage/BossInboxWorkbench/BossAccountManager/BossCliTestPage）已存在。
-- **任务**：API 切换；对接 Agent-BE-2 真集成后的 Cookie 导入/inbox/批量导入/AI 筛选；浏览器扩展下载。
+- **任务**：API 已对齐，对接 Agent-BE-2 真集成后的 Cookie 导入/inbox/批量导入/AI 筛选；浏览器扩展下载。
 - **依赖**：Agent-FE-0、Agent-BE-2。
 
 #### Agent-FE-3：岗位匹配页 `/jobs/:id/match`
 
 - **现状**：React `pages/JobMatchPage.tsx`（696 行）已存在；Java 后端 `POST /api/v1/match/jobs/{jobId}/match` + `GET /match/jobs/{jobId}/preview` 已就位。
-- **任务**：API 切换；验证 AI 匹配 + 手动选库 + 批量入池。
+- **任务**：API 已对齐，验证 AI 匹配 + 手动选库 + 批量入池。
 - **依赖**：Agent-FE-0、Agent-BE-1（匹配依赖解析）。
 
 #### Agent-FE-4：AI 预筛面试流 `/interviews/new`
 
 - **现状**：React `pages/InterviewsPage.tsx`（467 行，三阶段 setup→answer→report）已存在。
-- **任务**：API 切换；对接 Agent-BE-6 的 LLM 题目生成与评分。
+- **任务**：API 已对齐，对接 Agent-BE-6 的 LLM 题目生成与评分。
 - **依赖**：Agent-FE-0、Agent-BE-6。
 
 #### Agent-FE-5：Agent AI 助手页（SSE 流式）
 
 - **现状**：React `pages/AgentPage.tsx`（907 行）+ `lib/agent.ts`（SSE）+ 8 个 agent 组件已存在且功能完整。
-- **任务**：API 切换；对接 Agent-BE-3 的 `/api/v1/agent/chat` SSE 端点；验证思考链/工具卡/确认卡/停止按钮。
+- **任务**：API 已对齐，对接 Agent-BE-3 的 `/api/v1/agent/chat` SSE 端点；验证思考链/工具卡/确认卡/停止按钮。
 - **依赖**：Agent-FE-0、Agent-BE-3。
 
 #### Agent-FE-6：管理后台补齐（Agent 日志/AI 架构/审计）
 
 - **现状**：React `pages/admin/`（AgentCallLogsPage/AiArchitecturePage/AuditLogPage）已存在。
-- **任务**：API 切换；对接 Agent-BE-3 的 `/admin/ai-architecture`、Agent-BE-5 的审计日志持久化。
+- **任务**：API 已对齐，对接 Agent-BE-3 的 `/admin/ai-architecture`、Agent-BE-5 的审计日志持久化。
 - **依赖**：Agent-FE-0、Agent-BE-3、Agent-BE-5。
 
 #### Agent-FE-7：Dashboard + BI 富化
 
 - **现状**：React `pages/DashboardPage.tsx`（695 行）+ `pages/BiPage.tsx`（1100 行）+ 14 个 BI 组件已存在。
-- **任务**：API 切换；对接 Agent-BE-4 补齐的 BI 指标；验证员工下钻/漏斗/渠道质量/数据质量告警。
+- **任务**：API 已对齐，对接 Agent-BE-4 补齐的 BI 指标；验证员工下钻/漏斗/渠道质量/数据质量告警。
 - **依赖**：Agent-FE-0、Agent-BE-4。
 
 #### Agent-FE-8：通知中心
 
 - **现状**：React `pages/NotificationCenterPage.tsx` 已存在（已读/未读模型）。
-- **任务**：API 切换；对接 Agent-BE-5 回归的 `/notifications` 契约。
+- **任务**：API 已对齐，对接 Agent-BE-5 回归的 `/notifications` 契约。
 - **依赖**：Agent-FE-0、Agent-BE-5。
 
 ---
@@ -265,7 +265,7 @@
 
 ```
 阶段 0（先行，阻塞前端）
-  Agent-FE-0  栈回归 React + API 契约切换
+  Agent-FE-0  删除 Vue + 确认 React 基线
   ├─ 同时启动无依赖后端 ─┐
   │                      │
 阶段 1（并行后端）         │

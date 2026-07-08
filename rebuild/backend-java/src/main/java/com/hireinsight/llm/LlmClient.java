@@ -14,7 +14,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.Map;
 
 /**
  * LLM Client facade supporting Fast/Think/Pro routing and
@@ -29,12 +28,6 @@ import java.util.Map;
 public class LlmClient {
 
     private static final Logger log = LoggerFactory.getLogger(LlmClient.class);
-
-    private static final Map<String, String> MODEL_ROUTES = Map.of(
-            "fast",  "deepseek-v4-flash",
-            "think", "deepseek-v4-flash",
-            "pro",   "deepseek-v4-pro"
-    );
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -71,9 +64,6 @@ public class LlmClient {
     }
 
     private String resolveModel(String route) {
-        if (route != null && MODEL_ROUTES.containsKey(route)) {
-            return MODEL_ROUTES.get(route);
-        }
         return switch (route == null ? "fast" : route) {
             case "think" -> config.getModelThink();
             case "pro" -> config.getModelPro();
