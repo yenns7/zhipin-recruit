@@ -4,7 +4,7 @@
 
 ## 前置条件
 
-- Node.js / npm：用于启动 `rebuild/frontend-vue`
+- Node.js / npm：用于启动 `frontend/` (React 18)
 - JDK 21：`rebuild/backend-java/pom.xml` 中的 `java.version` 为 `21`
 - Maven 3.9+：用于启动 Spring Boot 后端
 
@@ -25,7 +25,7 @@ mvn -version
 
 ## 前端
 
-在 `rebuild/frontend-vue` 下执行：
+在 `frontend/` 下执行：
 
 ```bash
 npm install
@@ -34,7 +34,8 @@ npm run dev
 
 - 默认端口：`5173`
 - 默认 API base：`/api/v1`
-- `/api` 请求会通过 Vite 代理转发到 `http://localhost:8080`
+- 框架：`React 18 + TypeScript`
+- `/api/v1` 请求会通过 Vite 代理转发到 `http://localhost:8080`
 - 如后端不在 8080，可用 `VITE_API_BASE_URL` 覆盖
 
 ## 后端

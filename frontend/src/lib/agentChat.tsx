@@ -13,7 +13,7 @@ import {
   type ReactNode,
   type MutableRefObject,
 } from 'react';
-import { getToken } from './api';
+import { getToken, API_BASE } from './api';
 import { api } from './api';
 import type { ConversationSummary } from '../types';
 
@@ -159,7 +159,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
   const loadConversationMessages = useCallback(
     async (id: number): Promise<ConversationMessageItem[]> => {
       const data = await authFetch<{ messages: ConversationMessageItem[] }>(
-        `/api/agent/conversations/${id}`,
+        `${API_BASE}/agent/conversations/${id}`,
       );
       return data.messages ?? [];
     },

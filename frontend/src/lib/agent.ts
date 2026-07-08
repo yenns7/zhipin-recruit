@@ -15,7 +15,7 @@ import {
   Wrench,
   type LucideIcon,
 } from 'lucide-react';
-import { getToken } from './api';
+import { getToken, API_BASE } from './api';
 
 // ---- Wire types ----------------------------------------------------------
 
@@ -25,7 +25,7 @@ export interface ChatTurn {
   content: string;
 }
 
-// A single tool advertised by GET /api/agent/tools.
+// A single tool advertised by GET /api/v1/agent/tools.
 export interface AgentTool {
   name: string;
   description: string;
@@ -91,7 +91,7 @@ export interface ExecuteWriteResult {
 }
 
 // Execute a write tool the agent proposed, once the user confirms.
-// Hits POST /api/agent/execute which enforces RBAC server-side.
+// Hits POST /api/v1/agent/execute which enforces RBAC server-side.
 export async function executeWriteTool(
   tool: string,
   args: Record<string, unknown>,
@@ -100,7 +100,7 @@ export async function executeWriteTool(
   const token = getToken();
   const body: Record<string, unknown> = { tool, args };
   if (conversationId) body.conversation_id = conversationId;
-  const resp = await fetch('/api/agent/execute', {
+  const resp = await fetch(`${API_BASE}/agent/execute`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -135,7 +135,7 @@ export async function streamChat(
   const token = getToken();
   const body: Record<string, unknown> = { message, history };
   if (conversationId) body.conversation_id = conversationId;
-  const resp = await fetch('/api/agent/chat', {
+  const resp = await fetch(`${API_BASE}/agent/chat`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -219,7 +219,7 @@ function isAgentEvent(value: unknown): value is AgentEvent {
 // swallowed by the caller — the cloud is a nice-to-have, not load-bearing.
 export async function fetchAgentTools(signal?: AbortSignal): Promise<AgentTool[]> {
   const token = getToken();
-  const resp = await fetch('/api/agent/tools', {
+  const resp = await fetch(`${API_BASE}/agent/tools`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     signal,
   });

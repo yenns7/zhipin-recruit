@@ -83,7 +83,7 @@ import type {
   CallLogQuery,
 } from '../types';
 
-const API_BASE = '/api';
+export const API_BASE = '/api/v1';
 export const TOKEN_KEY = 'hireinsight_token';
 
 export function getToken(): string | null {
@@ -220,6 +220,9 @@ export const api = {
   login(payload: LoginRequest): Promise<LoginResponse> {
     return request('/auth/login', { method: 'POST', body: payload });
   },
+  logout(): Promise<{ status: string }> {
+    return request('/auth/logout', { method: 'POST' });
+  },
 
   // ---- Resume / Candidates ----
   uploadResumes(
@@ -241,19 +244,19 @@ export const api = {
         }
       });
     }
-    return request('/resume/upload', { method: 'POST', formData: form });
+    return request('/resumes/upload', { method: 'POST', formData: form });
   },
   getCandidate(candidateId: number): Promise<CandidateDetail> {
-    return request(`/resume/${candidateId}`);
+    return request(`/interviews/${candidateId}`);
   },
   retryCandidateParse(candidateId: number): Promise<RetryParseResponse> {
-    return request(`/resume/${candidateId}/retry-parse`, { method: 'POST' });
+    return request(`/interviews/${candidateId}/retry-parse`, { method: 'POST' });
   },
   updateCandidateProfile(
     candidateId: number,
     payload: CandidateProfileUpdateRequest,
   ): Promise<CandidateDetail> {
-    return request(`/resume/${candidateId}/profile`, { method: 'PATCH', body: payload });
+    return request(`/interviews/${candidateId}/profile`, { method: 'PATCH', body: payload });
   },
   listCandidates(): Promise<CandidateListItem[]> {
     return request('/candidates');
@@ -465,11 +468,11 @@ export const api = {
 
   // ---- Account ----
   getMe(): Promise<MeResponse> {
-    return request('/auth/me');
+    return request('/users/me');
   },
   changePassword(oldPassword: string, newPassword: string): Promise<{ status: string }> {
-    return request('/auth/change-password', {
-      method: 'POST',
+    return request('/users/me/password', {
+      method: 'PUT',
       body: { old_password: oldPassword, new_password: newPassword },
     });
   },
@@ -553,7 +556,7 @@ export const api = {
 
   // ---- Notifications ----
   getNotifications(page = 1, perPage = 20): Promise<NotificationListResponse> {
-    return request(`/notifications?page=${page}&per_page=${perPage}`);
+    return request(`/notifications/todos?page=${page}&per_page=${perPage}`);
   },
   getUnreadCount(): Promise<{ unread_count: number }> {
     return request('/notifications/unread-count');

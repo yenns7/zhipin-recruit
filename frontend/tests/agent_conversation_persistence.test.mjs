@@ -20,7 +20,7 @@ assert.match(chat, /STORAGE_KEY_CONV/, 'Agent chat should persist the current co
 assert.match(chat, /conversationId/, 'Agent chat context should expose conversationId');
 assert.match(chat, /loadConversationMessages/, 'Agent chat context should load stored conversation messages');
 assert.match(chat, /hydrateMessagesFromDb/, 'Agent chat context should hydrate UI messages from backend messages');
-assert.match(chat, /\/api\/agent\/conversations\/\$\{id\}/, 'Agent chat should fetch conversation detail');
+	assert.match(chat, /\$\{API_BASE\}\/agent\/conversations\/\$\{id\}/, 'Agent chat should fetch conversation detail');
 
 const page = readSource('pages/AgentPage.tsx');
 assert.match(page, /conversationId/, 'Agent page should read the active conversation id');
