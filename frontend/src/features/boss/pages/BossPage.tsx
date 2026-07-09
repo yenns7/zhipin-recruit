@@ -2,13 +2,14 @@
 // 收件箱闭环、推荐候选人、查看/下载简历、岗位列表。
 //
 // 扫码登录即全功能可用，无需安装浏览器扩展或采集 __zp_stoken__。
-import { Component, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Badge,
   Button,
   Card,
   CardBody,
   EmptyState,
+  ErrorBoundary,
   ErrorState,
   Input,
   PageHeader,
@@ -26,42 +27,6 @@ import type {
 } from '../../../types';
 import { BossAccountManager } from './BossAccountManager';
 import { BossInboxWorkbench } from './BossInboxWorkbench';
-
-// 错误边界组件，防止白屏
-interface ErrorBoundaryProps { children: ReactNode }
-interface ErrorBoundaryState { hasError: boolean; error: Error | null }
-
-class BossPageErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error };
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="space-y-6">
-          <PageHeader title="BOSS 直聘" description="加载出错，请刷新页面重试。" />
-          <Card>
-            <CardBody className="space-y-4">
-              <div className="text-body-sm text-red-600">
-                ⚠️ 页面加载出错：{this.state.error?.message || '未知错误'}
-              </div>
-              <Button onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload(); }}>
-                刷新页面
-              </Button>
-            </CardBody>
-          </Card>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
 
 type TabKey = 'inbox' | 'recommend' | 'jobs';
 
@@ -518,8 +483,8 @@ function esc(s: string): string {
 // 带错误边界的导出组件
 export function BossPageWithBoundary() {
   return (
-    <BossPageErrorBoundary>
+    <ErrorBoundary>
       <BossPage />
-    </BossPageErrorBoundary>
+    </ErrorBoundary>
   );
 }

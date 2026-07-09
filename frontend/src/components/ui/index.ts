@@ -8,6 +8,7 @@ export { Spinner } from './Spinner';
 export { SegmentedControl } from './SegmentedControl';
 export { EmptyState } from './EmptyState';
 export { ErrorState } from './ErrorState';
+export { ErrorBoundary } from './ErrorBoundary';
 export { PageHeader } from './PageHeader';
 export { ToastProvider } from './Toast';
 export { useToast } from './ToastContext';

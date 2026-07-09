@@ -14,7 +14,7 @@ import { AuthProvider, useAuth } from './lib/auth';
 import { AppShell } from './components/AppShell';
 import { defaultRouteForRole } from './lib/nav';
 import { featureRoutes } from './app/featureRegistry';
-import { ToastProvider } from './components/ui';
+import { ToastProvider, ErrorBoundary } from './components/ui';
 import type { Role } from './types';
 
 const LoginPage = lazy(() => import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })));
@@ -192,20 +192,22 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <ToastProvider>
-        <BrowserRouter>
-          <Suspense
-            fallback={
-              <div className="flex min-h-screen items-center justify-center text-sm text-muted">
-                加载中…
-              </div>
-            }
-          >
-            <AppRoutes />
-          </Suspense>
-        </BrowserRouter>
-      </ToastProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <ToastProvider>
+          <BrowserRouter>
+            <Suspense
+              fallback={
+                <div className="flex min-h-screen items-center justify-center text-sm text-muted">
+                  加载中…
+                </div>
+              }
+            >
+              <AppRoutes />
+            </Suspense>
+          </BrowserRouter>
+        </ToastProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

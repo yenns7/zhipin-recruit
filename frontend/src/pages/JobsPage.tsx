@@ -28,30 +28,7 @@ import type {
 } from '../types';
 import { Reveal } from '../components/motion';
 import { RecruitmentManagementTabs } from '../components/recruitment/RecruitmentManagementTabs';
-
-const COMMON_JOB_CITY_OPTIONS = [
-  '北京',
-  '上海',
-  '深圳',
-  '广州',
-  '杭州',
-  '成都',
-  '武汉',
-  '南京',
-  '苏州',
-  '西安',
-  '长沙',
-  '重庆',
-  '天津',
-  '厦门',
-  '合肥',
-  '郑州',
-  '青岛',
-  '宁波',
-  '佛山',
-  '东莞',
-  '远程',
-] as const;
+import { COMMON_CITY_OPTIONS as COMMON_JOB_CITY_OPTIONS } from '../lib/constants/cities';
 
 const COMMON_JOB_DEPARTMENT_OPTIONS = [
   '技术研发部',
