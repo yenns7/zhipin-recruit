@@ -1,7 +1,7 @@
-# 17 · Java + Vue 真实试点前落地准备清单
+# 17 · Java + React 真实试点前落地准备清单
 
 > 日期：2026-07-07
-> 适用范围：`rebuild/` Java Spring Boot + Vue 重构版
+> 适用范围：`rebuild/` Java Spring Boot + React 重构版
 > 使用对象：试点负责人、运维/研发、HR 试点管理员
 > 当前结论：本清单完成后，可以发给真实用户做**小范围试点准备**；仍不是生产上线。
 
@@ -68,7 +68,7 @@ test -w /srv/hireinsight/backups
 负责人：研发/运维
 
 ```bash
-cd /srv/hireinsight/rebuild/frontend-vue
+cd /srv/hireinsight/frontend
 npm ci
 npm run build
 ```
@@ -80,7 +80,7 @@ server {
     listen 443 ssl;
     server_name hr-pilot.example.com;
 
-    root /srv/hireinsight/rebuild/frontend-vue/dist;
+    root /srv/hireinsight/frontend/dist;
     index index.html;
 
     location / {
@@ -529,7 +529,7 @@ python3 rebuild/scripts/restore_pilot_data.py --backup-dir /srv/hireinsight/back
 
 可以对试点负责人说：
 
-> Java + Vue 重构版已经可以进入真实用户小范围试点准备。请先按本清单完成服务器部署、环境变量、账号、备份恢复演练和四角色冒烟。清单全部通过后，可以开放给少数真实用户试点。
+> Java + React 重构版已经可以进入真实用户小范围试点准备。请先按本清单完成服务器部署、环境变量、账号、备份恢复演练和四角色冒烟。清单全部通过后，可以开放给少数真实用户试点。
 
 不能对外说：
 

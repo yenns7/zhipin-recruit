@@ -1,5 +1,7 @@
 # 智聘 · 快速启动
 
+> ⚠️ 本文档为 Python Flask 原版的运行说明（legacy 参考）。当前主力为 Java Spring Boot + React 重构版，运行方式见 `rebuild/RUNNING.md`。
+
 ## 前置条件
 
 - Python 3.9+

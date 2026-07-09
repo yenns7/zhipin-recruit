@@ -8,7 +8,7 @@
 
 推荐服务器形态：
 
-- 前端：`rebuild/frontend` 构建静态文件，由 Nginx 托管。
+- 前端：`frontend` 构建静态文件，由 Nginx 托管。
 - 后端：`rebuild/backend-java` 以 `pilot` profile 启动，监听 `127.0.0.1:8080` 或内网端口。
 - 数据库：PostgreSQL，保存账号、岗位、候选人、流程、面试反馈等真实试点数据。
 - 上传文件：保存到持久目录，例如 `/srv/hireinsight/uploads`，不要放在 `/tmp`。
@@ -57,7 +57,7 @@ GRANT ALL PRIVILEGES ON DATABASE hireinsight TO hireinsight_app;
 前端构建：
 
 ```bash
-cd rebuild/frontend
+cd frontend
 npm install
 npm run build
 ```
@@ -95,7 +95,7 @@ server {
     listen 443 ssl;
     server_name hr-pilot.example.com;
 
-    root /srv/hireinsight/rebuild/frontend/dist;
+    root /srv/hireinsight/frontend/dist;
     index index.html;
 
     location / {

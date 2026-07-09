@@ -1,9 +1,9 @@
 # 智聘 Java+React 重构优化与多 Agent 协同方案
 
-> 状态：优化计划文档（待执行）
+> 状态：BE-1~BE-7 已完成，FE-0 已完成；FE-1~FE-8 待验证
 > 日期：2026-07-08
 > 基线分支：`Java`（当前 HEAD `501df95`）
-> 关联文档：`docs/15_JavaSpringBootVue重构MVP状态报告.md`、`docs/17_JavaVue真实试点前落地准备清单.md`、`rebuild/README.md`
+> 关联文档：`docs/15_JavaSpringBootReact重构MVP状态报告.md`、`docs/17_JavaReact真实试点前落地准备清单.md`、`rebuild/README.md`
 
 ---
 
@@ -22,7 +22,7 @@
 
 1. **「前端架构都一致」不成立。** 原前端是 React 18（160 个 .tsx 文件，约 12400 行页面代码 + 16 组件 UI Kit），重构后另起炉灶改写为 Vue 3（23 个 .vue 文件，约 4500 行，无共享 UI Kit）。两者技术栈、页面覆盖都不一致。
 2. **前端统一为 React，并删除 Vue。** 经核实，React 前端 `frontend/src/lib/api.ts:86` 的 `API_BASE` **已经是 `/api/v1`**（早已切换到对接 Java 后端），且已调用 `/users/me`、`/resumes/upload`、`/auth/logout` 等 Java 新增端点。因此「复用 React」近乎即用，无需 API base 切换；本方案的明确动作是：**删除 `rebuild/frontend-vue/` 目录**，以 `frontend/`（React 18）为唯一前端基线，仅补齐缺失页面与少量契约适配。
-3. **后端接口已基本对齐，但存在大量「桩」实现。** Java 后端 98 端点 vs Python 94 路由，数量对齐；但 AI/LLM、BOSS 真集成、简历解析、字段加密、Agent SSE 流式、通知/审计持久化等均为 demo/in-memory 桩，需逐项补真实实现。
+3. **后端接口已基本对齐，但存在大量「桩」实现。** Java 后端 105 端点 vs Python 94 路由，数量对齐；但 AI/LLM、BOSS 真集成、简历解析、字段加密、Agent SSE 流式、通知/审计持久化等均为 demo/in-memory 桩，需逐项补真实实现。
 
 ### 文档同步说明
 
@@ -35,9 +35,11 @@
 
 ### 1.1 后端差距（Python Flask → Java Spring Boot）
 
+> 注：以下差距表为基线 `501df95` 时的状态；BE-1~BE-7 已全部落地真实实现，本表仅作历史对照。
+
 | 维度 | 原后端（Python） | 新后端（Java） | 差距 |
 |---|---|---|---|
-| 路由数 | 94 | 98 | ✅ 数量对齐 |
+| 路由数 | 94 | 105 | ✅ 数量对齐 |
 | 数据模型 | 20 个模型 | 12 个实体 | ⚠️ 缺 `UploadBatch`/`CandidateTag`/`Match`/`CandidateDisposition`/`OfferRecord`/`InterviewAssignment`/`AuditLog`/`Notification`/`Conversation`/`ConversationMessage` 等 8+ 张表（部分用 in-memory 替代） |
 | AI/LLM | LangGraph ReAct Agent + DeepSeek 真调用 + SSE 流式 | 规则/桩（`InterviewAIService` 关键词正则，`AgentController.mockExecuteTool`） | ❌ 无真实 LLM |
 | 简历解析 | pypdf/docx + LLM 结构化抽取 + 技能评分 | 仅写文件，`resumeJson="{}"` 占位 | ❌ 无解析 |
@@ -333,7 +335,7 @@
 - 控制器：`.../controller/` 或 `.../{module}/` 下 `*Controller.java`
 - 模型：`.../model/`（12 实体）
 - 迁移：`src/main/resources/db/migration/`（V5,V9,V10,V11,V12）
-- API 文档：`rebuild/backend-java/API.md`（98 端点，注意 BOSS 实为 19 非文档标的 18）
+- API 文档：`rebuild/backend-java/API.md`（105 端点，注意 BOSS 实为 19 非文档标的 18）
 - 原参考：`backend/app/api/*.py`（14 blueprint）、`backend/app/models.py`（20 模型）、`backend/app/services/*.py`
 
 ### 6.2 前端（React 基线）
@@ -345,8 +347,8 @@
 - Agent 组件：`frontend/src/components/agent/`（8）
 
 ### 6.3 文档
-- 重构状态：`docs/15_JavaSpringBootVue重构MVP状态报告.md`（最新，2026-07-08）
-- 试点清单：`docs/17_JavaVue真实试点前落地准备清单.md`
+- 重构状态：`docs/15_JavaSpringBootReact重构MVP状态报告.md`（最新，2026-07-08）
+- 试点清单：`docs/17_JavaReact真实试点前落地准备清单.md`
 - BI 口径：`docs/03_BI看板设计.md`
 - AI 助手：`docs/ai_assistant_upgrade_plan.md`
 - BOSS：`docs/08_BOSS账号接入方案`、`docs/11_BOSS_CLI数据集成计划`

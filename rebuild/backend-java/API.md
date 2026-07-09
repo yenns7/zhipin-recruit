@@ -40,7 +40,7 @@ admin > manager > recruiter > interviewer
 | **Demo-Stub** | 返回 in-memory 静态样例数据，不代表真实集成 |
 | **Rule-Based** | 基于 JPA 聚合的规则计算，非真实数仓/BI 系统 |
 | **DB 持久化** | 通知/Offer/处置/审计日志已持久化至 PostgreSQL，重启不丢失 |
-| **进程内存** | BOSS/Agent 会话数据存于 `ConcurrentHashMap`，重启丢失 |
+| **进程内存** | BOSS 默认 demo 数据存于 `ConcurrentHashMap`，重启丢失；Agent 会话已持久化（见下） |
 | **Flyway 持久化** | 已创建数据库表，真实写入 PostgreSQL |
 
 ---
@@ -780,7 +780,7 @@ GET /api/v1/health
 | POST | `/api/v1/agent/conversations/{conversationId}/messages` | 已认证 | 发送消息 |
 
 > - 调用日志持久化: ✅ Flyway V12 — `agent_call_logs` 表
-> - 会话数据: ❌ 进程内存 (`ConcurrentHashMap`)，重启丢失
+> - 会话数据: ✅ 持久化 (Flyway V16) - `conversations` / `conversation_messages` 表，重启不丢失
 > - 写操作仅生成 confirm-first 确认卡，不真实执行
 
 ### GET `/api/v1/agent/call-logs`
@@ -1159,9 +1159,9 @@ GET /api/v1/health
 | 流程管理 | `PipelineController` | 9 | PipelineStage | ✅ JPA |
 | 简历上传与解析 | `ResumeController` | 4 | Candidate, UploadBatch, CandidateTag | ✅ JPA + ✅ Flyway V13 |
 | 商业智能 | `BiController` | 3 | - | ⚡ JPA 聚合 (rule-based) |
-| Agent / AI 助手 | `AgentController` | 10 | AgentCallLog, Conversation | ✅ 调用日志 + ❌ 会话(进程内存) |
+| Agent / AI 助手 | `AgentController` | 10 | AgentCallLog, Conversation | ✅ 调用日志 + ✅ 会话(持久化 Flyway V16) |
 | 匹配 | `MatchController` | 3 | - | ❌ demo 数据 |
-| BOSS 直聘 | `BossController` | 18 | - | ❌ in-memory (demo stub) |
+| BOSS 直聘 | `BossController` | 18 | - | ⚡ real CLI mode (默认 demo) |
 | 通知中心 | `NotificationController` | 4 | Notification | ✅ JPA (Flyway V14) |
 | 审计日志 | `AuditLogController` | 1 | AuditLog | ✅ JPA (Flyway V14) |
 | 候选人处置 | `DispositionController` | 2 | CandidateDisposition | ✅ JPA (Flyway V14) |
@@ -1196,9 +1196,9 @@ GET /api/v1/health
 
 | 类型 | 模块 | 说明 |
 |------|------|------|
-| **Demo-Stub** | BOSS 直聘 | 全部 18 个接口返回 in-memory 静态样例数据 |
+| **Demo-Stub** | BOSS 直聘 | 默认 demo 返回 in-memory 静态样例数据；已支持真实 CLI 子进程模式（需配置 BOSS CLI） |
 | **Demo 数据** | 匹配 | 算法已移植，数据为本地样例 |
 | **Rule-Based** | BI | JPA 聚合，非真实数仓；概览按角色范围区分 |
-| **进程内存** | Agent 会话 | 对话数据存于 `ConcurrentHashMap`，重启丢失 |
+| **持久化** | Agent 会话 | 会话与消息持久化到数据库（Flyway V16），重启不丢 |
 | **LLM + 降级** | AI 面试评估 | LLM 驱动评估与出题，LLM 不可用时降级为 rule-based |
-| **占位写入** | 简历解析 | 简历上传后写入数据库，但 JSON 解析内容暂为 `{}` 占位 |
+| **LLM 解析** | 简历解析 | 简历上传后写入数据库，解析使用 LLM 结构化抽取（无 API key 时降级为 mock 占位） |

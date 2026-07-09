@@ -107,7 +107,7 @@ mvn spring-boot:run -Dspring-boot.run.profiles=dev
 | 面试官 | `interviewer01@mvp.local` | `Zhipin2026` | 面试任务、候选人材料查看、反馈边界 |
 | 管理员 | `admin01@mvp.local` | `Zhipin2026` | 用户治理、系统设置、审计日志、权限边界 |
 
-如果本机数据库里曾经存在旧 Java demo 账号，例如 `demo.*@hireinsight.local` 或 `demo@hireinsight.local`，它们只是旧本地数据残留；新的 Java + Vue 本地试用请优先使用上表的 Python 原版账号。改完代码后需要重启 Java 后端，`dev` 初始化器才会补齐缺失账号。
+如果本机数据库里曾经存在旧 Java demo 账号，例如 `demo.*@hireinsight.local` 或 `demo@hireinsight.local`，它们只是旧本地数据残留；新的 Java + React 本地试用请使用上表由 Java 后端 `dev` profile 自行初始化的本地演示账号（Java 后端已自管理账号，无需再使用 Python 原版账号）。改完代码后需要重启 Java 后端，`dev` 初始化器才会补齐缺失账号。
 
 ## 联调时优先核对的页面事实
 

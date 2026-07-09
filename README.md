@@ -213,9 +213,9 @@ mvn spring-boot:run -Dspring-boot.run.profiles=pilot
 ├── base_agent/             复用的 LLM/解析/匹配模块
 ├── docs/                   需求 / PRD / 设计文档
 │   ├── 01_PRD.md           PRD 文档
-│   ├── 15_JavaSpringBootVue重构MVP状态报告.md
-│   ├── 16_JavaVue真实用户小范围试点交付包.md
-│   ├── 17_JavaVue真实试点前落地准备清单.md
+│   ├── 15_JavaSpringBootReact重构MVP状态报告.md
+│   ├── 16_JavaReact真实用户小范围试点交付包.md
+│   ├── 17_JavaReact真实试点前落地准备清单.md
 │   └── superpowers/specs/  重构版 API / PRD 口径说明
 ├── README.md
 └── DEPLOYMENT.md           部署文档

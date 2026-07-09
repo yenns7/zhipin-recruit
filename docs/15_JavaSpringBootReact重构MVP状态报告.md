@@ -1,4 +1,4 @@
-# 15 · Java Spring Boot + Vue 重构 MVP 状态报告
+# 15 · Java Spring Boot + React 重构 MVP 状态报告
 
 > 日期：2026-07-08（更新）
 > 目标：记录 `rebuild/` 当前与前端壳层直接相关的真实状态，特别是这轮收口的 Java 环境、PostgreSQL dev 数据库、前端入口和 demo 边界。
@@ -17,7 +17,7 @@ BOSS 直聘为 demo-stub，AI 面试为 rule-based demo，GSAP 动画保留在 R
 - 简历库已提供”加入流程”入口，可把候选人加入有效岗位的 AI 初筛
 - 面试任务页已提供安排面试草稿入口；面试官列表由后端按本人 interviewer_id 收敛
 - 经理/负责人工作台已补团队看板提示，覆盖岗位进展、候选人归属、招聘专员绩效和流程卡点
-- AI 助手、通知待办、系统设置里的系统治理已有 Java demo 端点和 Vue 入口，但仍保留 demo / in-memory 边界
+- AI 助手、通知待办、系统设置里的系统治理已有 Java demo 端点和 React 入口，但仍保留 demo / in-memory 边界
 - `revert-lite` 已重新标注为 demo / legacy correction path
 - `offer / onboarded / rejected` 的说明已改成”阶段记录边界”，不再冒充完整业务闭环
 - **RecruitmentDemand 用人需求**：7 接口，完整生命周期管理，Flyway V10
@@ -89,7 +89,7 @@ BOSS 直聘为 demo-stub，AI 面试为 rule-based demo，GSAP 动画保留在 R
 
 ### 2.7 Python 原版账号与入口对齐
 
-- Java + Vue `dev` profile 的本地演示账号已对齐原 Python 版 `backend/seed_dev.py`：`admin01@mvp.local`、`manager01@mvp.local`、`lead01@mvp.local`、`hr01@mvp.local`、`hr02@mvp.local`、`hr03@mvp.local`、`interviewer01@mvp.local`，统一密码 `Zhipin2026`。
+- Java + React `dev` profile 的本地演示账号已对齐原 Python 版 `backend/seed_dev.py`：`admin01@mvp.local`、`manager01@mvp.local`、`lead01@mvp.local`、`hr01@mvp.local`、`hr02@mvp.local`、`hr03@mvp.local`、`interviewer01@mvp.local`，统一密码 `Zhipin2026`。
 - 侧边栏核心入口文字已向原 Python 版靠拢：`简历库`、`招聘管理`、`候选人流程`、`数据看板`、`系统设置`。
 
 ## 2.8 新增模块：1:1 功能复现工作
@@ -186,7 +186,7 @@ BOSS 直聘为 demo-stub，AI 面试为 rule-based demo，GSAP 动画保留在 R
 
 ## 4. 对外推荐说法
 
-> `rebuild/` 当前已经具备可联调的 Java + Vue MVP 壳层：四类角色的小范围产品试点入口已经补齐，本地演示账号与原 Python 版对齐，管理员用户治理最小闭环可用，候选人异步解析成功后会真实写入 Java rebuild PostgreSQL dev 数据库，候选人可加入流程，招聘专员可安排面试，面试官只看本人面试，AI 助手/通知待办/系统设置里的系统治理已有 Java demo 端点；但整体仍是 demo-only 收口阶段，多项治理状态仍为进程内存态，`revert-lite` 只用于轻量纠偏，Offer / Onboard / Reject 也只代表阶段记录边界。
+> `rebuild/` 当前已经具备可联调的 Java + React MVP 壳层：四类角色的小范围产品试点入口已经补齐，本地演示账号与原 Python 版对齐，管理员用户治理最小闭环可用，候选人异步解析成功后会真实写入 Java rebuild PostgreSQL dev 数据库，候选人可加入流程，招聘专员可安排面试，面试官只看本人面试，AI 助手/通知待办/系统设置里的系统治理已有 Java demo 端点；但整体仍是 demo-only 收口阶段，多项治理状态仍为进程内存态，`revert-lite` 只用于轻量纠偏，Offer / Onboard / Reject 也只代表阶段记录边界。
 
 ## 5. 产品试点判断
 
@@ -216,7 +216,7 @@ BOSS 直聘为 demo-stub，AI 面试为 rule-based demo，GSAP 动画保留在 R
 - 公开注册可通过配置关闭，真实账号由管理员在“用户治理”创建。
 - `/api/v1/health` 增加数据库状态，数据库不可用时返回 `503`。
 - 新增 `rebuild/scripts/backup_pilot_data.py` 与 `restore_pilot_data.py`，覆盖 PostgreSQL dump 和上传文件。
-- 新增 `rebuild/DEPLOYMENT.md` 和 `docs/16_JavaVue真实用户小范围试点交付包.md`，分别面向运维部署和试点负责人/使用人员。
+- 新增 `rebuild/DEPLOYMENT.md` 和 `docs/16_JavaReact真实用户小范围试点交付包.md`，分别面向运维部署和试点负责人/使用人员。
 
 当前判断更新为：
 
