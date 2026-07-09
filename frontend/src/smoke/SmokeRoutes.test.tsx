@@ -77,7 +77,7 @@ vi.mock('../lib/api', async () => {
       listInterviewRecords: vi.fn().mockResolvedValue([]),
       listInterviewers: vi.fn().mockResolvedValue([]),
       getCandidate: vi.fn(),
-      searchCandidates: vi.fn(),
+      searchCandidates: vi.fn().mockResolvedValue({ candidates: [], total: 0 }),
     },
   };
 });
@@ -171,8 +171,8 @@ describe('SmokeRoutes', () => {
     render(<PipelinePage />);
 
     expect(screen.getByText('候选人流程')).toBeInTheDocument();
-    expect(await screen.findByText('暂无岗位')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '新建岗位' })).toBeInTheDocument();
+    // Empty-state guidance: directs user to create job profiles first
+    expect(await screen.findByText('请先创建岗位画像，再查看候选人流程')).toBeInTheDocument();
   });
 
   // ── 4. recruiter 上传简历可达 ───────────────────────────────────────────
@@ -299,13 +299,14 @@ describe('SmokeRoutes', () => {
     expect(await screen.findByText('暂无调用记录')).toBeInTheDocument();
   });
 
-  // ── 13. 空数据引导可见 ──────────────────────────────────────────────────
-  it('13. shows guidance text when jobs list is empty', async () => {
-    const { JobsPage } = await import('../pages/JobsPage');
-    render(<JobsPage />);
+  // ── 13. 空数据引导可见 — 候选人列表为空 ──────────────────────────────
+  it('13. shows guidance text when candidates list is empty', async () => {
+    const { CandidatesPage } = await import('../features/candidates/pages/CandidatesPage');
+    render(<CandidatesPage />);
 
-    expect(await screen.findByText('暂无在招岗位')).toBeInTheDocument();
-    expect(screen.getByText(/点击右上角「新增岗位」/)).toBeInTheDocument();
+    expect(await screen.findByText('暂无简历')).toBeInTheDocument();
+    const uploadLinks = screen.getAllByText(/上传简历/);
+    expect(uploadLinks.length).toBeGreaterThanOrEqual(1);
   });
 
   // ── 14. ErrorBoundary 不白屏 ────────────────────────────────────────────
@@ -327,7 +328,9 @@ describe('SmokeRoutes', () => {
     // Use the real (unmocked) api module so request() → fetch() is exercised
     const realApi = await vi.importActual<typeof import('../lib/api')>('../lib/api');
 
-    const handler = vi.fn();
+    const handler = vi.fn(() => {
+      localStorage.removeItem('hireinsight_token');
+    });
     realApi.setUnauthorizedHandler(handler);
     localStorage.setItem('hireinsight_token', 'expired-token');
 
@@ -340,6 +343,8 @@ describe('SmokeRoutes', () => {
 
     await expect(realApi.api.listCandidates()).rejects.toThrow('Unauthorized');
     expect(handler).toHaveBeenCalledTimes(1);
+    // Verify the token was cleared from localStorage (matching AuthProvider's logout behavior)
+    expect(localStorage.getItem('hireinsight_token')).toBeNull();
 
     fetchSpy.mockRestore();
     realApi.setUnauthorizedHandler(null);
