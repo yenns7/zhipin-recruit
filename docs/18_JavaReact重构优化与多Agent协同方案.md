@@ -16,7 +16,7 @@
 | 原后端 | `backend/` | Python Flask + SQLAlchemy | 重构前参考（功能基准） |
 | 原前端 | `frontend/` | **React 18 + TS（160 .tsx）** | 重构前参考（功能基准 + 目标前端栈） |
 | 新后端 | `rebuild/backend-java/` | Java 21 + Spring Boot 3.2 | 当前重构产物 |
-| 新前端 | `rebuild/frontend-vue/` | **Vue 3 + TS（23 .vue）** | 当前重构产物（需替换为 React） |
+| 新前端 | `rebuild/frontend-vue/` | **Vue 3 + TS（23 .vue）** | 基线时重构产物（FE-0 已删除，React 为当前基线） |
 
 ### 三条关键结论（纠正认知偏差）
 
