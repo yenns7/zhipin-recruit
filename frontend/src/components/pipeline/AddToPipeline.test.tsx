@@ -34,7 +34,7 @@ describe('AddToPipeline', () => {
 
   it('uses the shared alert-style error state when adding a candidate fails', async () => {
     apiMocks.listCandidates.mockResolvedValueOnce([
-      { id: 7, name_masked: '候选人A' },
+      { id: 7, nameMasked: '候选人A' },
     ]);
     apiMocks.movePipeline.mockRejectedValueOnce(new Error('加入流程失败'));
 

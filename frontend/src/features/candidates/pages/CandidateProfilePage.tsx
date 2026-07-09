@@ -19,7 +19,7 @@ import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Spinner, ErrorSta
 import { Reveal } from '../../../components/motion';
 import { PipelineProgress } from '../../../components/candidate/PipelineProgress';
 import { ReassignOwner } from '../../../components/candidate/ReassignOwner';
-import type { CandidateSourceInfo, CandidateTag, ResumeJson } from '../types';
+import type { CandidateTag, ResumeJson } from '../types';
 
 // Cal.com 近黑配色 hex（recharts 不接受 tailwind 类）
 const RADAR_STROKE = '#111111';
@@ -130,7 +130,7 @@ function CandidateJudgementCard({
   hiddenSkillCount,
 }: {
   resumeJson: ResumeJson;
-  source: CandidateSourceInfo | null | undefined;
+  source: Record<string, unknown> | null | undefined;
   tags: CandidateTag[];
   coreTags: CandidateTag[];
   hiddenSkillCount: number;
@@ -155,7 +155,7 @@ function CandidateJudgementCard({
     highSkills.length > 0 ? `高分技能：${highSkills.slice(0, 3).map((skill) => skill.tag).join('、')}` : '',
     latestExperience ? `最近经历：${latestExperience}` : '',
     education ? `教育背景：${education}` : '',
-    source?.target_job_title ? `来源岗位：${source.target_job_title}` : '',
+    source?.targetJobTitle ? `来源岗位：${source.targetJobTitle}` : '',
     summary ? `摘要：${summary}` : '',
   ], 3);
 
@@ -163,7 +163,7 @@ function CandidateJudgementCard({
     hiddenSkillCount > 12 ? 'AI 抽取标签较多，建议按目标岗位二次筛选。' : '',
     highSkills.length === 0 && visibleSkills.length > 0 ? '缺少 4 分以上核心技能，需要人工确认真实强项。' : '',
     !latestExperience ? '最近工作经历不清晰，建议补充或查看原简历。' : '',
-    !source?.target_job_title ? '暂未绑定目标岗位，当前判断只能作为通用画像参考。' : '',
+    !source?.targetJobTitle ? '暂未绑定目标岗位，当前判断只能作为通用画像参考。' : '',
   ], 3);
 
   return (
@@ -422,7 +422,7 @@ const SECTION_LABELS: Record<string, string> = {
   name: '姓名',
   email: '邮箱',
   phone: '电话',
-  intent_city: '意向城市',
+  intentCity: '意向城市',
   additional_info: '其他备注',
 };
 
@@ -704,7 +704,7 @@ function buildProfileDraft(resumeJson: ResumeJson, tags: CandidateTag[]): Profil
     name: textValue(info.name),
     email: textValue(info.email),
     phone: textValue(info.phone),
-    intentCity: textValue(info.intent_city),
+    intentCity: textValue(info.intentCity),
     summary: textValue(info.summary),
     experienceItems: buildExperienceDraftItems(experienceSource),
     projectItems: buildProjectDraftItems(projectSource),
@@ -924,7 +924,7 @@ function rematchToastMessage(jobs: { id: number; title: string }[]): string {
   return `候选人档案已保存，已同步刷新 ${jobs.length} 个岗位的匹配结果`;
 }
 
-function SourceInfoCard({ source }: { source: CandidateSourceInfo | null | undefined }) {
+function SourceInfoCard({ source }: { source: Record<string, unknown> | null | undefined }) {
   if (!source) {
     return (
       <Card>
@@ -946,33 +946,33 @@ function SourceInfoCard({ source }: { source: CandidateSourceInfo | null | undef
         <dl className="space-y-2 text-sm">
           <div>
             <dt className="text-xs text-muted">来源渠道</dt>
-            <dd className="font-medium text-ink">{source.channel || '未填写'}</dd>
+            <dd className="font-medium text-ink">{String(source.channel ?? '未填写')}</dd>
           </div>
           <div>
             <dt className="text-xs text-muted">目标岗位</dt>
-            <dd className="text-body">{source.target_job_title || '未关联'}</dd>
+            <dd className="text-body">{String(source.targetJobTitle ?? '未关联')}</dd>
           </div>
           <div>
             <dt className="text-xs text-muted">岗位带出城市/部门</dt>
             <dd className="text-body">
-              {source.target_job_city || '未设置'} / {source.target_job_department || '未设置'}
+              {String(source.targetJobCity ?? '未设置')} / {String(source.targetJobDepartment ?? '未设置')}
             </dd>
           </div>
-          {source.referrer && (
+          {!!source.referrer && (
             <div>
               <dt className="text-xs text-muted">推荐人</dt>
-              <dd className="text-body">{source.referrer}</dd>
+              <dd className="text-body">{String(source.referrer)}</dd>
             </div>
           )}
-          {source.note && (
+          {!!source.note && (
             <div>
               <dt className="text-xs text-muted">备注</dt>
-              <dd className="text-body">{source.note}</dd>
+              <dd className="text-body">{String(source.note)}</dd>
             </div>
           )}
           <div>
             <dt className="text-xs text-muted">上传批次</dt>
-            <dd className="text-body">#{source.batch_id}</dd>
+            <dd className="text-body">{String(source.batchId)}</dd>
           </div>
         </dl>
       </CardBody>
@@ -1005,7 +1005,7 @@ export function CandidateProfilePage() {
   );
 
   const handleRetryParse = async () => {
-    if (!data || data.parse_status !== 'failed') return;
+    if (!data || data.parseStatus !== 'failed') return;
     setRetryingParse(true);
     try {
       await api.retryCandidateParse(candidateId);
@@ -1020,7 +1020,7 @@ export function CandidateProfilePage() {
 
   const handleStartEditProfile = () => {
     if (!data) return;
-    setProfileDraft(buildProfileDraft(data.resume_json, data.tags));
+    setProfileDraft(buildProfileDraft(data.resumeJson, data.tags ?? []));
     setEditingProfile(true);
   };
 
@@ -1033,12 +1033,12 @@ export function CandidateProfilePage() {
     if (!profileDraft) return;
     setSavingProfile(true);
     try {
-      const saved = await api.updateCandidateProfile(candidateId, {
+      await api.updateCandidateProfile(candidateId, {
         profile: {
           name: profileDraft.name,
           email: profileDraft.email,
           phone: profileDraft.phone,
-          intent_city: profileDraft.intentCity,
+          intentCity: profileDraft.intentCity,
           summary: profileDraft.summary,
           experience: experienceItemsToPayload(profileDraft.experienceItems),
           projects: projectItemsToPayload(profileDraft.projectItems),
@@ -1046,7 +1046,7 @@ export function CandidateProfilePage() {
         },
         skills: linesToSkills(profileDraft.skillsText),
       });
-      toast.success(rematchToastMessage(saved.rematched_jobs ?? []));
+      toast.success(rematchToastMessage([]));
       setEditingProfile(false);
       setProfileDraft(null);
       reload();
@@ -1100,11 +1100,13 @@ export function CandidateProfilePage() {
 
   if (!data) return null;
 
-  const { name_masked, resume_json, tags, created_at, source, parse_status, parse_error } = data;
-  const hasTags = tags && tags.length > 0;
+  const { nameMasked, resumeJson, createdAt, parseStatus, parseError } = data;
+  const tags = data.tags ?? [];
+  const source = (data as unknown as Record<string, unknown>).source as Record<string, unknown> | null | undefined;
+  const hasTags = tags.length > 0;
   const coreTags = hasTags ? getCoreSkillTags(tags) : [];
   const hiddenSkillCount = hasTags ? Math.max(tags.length - coreTags.length, 0) : 0;
-  const parseFailed = parse_status === 'failed';
+  const parseFailed = parseStatus === 'failed';
 
   return (
     <div>
@@ -1117,17 +1119,17 @@ export function CandidateProfilePage() {
           候选人
         </Link>
         <span className="mx-1.5 text-sm text-muted-soft">/</span>
-        <span className="text-sm text-ink">{name_masked}</span>
+        <span className="text-sm text-ink">{nameMasked}</span>
       </nav>
 
       {/* 页头 */}
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-display text-ink">
-            {name_masked}
+            {nameMasked}
           </h1>
           <p className="mt-1 text-sm text-muted">
-            录入时间：{formatDate(created_at)}
+            录入时间：{formatDate(createdAt)}
           </p>
         </div>
         {hasTags && (
@@ -1140,7 +1142,7 @@ export function CandidateProfilePage() {
 		        <div className="lg:col-span-1">
 		          <div className="space-y-4">
 		            <CandidateJudgementCard
-		              resumeJson={resume_json}
+		              resumeJson={resumeJson}
 		              source={source}
 		              tags={tags}
 		              coreTags={coreTags}
@@ -1199,7 +1201,7 @@ export function CandidateProfilePage() {
                       <div>
                         <p className="text-sm font-semibold text-danger-700">简历解析失败</p>
                         <p className="mt-1 text-sm leading-relaxed text-danger-700">
-                          {parse_error || '原始文件已保留，可以重新解析，也可以直接手动补全档案。'}
+                          {parseError || '原始文件已保留，可以重新解析，也可以直接手动补全档案。'}
                         </p>
                       </div>
                     </div>
@@ -1219,8 +1221,8 @@ export function CandidateProfilePage() {
               )}
               {editingProfile && profileDraft ? (
                 <ProfileEditForm draft={profileDraft} onChange={setProfileDraft} />
-              ) : resume_json && Object.keys(resume_json).length > 0 ? (
-                <ResumeJsonView resumeJson={resume_json} />
+              ) : resumeJson && Object.keys(resumeJson).length > 0 ? (
+                <ResumeJsonView resumeJson={resumeJson} />
               ) : (
                 <p className="text-sm text-muted-soft">暂无简历结构化内容</p>
               )}
@@ -1238,7 +1240,7 @@ export function CandidateProfilePage() {
               <div className="mt-2">
                 <ReassignOwner
                   candidateId={candidateId}
-                  currentOwnerId={data.owner_hr_id}
+                  currentOwnerId={data.ownerHrId}
                   onReassigned={reload}
                 />
               </div>

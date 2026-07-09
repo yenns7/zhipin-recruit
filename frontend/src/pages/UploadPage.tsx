@@ -135,9 +135,8 @@ export function UploadPage() {
       sourceChannel === '其他' ? customSourceChannel.trim() : sourceChannel.trim();
     try {
       const res = await api.uploadResumes(selectedFiles, {
-        source_channel: resolvedSourceChannel,
-        referrer: referrer.trim(),
-        source_note: sourceNote.trim(),
+        source: resolvedSourceChannel,
+        notes: sourceNote.trim(),
       });
       setResults(res.results);
       setSelectedFiles([]);
@@ -443,12 +442,12 @@ export function UploadPage() {
                         {r.reason && <p className="mt-0.5 text-xs text-muted">{r.reason}</p>}
                       </div>
                       <div className="shrink-0">
-                        {r.status === 'ok' && r.candidate_id != null ? (
+                        {r.status === 'ok' && r.candidateId != null ? (
                           <div className="flex flex-wrap items-center justify-end gap-2">
                             <Badge tone="success">解析成功</Badge>
                             <Badge tone="neutral">已入简历库</Badge>
                             <Link
-                              to={`/candidates/${r.candidate_id}`}
+                              to={`/candidates/${r.candidateId}`}
                               className="text-xs font-medium text-ink hover:underline"
                             >
                               查看档案

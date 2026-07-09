@@ -81,9 +81,9 @@ function DetailRow({
       <div className="mt-2 flex items-center gap-2">
         <span className="text-xs text-muted">本题建议：</span>
         <span
-          className={`text-xs font-medium ${item.pass_recommended ? 'text-success-600' : 'text-danger-600'}`}
+          className={`text-xs font-medium ${item.passRecommended ? 'text-success-600' : 'text-danger-600'}`}
         >
-          {item.pass_recommended ? '通过' : '不通过'}
+          {item.passRecommended ? '通过' : '不通过'}
         </span>
       </div>
     </div>
@@ -116,13 +116,13 @@ export function InterviewReport({ report, questions, meta }: InterviewReportProp
             {/* Avg score */}
             <div className="flex items-baseline gap-3">
               <span className="text-4xl font-bold tabular-nums text-ink">
-                <AnimatedNumber value={report.avg_score ?? 0} decimals={1} />
+                <AnimatedNumber value={report.avgScore ?? 0} decimals={1} />
               </span>
               <span className="text-sm text-muted">/ 5 综合评分</span>
             </div>
 
             {/* Overall recommendation */}
-            <PassBadge pass={report.pass_recommended ?? false} />
+            <PassBadge pass={report.passRecommended ?? false} />
           </div>
 
           {/* Optional meta info */}

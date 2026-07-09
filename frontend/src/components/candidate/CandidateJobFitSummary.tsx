@@ -4,7 +4,7 @@ import type { CandidateListItem, CandidateTag, MatchResultItem } from '../../fea
 const TAG_TONES = ['accent', 'purple', 'teal', 'info', 'neutral'] as const;
 
 export function candidateTags(candidate: CandidateListItem): CandidateTag[] {
-  return Array.isArray(candidate.top_tags) ? candidate.top_tags : [];
+  return Array.isArray(candidate.topTags) ? candidate.topTags : [];
 }
 
 function scoreTone(score: number) {
@@ -40,7 +40,7 @@ function SkillBadges({ candidate }: { candidate: CandidateListItem }) {
   if (tags.length === 0) return <span className="text-muted-soft">暂无标签</span>;
 
   const visibleTags = tags.slice(0, 3);
-  const hiddenCount = Math.max((candidate.tag_count ?? tags.length) - visibleTags.length, 0);
+  const hiddenCount = Math.max((candidate.tagCount ?? tags.length) - visibleTags.length, 0);
 
   return (
     <div className="flex max-w-[360px] flex-wrap gap-1.5">
@@ -95,8 +95,8 @@ export function CandidateJobFitSummary({
     );
   }
 
-  const matched = Array.isArray(jobFit.matched_tags) ? jobFit.matched_tags : [];
-  const missing = Array.isArray(jobFit.missing_tags) ? jobFit.missing_tags : [];
+  const matched = Array.isArray(jobFit.matchedRequiredSkills) ? jobFit.matchedRequiredSkills : [];
+  const missing = Array.isArray(jobFit.missingRequiredSkills) ? jobFit.missingRequiredSkills : [];
   const recommendation = fitRecommendation(jobFit.score, missing.length);
 
   return (

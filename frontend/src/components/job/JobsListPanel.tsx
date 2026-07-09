@@ -10,7 +10,7 @@ export type JobStatusFilter = 'active' | 'closed';
 export interface JobAttributionDraft {
   city: string;
   department: string;
-  job_code: string;
+  jobCode: string;
 }
 
 export interface JobsListPanelProps {
@@ -182,15 +182,15 @@ export function JobsListPanel({
                   <td className="px-5 py-3.5">
                     {editingJobId === job.id ? (
                       <input
-                        value={editDraft.job_code}
-                        onChange={(event) => onEditDraftChange({ job_code: event.target.value })}
+                        value={editDraft.jobCode}
+                        onChange={(event) => onEditDraftChange({ jobCode: event.target.value })}
                         aria-label="编辑岗位编号"
                         className="h-8 w-28 rounded-md border border-hairline bg-canvas px-2 text-xs text-ink focus:border-ink focus:outline-none"
                         placeholder={`JOB-${job.id}`}
                       />
                     ) : (
                       <span className="font-mono text-xs text-muted">
-                        {job.job_code || `JOB-${job.id}`}
+                        {job.jobCode || `JOB-${job.id}`}
                       </span>
                     )}
                   </td>
@@ -225,7 +225,7 @@ export function JobsListPanel({
                       job.department || '未设置'
                     )}
                   </td>
-                  <td className="px-5 py-3.5 text-muted">{formatDate(job.created_at)}</td>
+                  <td className="px-5 py-3.5 text-muted">{formatDate(job.createdAt)}</td>
                   <td className="px-5 py-3.5 text-right">
                     <div className="flex items-center justify-end gap-3">
                       {editingJobId === job.id ? (

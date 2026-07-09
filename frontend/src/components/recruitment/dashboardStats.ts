@@ -56,10 +56,10 @@ function isToday(value: string | null): boolean {
 
 export function buildInterviewerTaskStats(assignments: InterviewAssignment[]): InterviewerTaskStats {
   return {
-    pendingFeedback: assignments.filter((item) => !item.feedback_submitted).length,
-    todayInterviews: assignments.filter((item) => isToday(item.scheduled_at)).length,
-    submittedFeedback: assignments.filter((item) => item.feedback_submitted).length,
-    overdueFeedback: assignments.filter((item) => item.is_overdue && !item.feedback_submitted).length,
+    pendingFeedback: assignments.filter((item) => !item.feedbackSubmitted).length,
+    todayInterviews: assignments.filter((item) => isToday(item.scheduledAt)).length,
+    submittedFeedback: assignments.filter((item) => item.feedbackSubmitted).length,
+    overdueFeedback: assignments.filter((item) => item.isOverdue && !item.feedbackSubmitted).length,
   };
 }
 
@@ -111,16 +111,17 @@ export async function loadDashboardStats(
     next.interview = funnel.interview ?? 0;
     next.offer = funnel.offer ?? 0;
     next.onboarded = funnel.onboarded ?? 0;
-    next.conversionRate = Number.isFinite(funnel.conversion_rate) ? funnel.conversion_rate : 0;
-    if ('performance' in biR.value && biR.value.performance) {
-      const performance = biR.value.performance;
-      next.performance = performance;
-      next.businessReview = performance.business_review_entries;
-      next.interview = performance.interview_entries;
-      next.offer = performance.offer_entries;
-      next.onboarded = performance.onboarded;
-      next.conversionRate = Number.isFinite(performance.recommendation_to_onboard_rate)
-        ? performance.recommendation_to_onboard_rate
+    next.conversionRate = Number.isFinite(funnel.conversionRate) ? funnel.conversionRate : 0;
+    const val = biR.value as unknown as Record<string, unknown>;
+    if (typeof val.performance === 'object' && val.performance) {
+      const p = val.performance as BiStaffMember;
+      next.performance = p;
+      next.businessReview = p.businessReviewEntries;
+      next.interview = p.interviewEntries;
+      next.offer = p.offerEntries;
+      next.onboarded = p.onboarded;
+      next.conversionRate = Number.isFinite(p.recommendationToOnboardRate)
+        ? p.recommendationToOnboardRate
         : 0;
     }
     if ('alerts' in biR.value) next.alerts = biR.value.alerts ?? [];

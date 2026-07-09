@@ -7,7 +7,6 @@ import { Button, Card, CardBody, CardHeader, CardTitle, ErrorState, Input } from
 import { Reveal } from '../motion';
 import type {
   CreateJobResponse,
-  JdClarificationAnswer,
   JdClarificationQuestion,
 } from '../../types';
 
@@ -40,18 +39,14 @@ export function CreateJobForm({ onCreated, onCancel }: CreateJobFormProps) {
     setFormError(null);
   }
 
-  async function saveJob(clarifications: JdClarificationAnswer[]) {
+  async function saveJob() {
     setSubmitting(true);
     setFormError(null);
 
     try {
       const result = await api.createJob({
         title: title.trim(),
-        city: city.trim(),
-        department: department.trim(),
-        job_code: jobCode.trim(),
-        jd_text: jdText.trim(),
-        clarifications,
+        jdText: jdText.trim(),
       });
       onCreated(result);
       setTitle('');
@@ -79,7 +74,7 @@ export function CreateJobForm({ onCreated, onCancel }: CreateJobFormProps) {
     try {
       const response = await api.clarifyJob(title.trim(), jdText.trim());
       if (response.questions.length === 0) {
-        await saveJob([]);
+        await saveJob();
       } else {
         setQuestions(response.questions);
         setPhase('clarify');
@@ -92,14 +87,7 @@ export function CreateJobForm({ onCreated, onCancel }: CreateJobFormProps) {
   }
 
   async function handleConfirmSave() {
-    const clarifications: JdClarificationAnswer[] = questions
-      .map((question) => ({
-        question: question.question,
-        answer: (answers[question.field] ?? '').trim(),
-      }))
-      .filter((clarification) => clarification.answer !== '');
-
-    await saveJob(clarifications);
+    await saveJob();
   }
 
   return (

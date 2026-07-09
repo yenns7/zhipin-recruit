@@ -1,5 +1,8 @@
 // Shared domain types for the HireInsight frontend.
-// Mirrors the Flask backend API contract (base path: /api).
+// Mirrors the Java Spring Boot backend API contract (base path: /api/v1).
+// Field names use camelCase to match Jackson's default serialization.
+// Exceptions: Notification & Disposition response Maps keep snake_case keys
+// (hand-written on the Java side). BOSS responses follow boss-cli's shape.
 
 export type Role = 'recruiter' | 'manager' | 'admin' | 'interviewer';
 
@@ -51,7 +54,7 @@ export interface LoginResponse {
 
 // JWT payload (decoded client-side, not verified).
 export interface JwtPayload {
-  user_id: number;
+  userId: number;
   role: Role;
   exp: number;
 }
@@ -60,15 +63,12 @@ export interface JwtPayload {
 export interface ResumeUploadResultItem {
   file: string;
   status: 'ok' | 'skipped' | 'error';
-  candidate_id?: number;
+  candidateId?: number;
   reason?: string;
-  target_job_id?: number;
-  pipeline_stage?: PipelineStage;
 }
 
 export interface ResumeUploadResponse {
-  batch_id?: number;
-  total: number;
+  batchId?: number;
   results: ResumeUploadResultItem[];
 }
 
@@ -81,30 +81,19 @@ export interface CandidateTag {
 export type ResumeJson = Record<string, unknown>;
 export type ParseStatus = 'pending' | 'processing' | 'ok' | 'failed';
 
-export interface CandidateSourceInfo {
-  batch_id: number;
-  channel: string;
-  source_link: string;
-  referrer: string;
-  target_job_id: number | null;
-  target_job_title: string | null;
-  target_job_city: string;
-  target_job_department: string;
-  note: string;
-  created_at: string | null;
-}
-
 export interface CandidateDetail {
   id: number;
-  name_masked: string;
-  owner_hr_id: number;
-  resume_json: ResumeJson;
-  tags: CandidateTag[];
-  parse_status?: ParseStatus;
-  parse_error?: string | null;
-  source?: CandidateSourceInfo | null;
-  created_at: string;
-  rematched_jobs?: { id: number; title: string }[];
+  ownerHrId: number;
+  nameMasked: string;
+  emailMasked?: string;
+  phoneMasked?: string;
+  resumeJson: ResumeJson;
+  rawFilePath?: string;
+  parseStatus?: ParseStatus;
+  batchId?: number;
+  parseError?: string | null;
+  tags?: CandidateTag[];
+  createdAt: string;
 }
 
 export interface CandidateProfileUpdateRequest {
@@ -113,55 +102,55 @@ export interface CandidateProfileUpdateRequest {
 }
 
 export interface RetryParseResponse {
-  candidate_id: number;
-  name_masked: string;
-  parse_status: ParseStatus;
-  parse_error: string | null;
-  resume_json: ResumeJson;
-  tags: CandidateTag[];
+  candidateId: number;
+  parseStatus: ParseStatus;
 }
 
 export interface CandidateListItem {
   id: number;
-  name_masked: string;
-  email_masked?: string;
-  phone_masked?: string;
-  owner_hr_id: number;
-  created_at: string;
-  parse_status?: ParseStatus;
-  parse_error?: string | null;
-  tag_count: number;
-  top_tags?: CandidateTag[];
-  max_score?: number;
-  intent_city?: string;
-  latest_experience?: {
-    company: string;
-    position: string;
-    duration: string;
-  } | null;
-  education_summary?: string;
-  source?: CandidateSourceInfo | null;
+  ownerHrId: number;
+  nameMasked: string;
+  emailMasked?: string;
+  phoneMasked?: string;
+  resumeJson?: ResumeJson;
+  rawFilePath?: string;
+  parseStatus?: ParseStatus;
+  batchId?: number;
+  parseError?: string | null;
+  tags?: CandidateTag[];
+  createdAt: string;
+  // Deprecated legacy fields — kept for existing candidate library consumers.
+  topTags?: CandidateTag[];
+  tagCount?: number;
+  maxScore?: number;
+  intentCity?: string;
+  latestExperience?: { company: string; position: string; duration: string } | null;
+  educationSummary?: string;
+  source?: Record<string, unknown> | null;
 }
 
 export interface CandidateListQuery {
   search?: string;
   stage?: PipelineStage;
-  job_id?: number;
+  jobId?: number;
   city?: string;
-  source_channel?: string;
-  parse_status?: ParseStatus;
-  pipeline_status?: 'in_pipeline' | 'not_in_pipeline';
-  sort_by?: 'created_at' | 'name_masked';
-  sort_order?: 'asc' | 'desc';
+  sourceChannel?: string;
+  parseStatus?: ParseStatus;
+  pipelineStatus?: string;
+  sortBy?: string;
+  sortOrder?: string;
   page?: number;
-  per_page?: number;
+  perPage?: number;
 }
 
+// NOTE: Java GET /candidates returns a bare array (no pagination envelope).
+// listCandidates() returns CandidateListItem[] directly. This response type is
+// kept for the legacy searchCandidates() path which may return a paginated object.
 export interface CandidateListResponse {
   candidates: CandidateListItem[];
   total: number;
   page: number;
-  per_page: number;
+  perPage: number;
   pages: number;
 }
 
@@ -174,12 +163,7 @@ export interface CandidateOwnerOption {
 // ---- Jobs ----
 export interface CreateJobRequest {
   title: string;
-  jd_text: string;
-  city?: string;
-  department?: string;
-  job_code?: string;
-  // Optional HR answers to AI clarification questions, folded into the JD.
-  clarifications?: JdClarificationAnswer[];
+  jdText: string;
 }
 
 // A single AI clarification question about a JD.
@@ -204,36 +188,42 @@ export type JobStructured = Record<string, unknown>;
 
 export interface CreateJobResponse {
   id: number;
-  title: string;
-  city: string;
-  department: string;
-  job_code: string;
-  status: string;
-  structured: JobStructured;
+  // Deprecated legacy fields
+  title?: string;
+  city?: string;
+  department?: string;
+  jobCode?: string;
+  status?: string;
+  structured?: JobStructured;
 }
 
 export interface JobListItem {
   id: number;
   title: string;
-  city: string;
-  department: string;
-  job_code: string;
+  jdText: string;
+  ownerHrId: number;
   status: 'active' | 'closed' | string;
-  created_at: string;
+  createdAt: string;
+  // Deprecated legacy fields
+  city?: string;
+  department?: string;
+  jobCode?: string;
 }
 
 // Full job detail incl. structured JD and lifecycle status.
 export interface JobDetail {
   id: number;
   title: string;
-  city: string;
-  department: string;
-  job_code: string;
-  jd_text: string;
-  structured: JobStructured;
+  jdText: string;
+  jdStructured: JobStructured;
+  ownerHrId: number;
   status: string;
-  owner_hr_id?: number;
-  created_at?: string;
+  createdAt: string;
+  // Deprecated legacy fields
+  city?: string;
+  department?: string;
+  jobCode?: string;
+  structured?: JobStructured;
 }
 
 // ---- Recruitment demands ----
@@ -241,50 +231,50 @@ export type DemandPriority = 'A' | 'B' | 'C';
 export type DemandStatus = 'pending' | 'active' | 'paused' | 'filled' | 'cancelled';
 
 export interface RecruitmentDemandMetrics {
-  recommended_count: number;
-  business_review_count: number;
-  interview_count: number;
-  offer_count: number;
-  onboarded_count: number;
-  current_stage_counts: Partial<Record<PipelineStage | string, number>>;
+  recommendedCount: number;
+  businessReviewCount: number;
+  interviewCount: number;
+  offerCount: number;
+  onboardedCount: number;
+  currentStageCounts: Partial<Record<PipelineStage | string, number>>;
 }
 
 export interface RecruitmentDemand {
   id: number;
-  job_id: number;
-  job_title: string;
-  job_city: string;
-  job_department: string;
-  job_code: string;
-  owner_hr_id: number;
-  request_no: string;
-  requester_name: string;
-  requester_department: string;
-  hiring_manager_name: string;
-  requested_at: string | null;
-  accepted_at: string | null;
-  target_date: string | null;
+  jobId: number;
+  jobTitle: string;
+  jobCity: string;
+  jobDepartment: string;
+  jobCode: string;
+  ownerHrId: number;
+  requestNo: string;
+  requesterName: string;
+  requesterDepartment: string;
+  hiringManagerName: string;
+  requestedAt: string | null;
+  acceptedAt: string | null;
+  targetDate: string | null;
   priority: DemandPriority;
   headcount: number;
   status: DemandStatus;
-  close_reason: string;
-  downgrade_reason: string;
+  closeReason: string;
+  downgradeReason: string;
   note: string;
   metrics: RecruitmentDemandMetrics;
-  risk_flags: string[];
-  created_at: string | null;
-  updated_at: string | null;
+  riskFlags: string[];
+  createdAt: string | null;
+  updatedAt: string | null;
 }
 
 export interface RecruitmentDemandInput {
-  job_id: number;
-  request_no?: string;
-  requester_name?: string;
-  requester_department?: string;
-  hiring_manager_name?: string;
-  requested_at?: string;
-  accepted_at?: string;
-  target_date?: string;
+  jobId: number;
+  requestNo?: string;
+  requesterName?: string;
+  requesterDepartment?: string;
+  hiringManagerName?: string;
+  requestedAt?: string;
+  acceptedAt?: string;
+  targetDate?: string;
   priority?: DemandPriority;
   headcount?: number;
   status?: DemandStatus;
@@ -293,12 +283,12 @@ export interface RecruitmentDemandInput {
 
 export interface DemandCloseInput {
   status: 'filled' | 'cancelled' | 'paused';
-  close_reason?: string;
+  closeReason?: string;
 }
 
 export interface DemandDowngradeInput {
   priority: DemandPriority;
-  downgrade_reason?: string;
+  downgradeReason?: string;
 }
 
 export interface DemandRestoreInput {
@@ -310,64 +300,64 @@ export type TalentMapBoardJson = Record<string, unknown>;
 
 export interface TalentMapCompany {
   id: number;
-  map_id: number;
-  company_name: string;
+  mapId: number;
+  companyName: string;
   city: string;
   region: string;
   industry: string;
   priority: string;
   note: string;
-  created_at: string | null;
-  updated_at: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
 }
 
 export interface TalentMapPerson {
   id: number;
-  map_id: number;
-  company_id: number | null;
-  company_name: string;
+  mapId: number;
+  companyId: number | null;
+  companyName: string;
   name: string;
   title: string;
   city: string;
   tags: string[];
-  salary_range: string;
-  contact_status: string;
+  salaryRange: string;
+  contactStatus: string;
   evaluation: string;
   source: string;
-  next_follow_at: string | null;
+  nextFollowAt: string | null;
   note: string;
-  created_at: string | null;
-  updated_at: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
 }
 
 export interface TalentMapSummary {
   id: number;
   name: string;
-  job_id: number | null;
-  job_title: string;
+  jobId: number | null;
+  jobTitle: string;
   department: string;
-  owner_hr_id: number;
-  companies_count: number;
-  people_count: number;
-  updated_at: string | null;
+  ownerHrId: number;
+  companiesCount: number;
+  peopleCount: number;
+  updatedAt: string | null;
 }
 
 export interface TalentMap extends TalentMapSummary {
-  board_json: TalentMapBoardJson;
+  boardJson: TalentMapBoardJson;
   companies: TalentMapCompany[];
   people: TalentMapPerson[];
-  created_at: string | null;
+  createdAt: string | null;
 }
 
 export interface TalentMapInput {
   name: string;
-  job_id?: number | null;
+  jobId?: number | null;
   department?: string;
-  board_json?: TalentMapBoardJson;
+  boardJson?: TalentMapBoardJson;
 }
 
 export interface TalentMapCompanyInput {
-  company_name: string;
+  companyName: string;
   city?: string;
   region?: string;
   industry?: string;
@@ -376,16 +366,16 @@ export interface TalentMapCompanyInput {
 }
 
 export interface TalentMapPersonInput {
-  company_id?: number | null;
+  companyId?: number | null;
   name: string;
   title?: string;
   city?: string;
   tags?: string[];
-  salary_range?: string;
-  contact_status?: string;
+  salaryRange?: string;
+  contactStatus?: string;
   evaluation?: string;
   source?: string;
-  next_follow_at?: string;
+  nextFollowAt?: string;
   note?: string;
 }
 
@@ -398,111 +388,119 @@ export interface TalentMapFilters {
 
 // ---- Matching ----
 export interface MatchResultItem {
-  candidate_id: number;
-  name_masked: string;
+  candidateId: number;
+  candidateName: string;
   score: number;
-  matched_tags: string[];
-  missing_tags: string[];
+  matchedRequiredSkills: string[];
+  matchedPreferredSkills: string[];
+  missingRequiredSkills: string[];
+  yearsOfExperience: number | null;
+  summary: string;
 }
 
 export interface MatchResponse {
-  job_id: number;
+  jobId: number;
   results: MatchResultItem[];
 }
 
 export interface BatchAddToPipelineResponse {
-  job_id: number;
+  jobId: number;
   added: number;
-  skipped_existing: number;
-  skipped_missing: number;
+  skippedExisting: number;
+  skippedMissing: number;
 }
 
 // ---- Interview ----
 export interface InterviewStartRequest {
-  candidate_id: number;
-  job_id: number;
-  count?: number;
+  candidateId: number;
+  jobId: number;
 }
 
 export interface InterviewStartResponse {
-  candidate_id: number;
-  job_id: number;
+  sessionId: number;
+  session?: Record<string, unknown>;
   questions: string[];
 }
 
-export interface QaPair {
-  q: string;
-  a: string;
+// A single answered question in SubmitAnswersRequest.
+export interface InterviewAnswer {
+  questionId: string | number;
+  question: string;
+  answer: string;
 }
 
 export interface InterviewSubmitRequest {
-  candidate_id: number;
-  job_id: number;
-  qa_pairs: QaPair[];
+  sessionId: number;
+  answers: InterviewAnswer[];
 }
 
 export interface InterviewReportDetail {
   score: number;
   highlight: string;
   concern: string;
-  pass_recommended: boolean;
+  passRecommended: boolean;
 }
 
 export interface InterviewReport {
-  avg_score: number;
-  pass_recommended: boolean;
+  avgScore: number;
+  passRecommended: boolean;
   details: InterviewReportDetail[];
 }
 
 export interface InterviewSubmitResponse {
-  interview_id: number;
+  sessionId: number;
+  score: number;
   report: InterviewReport;
 }
 
 export interface InterviewRecord {
   id: number;
-  candidate_id: number;
-  job_id: number;
+  candidateId: number;
+  jobId: number;
   score: number;
-  pass_recommended: boolean;
-  ai_report: InterviewReport;
-  created_at: string;
+  passRecommended: boolean;
+  aiReport: InterviewReport;
+  createdAt: string;
 }
 
 // ---- Pipeline ----
 export interface PipelineMoveRequest {
-  candidate_id: number;
-  job_id: number;
-  stage: PipelineStage;
-  note?: string;
-  disposition?: CandidateDispositionInput;
+  candidateId: number;
+  jobId: number;
+  toStage: PipelineStage;
 }
 
 export interface PipelineMoveResponse {
-  status: string;
+  id: number;
   stage: PipelineStage;
-  from: PipelineStage | null;
-  candidate_id: number;
-  name_masked: string;
 }
 
+// Disposition request body uses camelCase (aligns to Java CreateDispositionRequest).
 export interface CandidateDispositionInput {
   reason?: string;
-  enter_talent_pool?: boolean;
-  next_contact_at?: string;
-  tags?: string[];
-  note?: string;
+  intoPool?: boolean;
+  nextContactAt?: string;
 }
 
+// Disposition *response* Map keys stay snake_case (Java hand-written Map).
+export interface DispositionResponse {
+  id: number;
+  candidate_id: number;
+  reason: string;
+  into_pool: boolean;
+  next_contact_at: string | null;
+  created_at: string | null;
+}
+
+// Java OfferRecord entity: candidateId, jobId, salary, startDate, status, remark.
 export interface OfferRecord {
   id?: number;
-  candidate_id: number;
-  job_id: number;
-  salary_range: string;
-  onboard_date: string | null;
-  approval_status: 'draft' | 'pending' | 'approved' | 'sent' | 'accepted' | 'declined' | string;
-  note: string;
-  updated_at?: string | null;
+  candidateId: number;
+  jobId: number;
+  salary: string;
+  startDate: string | null;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN' | 'draft' | 'sent' | 'accepted' | 'declined' | string;
+  remark: string;
 }
 
 // Map of stage -> count. Keys are PipelineStage values.
@@ -510,19 +508,19 @@ export type PipelineCounts = Partial<Record<PipelineStage, number>>;
 
 // A single candidate currently sitting in a job's pipeline (at their latest stage).
 export interface PipelineBoardCandidate {
-  candidate_id: number;
-  name_masked: string;
+  candidateId: number;
+  nameMasked: string;
   stage: PipelineStage;
-  updated_at: string | null;
-  updated_by_name: string | null;
+  updatedAt: string | null;
+  updatedByName: string | null;
   note?: string | null;
 }
 
 // Full board payload for one job: candidates bucketed by their current stage.
 export interface PipelineBoard {
-  job_id: number;
-  job_title: string;
-  stage_order: PipelineStage[];
+  jobId: number;
+  jobTitle: string;
+  stageOrder: PipelineStage[];
   candidates: PipelineBoardCandidate[];
 }
 
@@ -530,18 +528,62 @@ export interface PipelineBoard {
 export interface PipelineHistoryStep {
   stage: PipelineStage;
   ts: string | null;
-  updated_by_name: string | null;
+  updatedByName: string | null;
   note?: string | null;
 }
 
 export interface PipelineHistory {
-  job_id: number;
-  candidate_id: number;
+  jobId: number;
+  candidateId: number;
   timeline: PipelineHistoryStep[];
 }
 
 // ---- BI ----
-// 漏斗按当前阶段计数。MVP 主流程只保留一个"面试中"阶段。
+export interface BiSummaryItem {
+  key: string;
+  label: string;
+  value: number;
+  trend: number;
+  trendDirection: 'up' | 'down' | 'flat';
+}
+
+export interface BiOverview {
+  generatedAt: string;
+  adminOrManager: string;
+  parsedCandidates: number;
+  candidateTotal: number;
+  activeJobs: number;
+  summary: BiSummaryItem[];
+  // Legacy fields (kept for existing BI page compatibility)
+  funnel: BiFunnel;
+  staff: BiStaffMember[];
+  sourceQuality: BiSourceQuality[];
+  interviewerAccountability: BiInterviewerAccountability[];
+  departmentAccountability: BiDepartmentAccountability[];
+  alerts: BiManagerAlert[];
+  demands: BiDemandMetrics;
+  resumes: BiResumeMetrics;
+  dataQualityWarnings: BiDataQualityWarning[];
+}
+
+export interface BiStaffDetail {
+  hrId: number;
+  summary: BiSummaryItem[];
+  // Legacy fields
+  funnel: BiFunnel;
+  dataQualityWarnings: BiDataQualityWarning[];
+}
+
+export interface BiJobDetail {
+  jobId: number;
+  jobTitle: string;
+  summary: BiSummaryItem[];
+}
+
+// ---- Deprecated BI compatibility types (old Flask-era structure) ----
+// These are kept so existing BI page components compile. New code should use
+// the simplified BiOverview/BiStaffDetail/BiJobDetail above.
+
 export interface BiFunnel {
   pending?: number;
   ai_screen?: number;
@@ -550,108 +592,108 @@ export interface BiFunnel {
   offer?: number;
   onboarded?: number;
   rejected?: number;
-  pipeline_total?: number;
-  archived_total?: number;
-  funnel_total?: number;
-  conversion_rate: number;
+  pipelineTotal?: number;
+  archivedTotal?: number;
+  funnelTotal?: number;
+  conversionRate: number;
 }
 
 export interface BiStaffMember {
-  hr_id: number;
+  hrId: number;
   name: string;
   resumes: number;
-  parsed_ok: number;
-  parse_failed: number;
-  parse_pending: number;
+  parsedOk: number;
+  parseFailed: number;
+  parsePending: number;
   screens: number;
-  effective_recommendations: number;
-  business_review_entries: number;
-  interview_entries: number;
-  interview_feedbacks: number;
-  interview_passed: number;
-  interview_pass_rate: number;
-  interview_to_offer_rate: number;
-  offer_entries: number;
+  effectiveRecommendations: number;
+  businessReviewEntries: number;
+  interviewEntries: number;
+  interviewFeedbacks: number;
+  interviewPassed: number;
+  interviewPassRate: number;
+  interviewToOfferRate: number;
+  offerEntries: number;
   onboarded: number;
-  conversion_rate: number;
-  recommendation_to_onboard_rate: number;
-  feedback_pending: number;
-  feedback_overdue: number;
+  conversionRate: number;
+  recommendationToOnboardRate: number;
+  feedbackPending: number;
+  feedbackOverdue: number;
 }
 
 export interface BiSourceQuality {
   channel: string;
   resumes: number;
-  parsed_ok: number;
-  parse_failed: number;
-  effective_recommendations: number;
-  interview_entries: number;
-  interview_passed: number;
-  interview_pass_rate: number;
-  interview_to_offer_rate: number;
-  offer_entries: number;
+  parsedOk: number;
+  parseFailed: number;
+  effectiveRecommendations: number;
+  interviewEntries: number;
+  interviewPassed: number;
+  interviewPassRate: number;
+  interviewToOfferRate: number;
+  offerEntries: number;
   onboarded: number;
-  onboard_rate: number;
+  onboardRate: number;
 }
 
 export interface BiInterviewRoundAccountability {
   round: InterviewRound | string;
-  round_label: string;
-  assigned_count: number;
-  feedback_submitted: number;
-  passed_count: number;
-  rejected_count: number;
-  pending_feedback: number;
-  overdue_feedback: number;
-  pass_rate: number;
-  reject_rate: number;
+  roundLabel: string;
+  assignedCount: number;
+  feedbackSubmitted: number;
+  passedCount: number;
+  rejectedCount: number;
+  pendingFeedback: number;
+  overdueFeedback: number;
+  passRate: number;
+  rejectRate: number;
 }
 
 export interface BiInterviewerAccountability {
-  interviewer_id: number | null;
-  interviewer_name: string;
-  assigned_count: number;
-  feedback_submitted: number;
-  passed_count: number;
-  rejected_count: number;
-  pending_feedback: number;
-  overdue_feedback: number;
-  pass_rate: number;
-  reject_rate: number;
+  interviewerId: number | null;
+  interviewerName: string;
+  assignedCount: number;
+  feedbackSubmitted: number;
+  passedCount: number;
+  rejectedCount: number;
+  pendingFeedback: number;
+  overdueFeedback: number;
+  passRate: number;
+  rejectRate: number;
 }
 
 export interface BiDepartmentAccountability {
   department: string;
-  jobs_count: number;
-  interviewers_count: number;
-  assigned_count: number;
-  feedback_submitted: number;
-  passed_count: number;
-  rejected_count: number;
-  pending_feedback: number;
-  overdue_feedback: number;
-  pass_rate: number;
-  reject_rate: number;
+  jobsCount: number;
+  interviewersCount: number;
+  assignedCount: number;
+  feedbackSubmitted: number;
+  passedCount: number;
+  rejectedCount: number;
+  pendingFeedback: number;
+  overdueFeedback: number;
+  passRate: number;
+  rejectRate: number;
   rounds: BiInterviewRoundAccountability[];
 }
 
 export interface BiDemandMetrics {
-  active_total: number;
-  priority_counts: Record<DemandPriority, number>;
+  activeTotal: number;
+  priorityCounts: Record<DemandPriority, number>;
   overdue: number;
-  hr_no_recommendation: number;
-  business_feedback_pending: number;
+  hrNoRecommendation: number;
+  businessFeedbackPending: number;
 }
 
 export interface BiResumeMetrics {
-  total_candidates: number;
-  linked_to_job: number;
+  totalCandidates: number;
+  linkedToJob: number;
   unassigned: number;
-  matched_candidates: number;
-  in_pipeline: number;
-  not_in_pipeline: number;
-  match_rate: number;
-  pipeline_entry_rate: number;
+  matchedCandidates: number;
+  inPipeline: number;
+  notInPipeline: number;
+  matchRate: number;
+  pipelineEntryRate: number;
 }
 
 export interface BiDataQualityWarning {
@@ -668,41 +710,20 @@ export interface BiManagerAlert {
   priority: 'high' | 'medium' | 'low' | string;
   title: string;
   detail: string;
-  candidate_id: number;
-  candidate_name: string;
-  job_id: number;
-  job_title: string;
+  candidateId: number;
+  candidateName: string;
+  jobId: number;
+  jobTitle: string;
   stage: PipelineStage | string;
-  stage_label: string;
-  age_days: number;
-  action_path: string;
+  stageLabel: string;
+  ageDays: number;
+  actionPath: string;
 }
 
-export interface BiOverview {
-  funnel: BiFunnel;
-  staff: BiStaffMember[];
-  source_quality: BiSourceQuality[];
-  interviewer_accountability: BiInterviewerAccountability[];
-  department_accountability: BiDepartmentAccountability[];
-  alerts: BiManagerAlert[];
-  demands: BiDemandMetrics;
-  resumes: BiResumeMetrics;
-  data_quality_warnings: BiDataQualityWarning[];
-}
-
-export interface BiStaffDetail {
-  hr_id: number;
-  funnel: BiFunnel;
-  performance?: BiStaffMember;
-  data_quality_warnings?: BiDataQualityWarning[];
-}
-
-// Single-job funnel detail.
-export interface BiJobDetail {
-  job_id: number;
-  job_title: string;
-  scope?: 'all' | 'owned_candidates';
-  funnel: BiFunnel;
+// QaPair for legacy interview Q&A display.
+export interface QaPair {
+  question: string;
+  answer: string;
 }
 
 // ---- Account ----
@@ -719,8 +740,8 @@ export interface AdminUser {
   name: string;
   email: string;
   role: Role;
-  is_active: boolean;
-  created_at: string | null;
+  active: boolean;
+  createdAt: string | null;
 }
 
 export interface AdminUserCreateInput {
@@ -746,34 +767,34 @@ export interface AdminAiArchitectureLayer {
 }
 
 export interface AdminAiPermissionModel {
-  database_access: boolean;
-  read_tools_available_to_authenticated_users: boolean;
-  read_scope_note: string;
-  write_requires_confirmation: boolean;
-  write_scope_note: string;
-  cannot_do: string[];
+  databaseAccess: boolean;
+  readToolsAvailableToAuthenticatedUsers: boolean;
+  readScopeNote: string;
+  writeRequiresConfirmation: boolean;
+  writeScopeNote: string;
+  cannotDo: string[];
 }
 
 export interface AdminAiArchitecture {
   title: string;
   purpose: string;
-  system_prompt: string;
-  read_tools: AdminAiTool[];
-  write_tools: AdminAiTool[];
+  systemPrompt: string;
+  readTools: AdminAiTool[];
+  writeTools: AdminAiTool[];
   architecture: AdminAiArchitectureLayer[];
-  permission_model: AdminAiPermissionModel;
+  permissionModel: AdminAiPermissionModel;
   safeguards: string[];
-  recommended_next_steps: string[];
+  recommendedNextSteps: string[];
 }
 
 export interface AuditLogItem {
   id: number;
   source: 'event';
-  actor_id: number | null;
-  actor_name: string | null;
+  actorId: number | null;
+  actorName: string | null;
   action: string;
-  entity_type: string | null;
-  entity_id: number | null;
+  entityType: string | null;
+  entityId: number | null;
   payload: Record<string, unknown>;
   ts: string | null;
 }
@@ -782,16 +803,16 @@ export interface AuditLogResponse {
   logs: AuditLogItem[];
   total: number;
   page: number;
-  per_page: number;
+  perPage: number;
   pages: number;
 }
 
 export interface AuditLogQuery {
   page?: number;
-  per_page?: number;
-  actor_id?: number;
+  perPage?: number;
+  actorId?: number;
   action?: string;
-  entity_type?: string;
+  entityType?: string;
   from?: string;
   to?: string;
 }
@@ -821,92 +842,103 @@ export interface InterviewerOption {
   role: Role;
 }
 
+// Java GET /interviews/assignments returns camelCase fields.
 export interface InterviewAssignment {
   id: number;
-  candidate_id: number;
-  name_masked: string | null;
-  job_id: number;
-  job_title: string | null;
+  interviewId: number;
   round: InterviewRound;
-  interviewer_id: number;
-  interviewer_name: string | null;
-  scheduled_at: string | null;
+  interviewerId: number;
+  interviewerName: string;
+  scheduledAt: string | null;
   location: string;
-  note: string;
   status: string;
-  feedback_submitted: boolean;
-  is_overdue: boolean;
-  created_by_name: string | null;
-  created_at: string | null;
+  notes: string;
+  createdAt: string | null;
+  // Deprecated legacy fields — kept for existing assignment consumers.
+  candidateId?: number;
+  candidate_id?: number;
+  nameMasked?: string | null;
+  name_masked?: string | null;
+  jobId?: number;
+  job_id?: number;
+  jobTitle?: string | null;
+  job_title?: string | null;
+  feedbackSubmitted?: boolean;
+  feedback_submitted?: boolean;
+  isOverdue?: boolean;
+  is_overdue?: boolean;
+  createdByName?: string | null;
+  created_by_name?: string | null;
 }
 
 export interface InterviewAssignmentInput {
-  candidate_id: number;
-  job_id: number;
+  interviewId: number;
   round: InterviewRound;
-  interviewer_id: number;
-  scheduled_at?: string;
+  interviewerId: number;
+  scheduledAt?: string;
   location?: string;
-  note?: string;
+  notes?: string;
 }
 
 // ---- Interview list + feedback ----
 export interface InterviewListItem {
   id: number;
   type: 'ai' | 'feedback';
-  candidate_id: number;
-  name_masked: string | null;
-  job_id: number;
-  job_title: string | null;
+  candidateId: number;
+  nameMasked: string | null;
+  jobId: number;
+  jobTitle: string | null;
   score: number | null;
   pass: boolean | null;
   round: string | null;
-  interviewer_id: number | null;
-  interviewer_name: string | null;
+  interviewerId: number | null;
+  interviewerName: string | null;
   evaluation: EvaluationScores | null;
-  reason_tags: string[];
+  reasonTags: string[];
   strengths: string | null;
   concerns: string | null;
   note: string | null;
-  created_at: string | null;
+  createdAt: string | null;
 }
 
 export type EvaluationScores = Record<string, number>;
 
+// Java InterviewFeedbackRequest: {candidateId, jobId, score, passRecommended, qaJson, aiReport}
 export interface InterviewFeedbackInput {
-  candidate_id: number;
-  job_id: number;
-  round: InterviewRound;
+  candidateId: number;
+  jobId: number;
   score: number;
-  passed: boolean;
-  evaluation?: EvaluationScores;
-  reason_tags?: string[];
-  strengths?: string;
-  concerns?: string;
-  note?: string;
+  passRecommended: boolean;
+  qaJson?: string;
+  aiReport?: string;
+}
+
+// Java InterviewGuide: {title, version, rounds: [{name, round, focusAreas, sampleQuestions, riskFactors}]}
+export interface InterviewGuideRound {
+  name: string;
+  round: string;
+  focusAreas: string[];
+  sampleQuestions: string[];
+  riskFactors: string[];
 }
 
 export interface InterviewGuide {
-  candidate_id: number;
-  job_id: number;
-  round: InterviewRound;
-  focus: string[];
-  questions: string[];
-  risks: string[];
-  required_checks: string[];
+  title: string;
+  version: string;
+  rounds: InterviewGuideRound[];
 }
 
 // ---- Candidate pipeline context / journey (M4/M5) ----
 export interface CandidatePipelineItem {
-  job_id: number;
-  job_title: string;
+  jobId: number;
+  jobTitle: string;
   stage: PipelineStage;
-  updated_at: string | null;
+  updatedAt: string | null;
 }
 
 export interface CandidatePipelines {
-  candidate_id: number;
-  name_masked: string;
+  candidateId: number;
+  nameMasked: string;
   pipelines: CandidatePipelineItem[];
 }
 
@@ -914,14 +946,14 @@ export interface JourneyTimelineStep {
   stage: PipelineStage;
   ts: string | null;
   note: string | null;
-  updated_by_name: string | null;
+  updatedByName: string | null;
 }
 
 export interface JourneyAiInterview {
   id: number;
   score: number | null;
   pass: boolean | null;
-  created_at: string | null;
+  createdAt: string | null;
 }
 
 export interface JourneyFeedback {
@@ -932,45 +964,45 @@ export interface JourneyFeedback {
   strengths: string | null;
   concerns: string | null;
   evaluation: EvaluationScores;
-  reason_tags: string[];
+  reasonTags: string[];
   note: string | null;
-  interviewer_name: string | null;
-  created_at: string | null;
+  interviewerName: string | null;
+  createdAt: string | null;
 }
 
 export interface JourneyDisposition {
   id: number;
   reason: string;
-  enter_talent_pool: boolean;
-  next_contact_at: string | null;
+  intoPool: boolean;
+  nextContactAt: string | null;
   tags: string[];
   note: string;
-  created_by_name: string | null;
-  created_at: string | null;
+  createdByName: string | null;
+  createdAt: string | null;
 }
 
 export interface DecisionSummary {
-  current_stage: PipelineStage | null;
-  feedback_count: number;
-  passed_count: number;
-  failed_count: number;
-  average_score: number | null;
-  ai_interview_count: number;
+  currentStage: PipelineStage | null;
+  feedbackCount: number;
+  passedCount: number;
+  failedCount: number;
+  averageScore: number | null;
+  aiInterviewCount: number;
   highlights: string[];
   risks: string[];
   recommendation: string;
 }
 
 export interface CandidateJourney {
-  candidate_id: number;
-  name_masked: string;
-  job_id: number;
-  job_title: string | null;
+  candidateId: number;
+  nameMasked: string;
+  jobId: number;
+  jobTitle: string | null;
   timeline: JourneyTimelineStep[];
-  ai_interviews: JourneyAiInterview[];
+  aiInterviews: JourneyAiInterview[];
   feedback: JourneyFeedback[];
   dispositions: JourneyDisposition[];
-  decision_summary: DecisionSummary;
+  decisionSummary: DecisionSummary;
 }
 
 // ── BOSS 直聘集成（boss-cli 招聘端）──────────────────────────────
@@ -1102,21 +1134,21 @@ export interface BossAiScreenResult {
 }
 
 // ---- AI 助手会话与调用日志 ----
-
 export interface ConversationSummary {
   id: number;
   title: string;
-  title_source?: string;
-  archived?: boolean;
-  created_at: string | null;
-  updated_at: string | null;
-  message_count: number;
+  messageCount: number;
+  updatedAt: string | null;
+  description?: string;
+  lastMessageRole?: string;
+  lastMessagePreview?: string;
+  unreadCount?: number;
 }
 
 export interface ConversationListResponse {
-  items: ConversationSummary[];
+  conversations: ConversationSummary[];
   page: number;
-  per_page: number;
+  perPage: number;
   total: number;
 }
 
@@ -1124,15 +1156,15 @@ export interface ConversationDetailMessage {
   id: number;
   role: 'user' | 'assistant';
   content: string;
-  tool_calls?: Array<{ tool: string; args: Record<string, unknown>; result?: unknown }> | null;
+  toolCalls?: Array<{ tool: string; args: Record<string, unknown>; result?: unknown }> | null;
   thoughts?: string[] | null;
-  created_at: string | null;
+  createdAt: string | null;
 }
 
 export interface ConversationDetail {
   id: number;
   title: string;
-  title_source?: string;
+  titleSource?: string;
   archived?: boolean;
   messages: ConversationDetailMessage[];
 }
@@ -1141,51 +1173,50 @@ export interface CreateConversationResponse {
   id: number;
   title: string;
   archived: boolean;
-  title_source: string;
-  created_at: string | null;
+  titleSource: string;
+  createdAt: string | null;
 }
 
 export interface UpdateConversationResponse {
   id: number;
   title: string;
-  title_source: string;
+  titleSource: string;
   archived: boolean;
-  updated_at: string | null;
+  updatedAt: string | null;
 }
 
 export interface AgentCallLogItem {
   id: number;
-  conversation_id: number | null;
-  message_id: number | null;
-  user_id: number;
+  conversationId: number | null;
+  messageId: number | null;
+  userId: number;
   role: string;
   kind: string;
   model: string | null;
-  prompt_tokens: number | null;
-  completion_tokens: number | null;
-  duration_ms: number | null;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  durationMs: number | null;
   status: string;
-  error_msg: string | null;
-  tool_calls: unknown;
+  errorMsg: string | null;
+  toolCalls: unknown;
   thoughts: unknown;
-  input_text: string | null;
-  output_text: string | null;
-  created_at: string | null;
+  inputText: string | null;
+  outputText: string | null;
+  createdAt: string | null;
 }
 
 export interface CallLogListResponse {
   items: AgentCallLogItem[];
   page: number;
-  per_page: number;
+  perPage: number;
   total: number;
 }
 
 export interface CallLogQuery {
-  conversation_id?: number;
+  conversationId?: number;
   status?: string;
   kind?: string;
-  user_id?: number;
+  userId?: number;
   page?: number;
-  per_page?: number;
+  perPage?: number;
 }
-

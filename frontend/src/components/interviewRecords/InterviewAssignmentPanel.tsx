@@ -8,6 +8,7 @@ import { INTERVIEW_ROUNDS, roundLabel } from '../../lib/interviewRecords';
 import type {
   CandidateListItem,
   InterviewAssignment,
+  InterviewAssignmentInput,
   InterviewRound,
   InterviewerOption,
   JobListItem,
@@ -76,14 +77,14 @@ export function InterviewAssignmentPanel({
     setMessage(null);
     try {
       await api.createInterviewAssignment({
-        candidate_id: cid,
-        job_id: jid,
+        candidateId: cid,
+        jobId: jid,
         round,
-        interviewer_id: iid,
-        scheduled_at: scheduledAt || undefined,
+        interviewerId: iid,
+        scheduledAt: scheduledAt || undefined,
         location: location.trim(),
         note: note.trim(),
-      });
+      } as unknown as InterviewAssignmentInput);
       setCandidateId('');
       setJobId('');
       setInterviewerId('');
@@ -157,7 +158,7 @@ export function InterviewAssignmentPanel({
                   <option value="">选择候选人</option>
                   {candidates.map((candidate) => (
                     <option key={candidate.id} value={candidate.id}>
-                      {candidate.name_masked}
+                      {candidate.nameMasked}
                     </option>
                   ))}
                 </Select>
@@ -235,13 +236,13 @@ export function InterviewAssignmentPanel({
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-medium text-ink">{item.name_masked ?? `候选人 #${item.candidate_id}`}</p>
+                      <p className="font-medium text-ink">{item.nameMasked ?? `候选人 #${item.candidateId}`}</p>
                       <Badge tone="warning">{roundLabel(item.round)}</Badge>
                     </div>
-                    <p className="mt-1 truncate text-sm text-muted">{item.job_title ?? `岗位 #${item.job_id}`}</p>
+                    <p className="mt-1 truncate text-sm text-muted">{item.jobTitle ?? `岗位 #${item.jobId}`}</p>
                     <p className="mt-2 text-xs text-muted-soft">
-                      {item.scheduled_at ? formatDate(item.scheduled_at) : '未定时间'}
-                      {item.interviewer_name ? ` · ${item.interviewer_name}` : ''}
+                      {item.scheduledAt ? formatDate(item.scheduledAt) : '未定时间'}
+                      {item.interviewerName ? ` · ${item.interviewerName}` : ''}
                     </p>
                     {item.location && <p className="mt-1 text-xs text-body">{item.location}</p>}
                   </div>

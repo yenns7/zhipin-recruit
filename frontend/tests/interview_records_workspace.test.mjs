@@ -113,7 +113,7 @@ assert.match(
 
 assert.match(
   pendingPanel,
-  /canOpenPipeline\s*\?\s*`\/pipeline\?job=\$\{item\.job_id\}&candidate=\$\{item\.candidate_id\}`\s*:\s*`\/candidates\/\$\{item\.candidate_id\}`/,
+  /canOpenPipeline\s*\?\s*`\/pipeline\?job=\$\{item\.jobId\}&candidate=\$\{item\.candidateId\}`\s*:\s*`\/candidates\/\$\{item\.candidateId\}`/,
   'Pending feedback cards should send interviewers to candidate detail instead of a forbidden pipeline route',
 );
 

@@ -24,7 +24,7 @@ const DEFAULT_COLUMNS = ['目标公司', '潜在人选', '重点关注', '已接
 const CONTACT_STATUSES = ['未接触', '重点关注', '已接触', '暂不合适'] as const;
 
 function formatJobOption(job: JobListItem) {
-  const code = job.job_code || `JOB-${job.id}`;
+  const code = job.jobCode || `JOB-${job.id}`;
   const meta = [job.city, job.department].filter(Boolean).join(' · ');
   return `${code}｜${job.title}${meta ? `｜${meta}` : ''}`;
 }
@@ -41,10 +41,10 @@ function peopleForColumn(talentMap: TalentMap | null, column: string) {
   if (!talentMap) return [];
   if (column === '潜在人选') {
     return talentMap.people.filter(
-      (person) => !['重点关注', '已接触', '暂不合适'].includes(person.contact_status),
+      (person) => !['重点关注', '已接触', '暂不合适'].includes(person.contactStatus),
     );
   }
-  return talentMap.people.filter((person) => person.contact_status === column);
+  return talentMap.people.filter((person) => person.contactStatus === column);
 }
 
 function PersonCard({ person }: { person: TalentMapPerson }) {
@@ -54,10 +54,10 @@ function PersonCard({ person }: { person: TalentMapPerson }) {
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-ink">{person.name}</p>
           <p className="mt-0.5 truncate text-xs text-muted">
-            {person.company_name || '未关联公司'} · {person.title || '未填写岗位'}
+            {person.companyName || '未关联公司'} · {person.title || '未填写岗位'}
           </p>
         </div>
-        <Badge tone="glass">{person.contact_status}</Badge>
+        <Badge tone="glass">{person.contactStatus}</Badge>
       </div>
       <div className="mt-2 flex flex-wrap gap-1">
         {person.tags.slice(0, 3).map((tag) => (
@@ -137,9 +137,9 @@ export function TalentMapPage() {
     setMessage(null);
     const created = await api.createTalentMap({
       name: mapName.trim(),
-      job_id: mapJobId ? Number(mapJobId) : null,
+      jobId: mapJobId ? Number(mapJobId) : null,
       department: mapDepartment.trim(),
-      board_json: { columns: [...DEFAULT_COLUMNS] },
+      boardJson: { columns: [...DEFAULT_COLUMNS] },
     });
     setActiveMapId(created.id);
     setMapName('省总人才地图');
@@ -154,7 +154,7 @@ export function TalentMapPage() {
     if (!talentMap || !companyName.trim()) return;
     setMessage(null);
     await api.createTalentMapCompany(talentMap.id, {
-      company_name: companyName.trim(),
+      companyName: companyName.trim(),
       city: companyCity.trim(),
       priority: companyPriority,
     });
@@ -171,14 +171,14 @@ export function TalentMapPage() {
     if (!talentMap || !personName.trim()) return;
     setMessage(null);
     await api.createTalentMapPerson(talentMap.id, {
-      company_id: personCompanyId ? Number(personCompanyId) : null,
+      companyId: personCompanyId ? Number(personCompanyId) : null,
       name: personName.trim(),
       title: personTitle.trim(),
       city: personCity.trim(),
       tags: tagsFromText(personTags),
-      contact_status: personStatus,
+      contactStatus: personStatus,
       evaluation: personEvaluation.trim(),
-      salary_range: personSalary.trim(),
+      salaryRange: personSalary.trim(),
     });
     setPersonName('');
     setPersonTitle('');
@@ -316,19 +316,19 @@ export function TalentMapPage() {
                   <div className="rounded-md border border-hairline bg-surface-soft px-4 py-3">
                     <p className="text-xs text-muted">关联岗位</p>
                     <p className="mt-1 text-sm font-semibold text-ink">
-                      {talentMap.job_title || '暂未关联'}
+                      {talentMap.jobTitle || '暂未关联'}
                     </p>
                   </div>
                   <div className="rounded-md border border-hairline bg-surface-soft px-4 py-3">
                     <p className="text-xs text-muted">目标公司</p>
                     <p className="mt-1 text-sm font-semibold text-ink">
-                      {talentMap.companies_count} 家
+                      {talentMap.companiesCount} 家
                     </p>
                   </div>
                   <div className="rounded-md border border-hairline bg-surface-soft px-4 py-3">
                     <p className="text-xs text-muted">当前人选</p>
                     <p className="mt-1 text-sm font-semibold text-ink">
-                      {talentMap.people_count} 位
+                      {talentMap.peopleCount} 位
                     </p>
                   </div>
                 </div>
@@ -356,7 +356,7 @@ export function TalentMapPage() {
                                 className="rounded-md border border-hairline bg-canvas p-3 shadow-apple-xs"
                               >
                                 <p className="truncate text-sm font-semibold text-ink">
-                                  {company.company_name}
+                                  {company.companyName}
                                 </p>
                                 <p className="mt-0.5 text-xs text-muted">
                                   {[company.city, company.region, company.industry]
@@ -398,7 +398,7 @@ export function TalentMapPage() {
                       {talentMap.people.map((person) => (
                         <tr key={person.id} className="border-b border-hairline-soft">
                           <td className="py-3 pr-3 font-medium text-ink">{person.name}</td>
-                          <td className="py-3 pr-3 text-body">{person.company_name || '未关联'}</td>
+                          <td className="py-3 pr-3 text-body">{person.companyName || '未关联'}</td>
                           <td className="py-3 pr-3 text-body">{person.title || '-'}</td>
                           <td className="py-3 pr-3 text-body">{person.city || '-'}</td>
                           <td className="py-3 pr-3">
@@ -411,7 +411,7 @@ export function TalentMapPage() {
                             </div>
                           </td>
                           <td className="py-3 pr-3">
-                            <Badge tone="brand">{person.contact_status}</Badge>
+                            <Badge tone="brand">{person.contactStatus}</Badge>
                           </td>
                           <td className="py-3 text-muted">{person.evaluation || '-'}</td>
                         </tr>
@@ -517,7 +517,7 @@ export function TalentMapPage() {
                   <option value="">暂不关联公司</option>
                   {talentMap?.companies.map((company) => (
                     <option key={company.id} value={company.id}>
-                      {company.company_name}
+                      {company.companyName}
                     </option>
                   ))}
                 </Select>

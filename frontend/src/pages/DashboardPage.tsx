@@ -198,10 +198,10 @@ function isToday(value: string | null): boolean {
 
 function buildInterviewerTaskStats(assignments: InterviewAssignment[]): InterviewerTaskStats {
   return {
-    pendingFeedback: assignments.filter((item) => !item.feedback_submitted).length,
-    todayInterviews: assignments.filter((item) => isToday(item.scheduled_at)).length,
-    submittedFeedback: assignments.filter((item) => item.feedback_submitted).length,
-    overdueFeedback: assignments.filter((item) => item.is_overdue && !item.feedback_submitted).length,
+    pendingFeedback: assignments.filter((item) => !item.feedbackSubmitted).length,
+    todayInterviews: assignments.filter((item) => isToday(item.scheduledAt)).length,
+    submittedFeedback: assignments.filter((item) => item.feedbackSubmitted).length,
+    overdueFeedback: assignments.filter((item) => item.isOverdue && !item.feedbackSubmitted).length,
   };
 }
 
@@ -247,16 +247,16 @@ function useDashboardStats(
           next.interview = f.interview ?? 0;
           next.offer = f.offer ?? 0;
           next.onboarded = f.onboarded ?? 0;
-          next.conversionRate = Number.isFinite(f.conversion_rate) ? f.conversion_rate : 0;
+          next.conversionRate = Number.isFinite(f.conversionRate) ? f.conversionRate : 0;
           if ('performance' in biR.value && biR.value.performance) {
-            const p = biR.value.performance;
-            next.performance = p;
-            next.businessReview = p.business_review_entries;
-            next.interview = p.interview_entries;
-            next.offer = p.offer_entries;
-            next.onboarded = p.onboarded;
-            next.conversionRate = Number.isFinite(p.recommendation_to_onboard_rate)
-              ? p.recommendation_to_onboard_rate
+            const p = biR.value.performance as Record<string, unknown>;
+            next.performance = p as never;
+            next.businessReview = p.businessReviewEntries as number;
+            next.interview = p.interviewEntries as number;
+            next.offer = p.offerEntries as number;
+            next.onboarded = p.onboarded as number;
+            next.conversionRate = Number.isFinite(p.recommendationToOnboardRate as number)
+              ? (p.recommendationToOnboardRate as number)
               : 0;
           }
           if ('alerts' in biR.value) next.alerts = biR.value.alerts ?? [];
@@ -346,8 +346,8 @@ function ManagementAlerts({ alerts }: { alerts: BiManagerAlert[] }) {
           <div className="divide-y divide-hairline-soft">
             {alerts.slice(0, 4).map((alert) => (
               <Link
-                key={`${alert.kind}-${alert.job_id}-${alert.candidate_id}-${alert.stage}`}
-                to={alert.action_path}
+                key={`${alert.kind}-${alert.jobId}-${alert.candidateId}-${alert.stage}`}
+                to={alert.actionPath}
                 className="flex items-start gap-3 px-5 py-4 transition-colors hover:bg-surface-soft focus:outline-none focus-visible:bg-surface-soft"
               >
                 <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning-50 text-warning-700">
@@ -391,22 +391,22 @@ function RecruiterPerformancePanel({ performance }: { performance: BiStaffMember
       >
         <KpiCard
           label="有效推荐"
-          value={valueOrNull(performance?.effective_recommendations)}
+          value={valueOrNull(performance?.effectiveRecommendations)}
           accent="#FF9500"
         />
         <KpiCard
           label="推荐成功面试"
-          value={valueOrNull(performance?.interview_entries)}
+          value={valueOrNull(performance?.interviewEntries)}
           accent="#007AFF"
         />
         <KpiCard
           label="面试通过"
-          value={valueOrNull(performance?.interview_passed)}
+          value={valueOrNull(performance?.interviewPassed)}
           accent="#5856D6"
         />
         <KpiCard
           label="Offer"
-          value={valueOrNull(performance?.offer_entries)}
+          value={valueOrNull(performance?.offerEntries)}
           accent="#AF52DE"
         />
         <KpiCard
@@ -416,7 +416,7 @@ function RecruiterPerformancePanel({ performance }: { performance: BiStaffMember
         />
         <KpiCard
           label="待补反馈"
-          value={valueOrNull(performance?.feedback_pending)}
+          value={valueOrNull(performance?.feedbackPending)}
           accent="#FF3B30"
         />
       </Reveal>
@@ -472,10 +472,10 @@ function TodoCard({
 }
 
 function RecruiterTodoPanel({ stats }: { stats: DashboardStats }) {
-  const feedbackPending = valueOrNull(stats.performance?.feedback_pending);
-  const businessReview = valueOrNull(stats.performance?.business_review_entries ?? stats.businessReview);
-  const interview = valueOrNull(stats.performance?.interview_entries ?? stats.interview);
-  const offer = valueOrNull(stats.performance?.offer_entries ?? stats.offer);
+  const feedbackPending = valueOrNull(stats.performance?.feedbackPending);
+  const businessReview = valueOrNull(stats.performance?.businessReviewEntries ?? stats.businessReview);
+  const interview = valueOrNull(stats.performance?.interviewEntries ?? stats.interview);
+  const offer = valueOrNull(stats.performance?.offerEntries ?? stats.offer);
 
   return (
     <section>

@@ -33,13 +33,13 @@ export interface InterviewStats {
 }
 
 export interface PendingFeedbackItem {
-  candidate_id: number;
-  name_masked: string;
-  job_id: number;
-  job_title: string;
+  candidateId: number;
+  nameMasked: string;
+  jobId: number;
+  jobTitle: string;
   round: InterviewRound;
-  updated_at: string | null;
-  updated_by_name: string | null;
+  updatedAt: string | null;
+  updatedByName: string | null;
 }
 
 export const INTERVIEW_ROUNDS: Array<{ key: InterviewRound; label: string }> = [
@@ -95,22 +95,24 @@ export function recordSummary(item: InterviewListItem): string {
     if (item.pass === null || item.score === null) return 'AI 预筛报告待查看';
     return `AI 建议${item.pass ? '通过' : '不通过'}，评分 ${item.score}`;
   }
-  if (item.reason_tags.length > 0) return item.reason_tags.join('、');
+  if (item.reasonTags.length > 0) return item.reasonTags.join('、');
   return item.concerns || item.note || item.strengths || '已提交面试结论';
 }
 
 export function uniqueJobs(items: InterviewListItem[], jobs: JobListItem[]): JobListItem[] {
   const fromItems = new Map<number, JobListItem>();
   items.forEach((item) => {
-    if (!fromItems.has(item.job_id)) {
-      fromItems.set(item.job_id, {
-        id: item.job_id,
-        title: item.job_title ?? `岗位 #${item.job_id}`,
+    if (!fromItems.has(item.jobId)) {
+      fromItems.set(item.jobId, {
+        id: item.jobId,
+        title: item.jobTitle ?? `岗位 #${item.jobId}`,
         city: '',
         department: '',
-        job_code: '',
+        jobCode: '',
         status: 'active',
-        created_at: '',
+        createdAt: '',
+        jdText: '',
+        ownerHrId: 0,
       });
     }
   });
@@ -121,8 +123,8 @@ export function uniqueJobs(items: InterviewListItem[], jobs: JobListItem[]): Job
 export function uniqueInterviewers(items: InterviewListItem[]) {
   const map = new Map<number, string>();
   items.forEach((item) => {
-    if (item.interviewer_id && item.interviewer_name) {
-      map.set(item.interviewer_id, item.interviewer_name);
+    if (item.interviewerId && item.interviewerName) {
+      map.set(item.interviewerId, item.interviewerName);
     }
   });
   return [...map.entries()]
@@ -152,26 +154,26 @@ export function filterInterviewRecords(
   const q = filters.query.trim().toLowerCase();
   return items.filter((item) => {
     const text = [
-      item.name_masked,
-      item.job_title,
-      item.interviewer_name,
+      item.nameMasked,
+      item.jobTitle,
+      item.interviewerName,
       item.strengths,
       item.concerns,
       item.note,
-      ...item.reason_tags,
+      ...item.reasonTags,
     ]
       .filter(Boolean)
       .join(' ')
       .toLowerCase();
 
     if (q && !text.includes(q)) return false;
-    if (filters.jobId !== 'all' && item.job_id !== filters.jobId) return false;
+    if (filters.jobId !== 'all' && item.jobId !== filters.jobId) return false;
     if (filters.round !== 'all' && item.round !== filters.round) return false;
     if (filters.type !== 'all' && item.type !== filters.type) return false;
-    if (filters.interviewerId !== 'all' && item.interviewer_id !== filters.interviewerId) {
+    if (filters.interviewerId !== 'all' && item.interviewerId !== filters.interviewerId) {
       return false;
     }
-    if (!inDateRange(item.created_at, filters.range)) return false;
+    if (!inDateRange(item.createdAt, filters.range)) return false;
     if (filters.result === 'passed' && item.pass !== true) return false;
     if (filters.result === 'failed' && item.pass !== false) return false;
     if (filters.result === 'empty' && item.pass !== null) return false;
@@ -190,8 +192,8 @@ function hasFeedbackForRound(
   return records.some(
     (record) =>
       record.type === 'feedback' &&
-      record.candidate_id === candidateId &&
-      record.job_id === jobId &&
+      record.candidateId === candidateId &&
+      record.jobId === jobId &&
       record.round === round,
   );
 }
@@ -208,35 +210,35 @@ export function buildPendingFeedback(
   boards.forEach((board) => {
     board.candidates.filter(isInterviewCandidate).forEach((candidate) => {
       const fallbackRound: InterviewRound = 'round_1';
-      if (!hasFeedbackForRound(records, candidate.candidate_id, board.job_id, fallbackRound)) {
+      if (!hasFeedbackForRound(records, candidate.candidateId, board.jobId, fallbackRound)) {
         pending.push({
-          candidate_id: candidate.candidate_id,
-          name_masked: candidate.name_masked,
-          job_id: board.job_id,
-          job_title: board.job_title,
+          candidateId: candidate.candidateId,
+          nameMasked: candidate.nameMasked,
+          jobId: board.jobId,
+          jobTitle: board.jobTitle,
           round: fallbackRound,
-          updated_at: candidate.updated_at,
-          updated_by_name: candidate.updated_by_name,
+          updatedAt: candidate.updatedAt,
+          updatedByName: candidate.updatedByName,
         });
       }
     });
   });
-  return pending.sort((a, b) => (a.updated_at ?? '').localeCompare(b.updated_at ?? ''));
+  return pending.sort((a, b) => (a.updatedAt ?? '').localeCompare(b.updatedAt ?? ''));
 }
 
 export function buildAssignedPendingFeedback(assignments: InterviewAssignment[]): PendingFeedbackItem[] {
   return assignments
-    .filter((item) => !item.feedback_submitted)
+    .filter((item) => !item.feedbackSubmitted)
     .map((item) => ({
-      candidate_id: item.candidate_id,
-      name_masked: item.name_masked ?? `候选人 #${item.candidate_id}`,
-      job_id: item.job_id,
-      job_title: item.job_title ?? `岗位 #${item.job_id}`,
+      candidateId: item.candidateId ?? 0,
+      nameMasked: item.nameMasked ?? `候选人 #${item.candidateId ?? 0}`,
+      jobId: item.jobId ?? 0,
+      jobTitle: item.jobTitle ?? `岗位 #${item.jobId ?? 0}`,
       round: item.round,
-      updated_at: item.scheduled_at ?? item.created_at,
-      updated_by_name: item.created_by_name,
+      updatedAt: item.scheduledAt ?? item.createdAt ?? null,
+      updatedByName: item.createdByName ?? null,
     }))
-    .sort((a, b) => (a.updated_at ?? '').localeCompare(b.updated_at ?? ''));
+    .sort((a, b) => (a.updatedAt ?? '').localeCompare(b.updatedAt ?? ''));
 }
 
 export function mergePendingFeedback(
@@ -245,12 +247,12 @@ export function mergePendingFeedback(
 ): PendingFeedbackItem[] {
   const byKey = new Map<string, PendingFeedbackItem>();
   [...primary, ...fallback].forEach((item) => {
-    const key = `${item.job_id}-${item.candidate_id}-${item.round}`;
+    const key = `${item.jobId}-${item.candidateId}-${item.round}`;
     if (!byKey.has(key)) {
       byKey.set(key, item);
     }
   });
-  return [...byKey.values()].sort((a, b) => (a.updated_at ?? '').localeCompare(b.updated_at ?? ''));
+  return [...byKey.values()].sort((a, b) => (a.updatedAt ?? '').localeCompare(b.updatedAt ?? ''));
 }
 
 export function filterPendingFeedback(
@@ -259,11 +261,11 @@ export function filterPendingFeedback(
 ): PendingFeedbackItem[] {
   const q = filters.query.trim().toLowerCase();
   return items.filter((item) => {
-    const text = [item.name_masked, item.job_title, roundLabel(item.round)]
+    const text = [item.nameMasked, item.jobTitle, roundLabel(item.round)]
       .join(' ')
       .toLowerCase();
     if (q && !text.includes(q)) return false;
-    if (filters.jobId !== 'all' && item.job_id !== filters.jobId) return false;
+    if (filters.jobId !== 'all' && item.jobId !== filters.jobId) return false;
     if (filters.round !== 'all' && item.round !== filters.round) return false;
     return true;
   });
@@ -277,7 +279,7 @@ export function computeInterviewStats(
   const totalScore = scored.reduce((sum, item) => sum + Number(item.score), 0);
   return {
     total: records.length,
-    today: records.filter((item) => inDateRange(item.created_at, 'today')).length,
+    today: records.filter((item) => inDateRange(item.createdAt, 'today')).length,
     passed: records.filter((item) => item.pass === true).length,
     failed: records.filter((item) => item.pass === false).length,
     pending: pending.length,

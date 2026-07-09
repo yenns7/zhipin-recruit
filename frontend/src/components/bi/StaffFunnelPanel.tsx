@@ -28,7 +28,7 @@ export function StaffFunnelPanel({ funnel }: StaffFunnelPanelProps) {
           />
           <div className="flex justify-center lg:px-4">
             <ConversionRing
-              percent={safeNum(funnel.conversion_rate)}
+              percent={safeNum(funnel.conversionRate)}
               label="个人入职占比"
               color="#007AFF"
               size={160}

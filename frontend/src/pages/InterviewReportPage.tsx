@@ -76,17 +76,17 @@ export function InterviewReportPage() {
           面试报告 #{data.id}
         </h1>
         <p className="mt-1 text-sm text-muted">
-          候选人 ID {data.candidate_id} · 岗位 ID {data.job_id}
+          候选人 ID {data.candidateId} · 岗位 ID {data.jobId}
         </p>
       </div>
 
       <InterviewReport
-        report={data.ai_report}
+        report={data.aiReport}
         meta={{
           interviewId: data.id,
-          candidateId: data.candidate_id,
-          jobId: data.job_id,
-          createdAt: data.created_at,
+          candidateId: data.candidateId,
+          jobId: data.jobId,
+          createdAt: data.createdAt,
         }}
       />
     </div>

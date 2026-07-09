@@ -9,9 +9,11 @@ const sampleJobs: JobListItem[] = [
     title: '前端工程师',
     city: '深圳',
     department: '技术研发部',
-    created_at: '2026-07-01T08:00:00Z',
+    createdAt: '2026-07-01T08:00:00Z',
     status: 'active',
-    job_code: 'SZ-FE-007',
+    jobCode: 'SZ-FE-007',
+    jdText: '',
+    ownerHrId: 1,
   },
 ];
 
@@ -31,7 +33,7 @@ describe('JobsListPanel', () => {
         departmentOptions={['技术研发部', '产品部']}
         jobStatus="active"
         editingJobId={null}
-        editDraft={{ city: '', department: '', job_code: '' }}
+        editDraft={{ city: '', department: '', jobCode: '' }}
         savingJobId={null}
         closingId={null}
         restoringId={null}

@@ -13,7 +13,7 @@ function readSource(path) {
 const agent = readSource('lib/agent.ts');
 assert.match(agent, /conversation_started/, 'Agent SSE type should include conversation_started');
 assert.match(agent, /conversationId\?: number \| null/, 'streamChat should accept an optional conversation id');
-assert.match(agent, /body\.conversation_id = conversationId/, 'streamChat should send conversation_id to backend');
+assert.match(agent, /body\.conversationId = conversationId/, 'streamChat should send conversationId to backend');
 
 const chat = readSource('lib/agentChat.tsx');
 assert.match(chat, /STORAGE_KEY_CONV/, 'Agent chat should persist the current conversation id');

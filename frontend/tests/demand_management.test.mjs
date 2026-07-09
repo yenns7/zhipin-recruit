@@ -42,7 +42,7 @@ assert.match(api, /restoreDemand/, 'Demand API wrapper should restore closed dem
 
 const types = readSource('types/index.ts');
 assert.match(types, /interface RecruitmentDemand/, 'Shared types should expose RecruitmentDemand');
-assert.match(types, /business_review_count/, 'Demand metrics should expose business feedback backlog');
+assert.match(types, /businessReviewCount/, 'Demand metrics should expose business feedback backlog');
 
 const page = readSource('features/demands/pages/DemandsPage.tsx');
 const recruitmentTabs = readSource('components/recruitment/RecruitmentManagementTabs.tsx');
@@ -59,5 +59,5 @@ assert.match(page, /恢复需求/, 'Demand cards should support restoring mistak
 assert.match(page, /业务侧卡点/, 'Demand cards should call out when the business side is blocking progress');
 assert.match(page, /HR 侧卡点/, 'Demand cards should call out when HR-side action is missing');
 assert.match(page, /阶段分布/, 'Demand cards should visualize the linked job pipeline distribution');
-assert.match(page, /current_stage_counts/, 'Demand cards should use current pipeline stage counts for progress context');
+assert.match(page, /currentStageCounts/, 'Demand cards should use current pipeline stage counts for progress context');
 assert.match(page, /hr_no_recommendation/, 'Demand cards should understand HR no-recommendation risk flags');

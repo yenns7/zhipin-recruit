@@ -36,7 +36,7 @@ export function TeamFunnelPanels({ funnel }: TeamFunnelPanelsProps) {
         <CardBody>
           <div className="mb-5 flex justify-center">
             <ConversionRing
-              percent={safeNum(funnel.conversion_rate)}
+              percent={safeNum(funnel.conversionRate)}
               label="全流程入职占比"
               color="#007AFF"
             />

@@ -132,11 +132,11 @@ class DemandControllerTest {
                         .header("Authorization", recruiterToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.requestNo").value("DEM-001"))
-                .andExpect(jsonPath("$._demandMetrics").doesNotExist())
-                .andExpect(jsonPath("$.data._demandMetrics").exists())
-                .andExpect(jsonPath("$.data._riskFlags").exists())
-                .andExpect(jsonPath("$.data._demandMetrics.daysSinceRequested").isNumber())
-                .andExpect(jsonPath("$.data._riskFlags.overdue").isBoolean());
+                .andExpect(jsonPath("$.data.metrics").exists())
+                .andExpect(jsonPath("$.data.riskFlags").isArray())
+                .andExpect(jsonPath("$.data.metrics.recommendedCount").isNumber())
+                .andExpect(jsonPath("$.data.metrics.interviewCount").isNumber())
+                .andExpect(jsonPath("$.data.metrics.offerCount").isNumber());
     }
 
     @Test

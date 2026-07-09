@@ -46,7 +46,7 @@ export function PipelineCandidatePanel({
   const [moveNote, setMoveNote] = useState('');
   const [correctionReason, setCorrectionReason] = useState('');
   const [correctionError, setCorrectionError] = useState<string | null>(null);
-  const candidateId = candidate?.candidate_id ?? null;
+  const candidateId = candidate?.candidateId ?? null;
   const candidateStage = candidate?.stage ?? null;
 
   useEffect(() => {
@@ -88,7 +88,7 @@ export function PipelineCandidatePanel({
 
   async function move(toStage: PipelineStage) {
     const note = moveNote.trim() || undefined;
-    await onMove(currentCandidate.candidate_id, toStage, note);
+    await onMove(currentCandidate.candidateId, toStage, note);
     setMoveNote('');
   }
 
@@ -102,7 +102,7 @@ export function PipelineCandidatePanel({
     const message = '修正会影响当前阶段和 BI 当前存量，历史记录会保留。确认继续？';
     if (!window.confirm(message)) return;
     setCorrectionError(null);
-    await onMove(currentCandidate.candidate_id, targetStage, `阶段修正：${reason}`);
+    await onMove(currentCandidate.candidateId, targetStage, `阶段修正：${reason}`);
     setTargetStage('');
     setCorrectionReason('');
   }
@@ -119,13 +119,13 @@ export function PipelineCandidatePanel({
               </div>
               <div className="min-w-0">
                 <Link
-                  to={`/candidates/${candidate.candidate_id}`}
+                  to={`/candidates/${candidate.candidateId}`}
                   className="truncate text-sm font-semibold text-ink hover:underline"
                 >
-                  {candidate.name_masked}
+                  {candidate.nameMasked}
                 </Link>
                 <p className="mt-0.5 text-xs text-muted-soft">
-                  {stage.label} · {stageAgeLabel(candidate.updated_at)}
+                  {stage.label} · {stageAgeLabel(candidate.updatedAt)}
                 </p>
               </div>
             </div>
@@ -172,7 +172,7 @@ export function PipelineCandidatePanel({
             )}
             {isInterviewStage(candidate.stage) && (
               <Link
-                to={`/interviews?job=${jobId}&candidate=${candidate.candidate_id}`}
+                to={`/interviews?job=${jobId}&candidate=${candidate.candidateId}`}
                 className="inline-flex h-8 items-center justify-center rounded-md border border-hairline bg-canvas px-3 text-sm font-semibold text-ink transition-colors hover:bg-surface-soft"
               >
                 填写面试反馈
@@ -274,14 +274,14 @@ export function PipelineCandidatePanel({
             busy={busy}
             onCancel={() => setShowDisposition(false)}
             onSubmit={async (disposition, note) => {
-              await onMove(candidate.candidate_id, 'rejected', note, disposition);
+              await onMove(candidate.candidateId, 'rejected', note, disposition);
               setShowDisposition(false);
             }}
           />
         )}
 
         {candidate.stage === 'offer' && showOffer && (
-          <OfferDrawer candidateId={candidate.candidate_id} jobId={jobId} />
+          <OfferDrawer candidateId={candidate.candidateId} jobId={jobId} />
         )}
       </CardBody>
     </Card>

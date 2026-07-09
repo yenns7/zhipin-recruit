@@ -31,7 +31,7 @@ assert.match(api, /resetUserPassword/, 'API client should expose resetUserPasswo
 
 const types = readSource('types/index.ts');
 assert.match(types, /AdminUserCreateInput/, 'types should declare the admin create-user request');
-assert.match(types, /reason_tags\?: string\[\]/, 'interview feedback input should include structured reason tags');
+assert.match(types, /reasonTags:\s*string\[\]/, 'interview feedback input should include structured reason tags');
 
 const feedbackForm = readSource('components/interview/FeedbackForm.tsx');
 assert.match(feedbackForm, /FEEDBACK_REASON_OPTIONS/, 'feedback form should define fixed reason options');
@@ -40,7 +40,7 @@ assert.match(feedbackForm, /岗位画像变化/, 'feedback form should include b
 assert.match(feedbackForm, /候选人已接受其他机会/, 'feedback form should include common candidate drop-off reasons');
 assert.match(feedbackForm, /岗位暂停招聘/, 'feedback form should include common demand-side stop reasons');
 assert.match(feedbackForm, /面试时间无法协调/, 'feedback form should include coordination reasons');
-assert.match(feedbackForm, /reason_tags/, 'feedback form should submit reason tags');
+assert.match(feedbackForm, /reasonTags/, 'feedback form should submit reason tags');
 
 const running = readRepo('RUNNING.md');
 assert.match(

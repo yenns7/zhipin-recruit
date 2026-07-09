@@ -17,14 +17,14 @@ import {
 } from '../components/ui';
 import { InterviewReport } from '../components/InterviewReport';
 import { Reveal } from '../components/motion';
-import type { InterviewReport as InterviewReportType, QaPair } from '../types';
+import type { InterviewAnswer, InterviewReport as InterviewReportType } from '../types';
 
 type Phase = 'setup' | 'answer' | 'report';
 
 // ---- Setup phase ----
 
 interface SetupProps {
-  onStart: (candidateId: number, jobId: number, questions: string[]) => void;
+  onStart: (candidateId: number, jobId: number, questions: string[], sessionId: number) => void;
 }
 
 function SetupPhase({ onStart }: SetupProps) {
@@ -33,7 +33,7 @@ function SetupPhase({ onStart }: SetupProps) {
 
   const [candidateId, setCandidateId] = useState('');
   const [jobId, setJobId] = useState('');
-  const [count, setCount] = useState('5');
+  const [count, setCount] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,7 +42,6 @@ function SetupPhase({ onStart }: SetupProps) {
   async function handleStart() {
     const cid = Number(candidateId);
     const jid = Number(jobId);
-    const cnt = Number(count) || 5;
 
     if (!candidateId || Number.isNaN(cid)) {
       setError('请选择候选人');
@@ -57,11 +56,10 @@ function SetupPhase({ onStart }: SetupProps) {
     setError(null);
     try {
       const res = await api.startInterview({
-        candidate_id: cid,
-        job_id: jid,
-        count: cnt,
+        candidateId: cid,
+        jobId: jid,
       });
-      onStart(cid, jid, res.questions);
+      onStart(cid, jid, res.questions, res.sessionId);
     } catch (err) {
       setError(err instanceof Error ? err.message : '生成失败，请重试');
     } finally {
@@ -142,7 +140,7 @@ function SetupPhase({ onStart }: SetupProps) {
             <option value="">— 请选择候选人 —</option>
             {(candidatesAsync.data ?? []).map((c) => (
               <option key={c.id} value={c.id}>
-                {c.name_masked} (ID {c.id})
+                {c.nameMasked} (ID {c.id})
               </option>
             ))}
           </Select>
@@ -173,7 +171,7 @@ function SetupPhase({ onStart }: SetupProps) {
             min={1}
             max={20}
             value={count}
-            onChange={(e) => setCount(e.target.value)}
+            onChange={(e) => setCount(Number(e.target.value))}
           />
 
           {error && (
@@ -289,14 +287,16 @@ export function InterviewsPage() {
   const [answers, setAnswers] = useState<string[]>([]);
   const [candidateId, setCandidateId] = useState<number>(0);
   const [jobId, setJobId] = useState<number>(0);
+  const [sessionId, setSessionId] = useState<number>(0);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [report, setReport] = useState<InterviewReportType | null>(null);
   const [interviewId, setInterviewId] = useState<number | null>(null);
 
-  function handleStart(cid: number, jid: number, qs: string[]) {
+  function handleStart(cid: number, jid: number, qs: string[], sid: number) {
     setCandidateId(cid);
     setJobId(jid);
+    setSessionId(sid);
     setQuestions(qs);
     setAnswers(new Array(qs.length).fill(''));
     setPhase('answer');
@@ -311,21 +311,21 @@ export function InterviewsPage() {
   }
 
   async function handleSubmit() {
-    const qaPairs: QaPair[] = questions.map((q, i) => ({
-      q,
-      a: answers[i] ?? '',
+    const interviewAnswers: InterviewAnswer[] = questions.map((q, i) => ({
+      questionId: i + 1,
+      question: q,
+      answer: answers[i] ?? '',
     }));
 
     setSubmitting(true);
     setSubmitError(null);
     try {
       const res = await api.submitInterview({
-        candidate_id: candidateId,
-        job_id: jobId,
-        qa_pairs: qaPairs,
+        sessionId: sessionId,
+        answers: interviewAnswers,
       });
       setReport(res.report);
-      setInterviewId(res.interview_id);
+      setInterviewId(res.sessionId);
       setPhase('report');
     } catch (err) {
       // Error must NOT lose entered answers — stay on answer phase

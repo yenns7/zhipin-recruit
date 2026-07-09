@@ -20,20 +20,20 @@ assert.match(api, /batchAddToPipeline/, 'API client should expose the duplicate-
 const types = readSource('types/index.ts');
 assert.match(types, /CandidateListQuery/, 'Candidate list query type should exist');
 assert.match(types, /CandidateListResponse/, 'Candidate list response type should exist');
-assert.match(types, /intent_city\?:\s*string/, 'Candidate list item should expose parsed intent city');
+assert.match(types, /intentCity\?:\s*string/, 'Candidate list item should expose parsed intent city');
 assert.match(types, /city\?:\s*string/, 'Candidate list query should support city filtering');
-assert.match(types, /parse_status\?:\s*ParseStatus/, 'Candidate list query should support parse status filtering');
-assert.match(types, /source_channel\?:\s*string/, 'Candidate list query should support source channel filtering');
-assert.match(types, /pipeline_status\?:/, 'Candidate list query should support assignment status filtering');
+assert.match(types, /parseStatus\?:\s*ParseStatus/, 'Candidate list query should support parse status filtering');
+assert.match(types, /sourceChannel\?:\s*string/, 'Candidate list query should support source channel filtering');
+assert.match(types, /pipelineStatus\?:/, 'Candidate list query should support assignment status filtering');
 
 const candidatesPage = readSource('features/candidates/pages/CandidatesPage.tsx');
 assert.match(candidatesPage, /useDebounce/, 'Candidate page should debounce server search');
 assert.match(candidatesPage, /searchCandidates/, 'Candidate page should use server-side search');
 assert.match(candidatesPage, /Pagination/, 'Candidate page should render pagination controls');
-assert.match(candidatesPage, /per_page:\s*20/, 'Candidate page should request a stable page size');
+assert.match(candidatesPage, /perPage:\s*20/, 'Candidate page should request a stable page size');
 assert.match(candidatesPage, /意向城市/, 'Candidate page should offer an intent city filter');
 assert.match(candidatesPage, /cityFilter/, 'Candidate page should keep intent city filter state');
-assert.match(candidatesPage, /intent_city/, 'Candidate page should display or search parsed intent city');
+assert.match(candidatesPage, /intentCity/, 'Candidate page should display or search parsed intent city');
 assert.match(
   candidatesPage,
   /city:\s*cityFilter === 'all' \? undefined : cityFilter/,
@@ -49,7 +49,7 @@ assert.doesNotMatch(candidatesPage, /label="岗位流程"/, 'Candidate page shou
 assert.doesNotMatch(candidatesPage, /<option value="all">全部简历<\/option>/, 'Assignment status filter should not sound like the whole library filter');
 assert.match(
   candidatesPage,
-  /pipeline_status:\s*pipelineStatusFilter === 'all' \? undefined : pipelineStatusFilter/,
+  /pipelineStatus:\s*pipelineStatusFilter === 'all' \? undefined : pipelineStatusFilter/,
   'Candidate page should pass assignment status to server search'
 );
 assert.match(candidatesPage, /listJobs/, 'Candidate page should load active jobs for downstream assignment');

@@ -33,7 +33,7 @@ assert.match(
 
 assert.match(
   dashboard,
-  /action_path/,
+  /actionPath/,
   'Alerts should link managers directly to the workflow item that needs attention',
 );
 

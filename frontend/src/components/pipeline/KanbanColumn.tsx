@@ -49,11 +49,11 @@ export function KanbanColumn({
         ) : (
           candidates.map((c) => (
             <CandidateCard
-              key={c.candidate_id}
+              key={c.candidateId}
               candidate={c}
-              busy={busyId === c.candidate_id}
+              busy={busyId === c.candidateId}
               jobId={jobId}
-              highlighted={highlightedCandidateId === c.candidate_id}
+              highlighted={highlightedCandidateId === c.candidateId}
               onMove={onMove}
             />
           ))

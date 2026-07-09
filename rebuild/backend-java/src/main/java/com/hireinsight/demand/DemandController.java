@@ -11,10 +11,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDate;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
+import java.time.LocalDate;
 import java.util.*;
 
 @RestController
@@ -22,33 +20,21 @@ import java.util.*;
 public class DemandController {
 
     private final DemandRepository demandRepository;
+    private final DemandService demandService;
 
-    public DemandController(DemandRepository demandRepository) {
+    public DemandController(DemandRepository demandRepository, DemandService demandService) {
         this.demandRepository = demandRepository;
+        this.demandService = demandService;
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<RecruitmentDemand>>> listDemands(
+    public ResponseEntity<ApiResponse<List<DemandResponse>>> listDemands(
             Authentication auth,
             @RequestParam(required = false) String status) {
         Long userId = (Long) auth.getDetails();
         boolean isAdmin = auth.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MANAGER"));
-        List<RecruitmentDemand> demands;
-        if (isAdmin) {
-            if (status != null && !status.isBlank()) {
-                demands = demandRepository.findByStatus(status);
-            } else {
-                demands = demandRepository.findAll();
-            }
-        } else {
-            demands = demandRepository.findByOwnerHrId(userId);
-            if (status != null && !status.isBlank()) {
-                demands = demands.stream()
-                        .filter(d -> status.equals(d.getStatus()))
-                        .toList();
-            }
-        }
+        List<DemandResponse> demands = demandService.listDemands(userId, isAdmin, status);
         return ResponseEntity.ok(ApiResponse.ok(demands));
     }
 
@@ -75,11 +61,9 @@ public class DemandController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getDemand(@PathVariable Long id) {
-        RecruitmentDemand demand = demandRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Demand not found: " + id));
-        Map<String, Object> response = demandToResponse(demand);
-        return ResponseEntity.ok(ApiResponse.ok(response));
+    public ResponseEntity<ApiResponse<DemandResponse>> getDemand(@PathVariable Long id) {
+        DemandResponse resp = demandService.getDemand(id);
+        return ResponseEntity.ok(ApiResponse.ok(resp));
     }
 
     @PatchMapping("/{id}")
@@ -134,54 +118,6 @@ public class DemandController {
         demand.setDowngradeReason(body.getOrDefault("downgradeReason", null));
         demand = demandRepository.save(demand);
         return ResponseEntity.ok(ApiResponse.ok(Map.of("id", demand.getId(), "status", demand.getStatus())));
-    }
-
-    private Map<String, Object> demandToResponse(RecruitmentDemand demand) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("id", demand.getId());
-        result.put("jobId", demand.getJobId());
-        result.put("ownerHrId", demand.getOwnerHrId());
-        result.put("requestNo", demand.getRequestNo());
-        result.put("requesterName", demand.getRequesterName());
-        result.put("department", demand.getDepartment());
-        result.put("hiringManagerName", demand.getHiringManagerName());
-        result.put("requestedAt", demand.getRequestedAt());
-        result.put("acceptedAt", demand.getAcceptedAt());
-        result.put("targetDate", demand.getTargetDate());
-        result.put("priority", demand.getPriority());
-        result.put("headcount", demand.getHeadcount());
-        result.put("status", demand.getStatus());
-        result.put("closeReason", demand.getCloseReason());
-        result.put("downgradeReason", demand.getDowngradeReason());
-        result.put("note", demand.getNote());
-        result.put("createdAt", demand.getCreatedAt());
-        result.put("updatedAt", demand.getUpdatedAt());
-
-        // Demo computed metrics
-        Map<String, Object> metrics = new LinkedHashMap<>();
-        Instant now = Instant.now();
-        if (demand.getRequestedAt() != null) {
-            metrics.put("daysSinceRequested", ChronoUnit.DAYS.between(demand.getRequestedAt(), now));
-        } else {
-            metrics.put("daysSinceRequested", 0);
-        }
-        if (demand.getTargetDate() != null) {
-            metrics.put("daysUntilTarget", ChronoUnit.DAYS.between(now, demand.getTargetDate().atStartOfDay(ZoneId.of("Asia/Shanghai")).toInstant()));
-        } else {
-            metrics.put("daysUntilTarget", null);
-        }
-        metrics.put("candidateInPipeline", 3);
-        metrics.put("interviewCompletionRate", 0.67);
-        result.put("_demandMetrics", metrics);
-
-        // Demo risk flags
-        Map<String, Object> riskFlags = new LinkedHashMap<>();
-        riskFlags.put("overdue", false);
-        riskFlags.put("approachingDeadline", true);
-        riskFlags.put("noProgress", false);
-        result.put("_riskFlags", riskFlags);
-
-        return result;
     }
 
     @Data

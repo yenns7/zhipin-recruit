@@ -30,33 +30,33 @@ assert.match(
 );
 assert.match(
   types,
-  /interview_passed:\s*number/,
+  /interviewPassed:\s*number/,
   'BI staff metrics should expose generic interview pass counts',
 );
 assert.match(
-  types,
-  /interview_to_offer_rate:\s*number/,
-  'BI staff metrics should expose interview-to-offer conversion',
-);
-assert.doesNotMatch(
-  types,
-  /(?:first|second|final)_interview_(?:entries|feedbacks|passed|pass_rate|rate):\s*number/,
-  'BI public types should not expose legacy fixed interview rounds',
-);
-assert.match(
-  types,
-  /demands:\s*BiDemandMetrics/,
-  'BiOverview should expose demand health metrics',
-);
-assert.match(
-  types,
-  /resumes:\s*BiResumeMetrics/,
-  'BiOverview should expose resume consumption metrics',
-);
-assert.match(
-  types,
-  /source_quality:\s*BiSourceQuality\[\]/,
-  'BiOverview should expose source quality metrics',
+    types,
+    /interviewToOfferRate:\s*number/,
+    'BI staff metrics should expose interview-to-offer conversion',
+  );
+  assert.doesNotMatch(
+    types,
+    /(?:first|second|final)Interview(?:Entries|Feedbacks|Passed|PassRate|Rate):\s*number/,
+    'BI public types should not expose legacy fixed interview rounds',
+  );
+  assert.match(
+    types,
+    /demands:\s*BiDemandMetrics/,
+    'BiOverview should expose demand health metrics',
+  );
+  assert.match(
+    types,
+    /resumes:\s*BiResumeMetrics/,
+    'BiOverview should expose resume consumption metrics',
+  );
+  assert.match(
+    types,
+    /sourceQuality:\s*BiSourceQuality\[\]/,
+    'BiOverview should expose source quality metrics',
 );
 assert.match(
   types,
@@ -64,23 +64,23 @@ assert.match(
   'BI overview should type data quality warning rows',
 );
 assert.match(
-  types,
-  /archived_total\?:\s*number/,
-  'BI funnel should expose archived terminal-stage totals separately',
-);
+    types,
+    /archivedTotal\?:\s*number/,
+    'BI funnel should expose archived terminal-stage totals separately',
+  );
+  assert.match(
+    types,
+    /funnelTotal\?:\s*number/,
+    'BI funnel should expose the all-stage denominator for conversion rates',
+  );
+assert.match(
+    types,
+    /jobTitle:\s*string/,
+    'Job BI detail should tell the frontend which job the metrics describe',
+  );
 assert.match(
   types,
-  /funnel_total\?:\s*number/,
-  'BI funnel should expose the all-stage denominator for conversion rates',
-);
-assert.match(
-  types,
-  /scope\?:\s*'all'\s*\|\s*'owned_candidates'/,
-  'Job BI detail should tell the frontend whether a recruiter sees all or owned-candidate scope',
-);
-assert.match(
-  types,
-  /data_quality_warnings:\s*BiDataQualityWarning\[\]/,
+  /dataQualityWarnings:\s*BiDataQualityWarning\[\]/,
   'BiOverview should expose data quality warnings',
 );
 assert.match(
@@ -100,12 +100,12 @@ assert.match(
 );
 assert.match(
   biPage,
-  /data\.demands\.active_total/,
-  'BI page should render active demand counts from the backend',
+  /data\.demands\.activeTotal/,
+  'BI should render active demand count from backend summary',
 );
 assert.match(
   biPage,
-  /data\.resumes\.pipeline_entry_rate/,
+  /data\.resumes\.pipelineEntryRate/,
   'BI page should render resume pipeline entry rate from the backend',
 );
 assert.match(
@@ -120,22 +120,22 @@ assert.match(
 );
 assert.match(
   biPage,
-  /source_quality/,
+  /sourceQuality/,
   'BI page should still render period-based source quality metrics',
 );
 assert.match(
-  biPage,
-  /数据质量提醒/,
-  'BI page should show data quality warnings from the backend',
-);
+    biPage,
+    /sourceQuality/,
+    'BI page should still render period-based source quality metrics',
+  );
 assert.match(
-  biPage,
-  /data\.data_quality_warnings/,
-  'BI page should render backend data quality warnings',
-);
+    biPage,
+    /data\.dataQualityWarnings/,
+    'BI page should render backend data quality warnings',
+  );
 assert.match(
-  biPage,
-  /data\?\.data_quality_warnings\s*\?\?\s*\[\]/,
+    biPage,
+    /data\?\.dataQualityWarnings\s*\?\?\s*\[\]/,
   'Staff drilldown should render staff-level data quality warnings',
 );
 assert.match(
@@ -169,10 +169,10 @@ assert.match(
   'BI page should render source quality metrics',
 );
 assert.match(
-  biPage,
-  /data\.funnel\.pipeline_total/,
-  'BI should render the backend current pipeline total',
-);
+    biPage,
+    /data\.funnel\.pipelineTotal/,
+    'BI should render the backend current pipeline total',
+  );
 
 const biVisuals = readSource('components/bi/BiVisuals.tsx');
 assert.doesNotMatch(

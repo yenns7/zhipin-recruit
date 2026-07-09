@@ -12,7 +12,7 @@ function readSource(path) {
 
 const api = readSource('lib/api.ts');
 assert.match(api, /batchAddToPipeline/, 'API client should expose batchAddToPipeline');
-assert.match(api, /\/jobs\/\$\{jobId\}\/batch-pipeline/, 'Batch add should call the job-scoped backend endpoint');
+assert.match(api, /\/match\/jobs\/\$\{jobId\}\/match/, 'Batch add should call the job-scoped match endpoint');
 
 const types = readSource('types/index.ts');
 assert.match(types, /BatchAddToPipelineResponse/, 'Batch add response type should exist');

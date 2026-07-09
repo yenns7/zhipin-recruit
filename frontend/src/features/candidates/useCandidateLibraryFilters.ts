@@ -7,13 +7,13 @@ import type { CandidateListItem, MatchResultItem, ParseStatus } from './types';
 const COMMON_SOURCE_OPTIONS = RESUME_SOURCE_CHANNEL_OPTIONS.filter((channel) => channel !== '其他');
 
 function searchableText(candidate: CandidateListItem): string {
-  const exp = candidate.latest_experience;
+  const exp = candidate.latestExperience;
   return [
-    candidate.name_masked,
-    candidate.email_masked,
-    candidate.phone_masked,
-    candidate.intent_city,
-    candidate.education_summary,
+    candidate.nameMasked,
+    candidate.emailMasked,
+    candidate.phoneMasked,
+    candidate.intentCity,
+    candidate.educationSummary,
     exp?.company,
     exp?.position,
     exp?.duration,
@@ -51,7 +51,7 @@ export function useCandidateLibraryFilters({
 }: UseCandidateLibraryFiltersArgs) {
   const cityOptions = useMemo(() => {
     const parsedCities = candidates
-      .map((candidate) => candidate.intent_city)
+      .map((candidate) => candidate.intentCity)
       .filter((city): city is string => Boolean(city));
     return Array.from(new Set([...COMMON_CITY_OPTIONS, ...parsedCities]));
   }, [candidates]);
@@ -72,7 +72,8 @@ export function useCandidateLibraryFilters({
     const values = new Set<string>(COMMON_SOURCE_OPTIONS);
     if (sourceChannelFilter !== 'all') values.add(sourceChannelFilter);
     for (const candidate of candidates) {
-      const channel = candidate.source?.channel?.trim();
+      const src = candidate.source as Record<string, unknown> | undefined;
+      const channel = typeof src?.channel === 'string' ? src.channel.trim() : '';
       if (channel) values.add(channel);
     }
     return Array.from(values);
@@ -84,10 +85,10 @@ export function useCandidateLibraryFilters({
     return candidates
       .filter((candidate) => {
         const matchesQuery = !normalizedQuery || searchableText(candidate).includes(normalizedQuery);
-        const matchesCity = cityFilter === 'all' || candidate.intent_city === cityFilter;
+        const matchesCity = cityFilter === 'all' || candidate.intentCity === cityFilter;
         const matchesTag =
           tagFilter === 'all' || candidateTags(candidate).some((skill) => skill.tag === tagFilter);
-        const matchesScore = (candidate.max_score ?? 0) >= minScore;
+        const matchesScore = (candidate.maxScore ?? 0) >= minScore;
         return matchesQuery && matchesCity && matchesTag && matchesScore;
       })
       .sort((a, b) => {
@@ -95,14 +96,14 @@ export function useCandidateLibraryFilters({
           const fitDiff = (matchByCandidateId.get(b.id)?.score ?? 0) - (matchByCandidateId.get(a.id)?.score ?? 0);
           if (fitDiff !== 0) return fitDiff;
         }
-        const scoreDiff = (b.max_score ?? 0) - (a.max_score ?? 0);
+        const scoreDiff = (b.maxScore ?? 0) - (a.maxScore ?? 0);
         if (scoreDiff !== 0) return scoreDiff;
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       });
   }, [candidates, cityFilter, matchByCandidateId, query, scoreFilter, selectedJobId, tagFilter]);
 
   const uniqueTagCount = tagOptions.length;
-  const highScoreCount = candidates.filter((candidate) => (candidate.max_score ?? 0) >= 4).length;
+  const highScoreCount = candidates.filter((candidate) => (candidate.maxScore ?? 0) >= 4).length;
   const hasActiveFilters =
     query.trim() !== '' ||
     cityFilter !== 'all' ||

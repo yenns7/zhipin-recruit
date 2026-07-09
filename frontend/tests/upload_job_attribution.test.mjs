@@ -162,20 +162,8 @@ assert.doesNotMatch(
 
 assert.match(
   types,
-  /target_job_city/,
-  'Candidate source info should include the city inherited from the target job',
-);
-
-assert.match(
-  types,
-  /target_job_department/,
-  'Candidate source info should include the department inherited from the target job',
-);
-
-assert.match(
-  types,
-  /pipeline_stage\?:/,
-  'Upload result should expose whether a parsed resume entered the pipeline',
+  /ownerHrId/,
+  'Candidate detail should expose the HR owner for team attribution',
 );
 
 assert.match(
@@ -216,6 +204,6 @@ assert.doesNotMatch(
 
 assert.match(
   candidatesPage,
-  /source\.target_job_department/,
+  /source.*targetJobDepartment/,
   'Candidate list should surface the inherited department when present',
 );

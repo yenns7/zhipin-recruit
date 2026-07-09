@@ -15,7 +15,7 @@ interface ToolCallCardProps {
   pending: boolean;
 }
 
-// Render args as a compact "key=value" inline list, e.g. job_id=1, limit=5.
+// Render args as a compact "key=value" inline list, e.g. jobId=1, limit=5.
 function formatArgs(args: Record<string, unknown>): string {
   const entries = Object.entries(args);
   if (entries.length === 0) return '';

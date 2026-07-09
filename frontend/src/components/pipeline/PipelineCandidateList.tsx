@@ -83,11 +83,11 @@ export function PipelineCandidateList({
         ) : (
           <ul className="divide-y divide-hairline-soft">
             {candidates.map((candidate) => {
-              const selected = candidate.candidate_id === selectedCandidateId;
-              const highlighted = candidate.candidate_id === highlightedCandidateId;
-              const ageDays = stageAgeDays(candidate.updated_at);
+              const selected = candidate.candidateId === selectedCandidateId;
+              const highlighted = candidate.candidateId === highlightedCandidateId;
+              const ageDays = stageAgeDays(candidate.updatedAt);
               return (
-                <li key={candidate.candidate_id}>
+                <li key={candidate.candidateId}>
                   <div
                     role="button"
                     tabIndex={0}
@@ -110,18 +110,18 @@ export function PipelineCandidateList({
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <Link
-                          to={`/candidates/${candidate.candidate_id}`}
+                          to={`/candidates/${candidate.candidateId}`}
                           className="truncate text-sm font-semibold text-ink hover:underline"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          {candidate.name_masked}
+                          {candidate.nameMasked}
                         </Link>
-                        {busyId === candidate.candidate_id && <Spinner size="sm" />}
+                        {busyId === candidate.candidateId && <Spinner size="sm" />}
                       </div>
                       <p className={cn('mt-0.5 truncate text-xs', stageAgeClass(candidate.stage, ageDays))}>
-                        {candidate.updated_at ? formatDate(candidate.updated_at) : '暂无更新时间'}
+                        {candidate.updatedAt ? formatDate(candidate.updatedAt) : '暂无更新时间'}
                         {ageDays !== null ? ` · 停留 ${ageDays} 天` : ''}
-                        {candidate.updated_by_name ? ` · ${candidate.updated_by_name}` : ''}
+                        {candidate.updatedByName ? ` · ${candidate.updatedByName}` : ''}
                       </p>
                     </div>
                     <ChevronRight className="h-4 w-4 shrink-0 text-muted-soft" />

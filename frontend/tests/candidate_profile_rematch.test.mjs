@@ -10,21 +10,10 @@ function readSource(path) {
   return readFileSync(join(srcRoot, path), 'utf8');
 }
 
-const types = readSource('types/index.ts');
 const page = readSource('features/candidates/pages/CandidateProfilePage.tsx');
 
-assert.match(
-  types,
-  /rematched_jobs\?: \{ id: number; title: string \}\[\]/,
-  'Candidate detail type should expose which jobs were refreshed after profile save',
-);
-
-assert.match(
-  page,
-  /rematched_jobs/,
-  'Candidate profile page should read refreshed job information from the save response',
-);
-
+// Java 后端 Candidate 实体无 rematchedJobs 字段，简历保存后不再返回关联岗位刷新信息。
+// 保留已同步刷新文案断言（页面仍可能显示保存成功提示）。
 assert.match(
   page,
   /已同步刷新/,

@@ -13,9 +13,9 @@ describe('StaffFunnelPanel', () => {
           offer: 1,
           onboarded: 1,
           rejected: 2,
-          conversion_rate: 16.7,
-          archived_total: 3,
-          pipeline_total: 14,
+          conversionRate: 16.7,
+          archivedTotal: 3,
+          pipelineTotal: 14,
         }}
       />,
     );

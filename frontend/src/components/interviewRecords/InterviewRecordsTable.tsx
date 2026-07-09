@@ -65,13 +65,13 @@ export function InterviewRecordsTable({ items, onSelect }: InterviewRecordsTable
               >
                 <td className="px-5 py-3">
                   <Link
-                    to={`/candidates/${item.candidate_id}`}
+                    to={`/candidates/${item.candidateId}`}
                     className="font-medium text-ink hover:underline"
                   >
-                    {item.name_masked ?? `#${item.candidate_id}`}
+                    {item.nameMasked ?? `#${item.candidateId}`}
                   </Link>
                 </td>
-                <td className="px-5 py-3 text-muted">{item.job_title ?? `#${item.job_id}`}</td>
+                <td className="px-5 py-3 text-muted">{item.jobTitle ?? `#${item.jobId}`}</td>
                 <td className="px-5 py-3">
                   {item.type === 'ai' ? (
                     <Badge tone="brand" className="gap-1">
@@ -83,7 +83,7 @@ export function InterviewRecordsTable({ items, onSelect }: InterviewRecordsTable
                   )}
                 </td>
                 <td className="px-5 py-3 text-muted">
-                  {item.interviewer_name ?? (item.type === 'ai' ? 'AI' : '—')}
+                  {item.interviewerName ?? (item.type === 'ai' ? 'AI' : '—')}
                 </td>
                 <td className="px-5 py-3 tabular-nums">{item.score ?? '—'}</td>
                 <td className="px-5 py-3">
@@ -93,7 +93,7 @@ export function InterviewRecordsTable({ items, onSelect }: InterviewRecordsTable
                   <span className="block max-h-10 overflow-hidden">{recordSummary(item)}</span>
                 </td>
                 <td className="px-5 py-3 text-muted">
-                  {item.created_at ? formatDate(item.created_at) : '—'}
+                  {item.createdAt ? formatDate(item.createdAt) : '—'}
                 </td>
                 <td className="px-5 py-3 text-right">
                   <button

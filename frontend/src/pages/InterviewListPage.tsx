@@ -60,7 +60,7 @@ interface InterviewWorkspaceData {
 
 function pendingFeedbackKey(item: PendingFeedbackItem | null): string | null {
   if (!item) return null;
-  return `${item.job_id}-${item.candidate_id}-${item.round}`;
+  return `${item.jobId}-${item.candidateId}-${item.round}`;
 }
 
 function positiveIdFromParam(value: string | null): number | null {
@@ -163,23 +163,23 @@ export function InterviewListPage() {
     (assignment: InterviewAssignment) => {
       const target = pending.find(
         (item) =>
-          item.candidate_id === assignment.candidate_id &&
-          item.job_id === assignment.job_id &&
+          item.candidateId === assignment.candidateId &&
+          item.jobId === assignment.jobId &&
           item.round === assignment.round,
       ) ?? {
-        candidate_id: assignment.candidate_id,
-        name_masked: assignment.name_masked ?? `候选人 #${assignment.candidate_id}`,
-        job_id: assignment.job_id,
-        job_title: assignment.job_title ?? `岗位 #${assignment.job_id}`,
+        candidateId: assignment.candidateId ?? 0,
+        nameMasked: assignment.nameMasked ?? `候选人 #${assignment.candidateId ?? 0}`,
+        jobId: assignment.jobId ?? 0,
+        jobTitle: assignment.jobTitle ?? `岗位 #${assignment.jobId ?? 0}`,
         round: assignment.round,
-        updated_at: assignment.scheduled_at ?? assignment.created_at,
-        updated_by_name: assignment.created_by_name,
+        updatedAt: assignment.scheduledAt ?? assignment.createdAt,
+        updatedByName: assignment.createdByName ?? null,
       };
       setFocus('pending');
       setFilters((current) => ({
         ...current,
         query: '',
-        jobId: assignment.job_id,
+        jobId: assignment.jobId ?? 'all',
         round: assignment.round,
       }));
       setSelectedPending(target);
@@ -209,8 +209,8 @@ export function InterviewListPage() {
     if (!requestedCandidateId) return;
     const target = pending.find(
       (item) =>
-        item.candidate_id === requestedCandidateId &&
-        (requestedJobId === null || item.job_id === requestedJobId),
+        item.candidateId === requestedCandidateId &&
+        (requestedJobId === null || item.jobId === requestedJobId),
     );
     if (!target) return;
     setFocus('pending');
@@ -361,7 +361,7 @@ export function InterviewListPage() {
                         <div>
                           <CardTitle>填写面试反馈</CardTitle>
                           <p className="mt-1 text-sm text-muted">
-                            {selectedPending.name_masked} · {selectedPending.job_title}
+                            {selectedPending.nameMasked} · {selectedPending.jobTitle}
                           </p>
                         </div>
                         <Button
@@ -375,13 +375,13 @@ export function InterviewListPage() {
                     </CardHeader>
                     <CardBody className="space-y-4">
                       <InterviewGuidePanel
-                        candidateId={selectedPending.candidate_id}
-                        jobId={selectedPending.job_id}
+                        candidateId={selectedPending.candidateId}
+                        jobId={selectedPending.jobId}
                         round={selectedPending.round}
                       />
                       <FeedbackForm
-                        candidateId={selectedPending.candidate_id}
-                        jobId={selectedPending.job_id}
+                        candidateId={selectedPending.candidateId}
+                        jobId={selectedPending.jobId}
                         initialRound={selectedPending.round}
                         canMovePipeline={!isInterviewer}
                         onSubmitted={() => {

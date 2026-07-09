@@ -61,9 +61,9 @@ function resultMatchesSearch(item: MatchResultItem, query: string) {
   const keyword = normalizedText(query);
   if (!keyword) return true;
   return [
-    item.name_masked,
-    ...item.matched_tags,
-    ...item.missing_tags,
+    item.candidateName,
+    ...item.matchedRequiredSkills,
+    ...item.missingRequiredSkills,
   ].some((value) => normalizedText(value).includes(keyword));
 }
 
@@ -75,8 +75,8 @@ function resultMatchesScore(item: MatchResultItem, filter: ScoreFilter) {
 }
 
 function resultMatchesPipeline(item: MatchResultItem, filter: PipelineFilter, joinedCandidateIds: Set<number>) {
-  if (filter === 'joined') return joinedCandidateIds.has(item.candidate_id);
-  if (filter === 'not_joined') return !joinedCandidateIds.has(item.candidate_id);
+  if (filter === 'joined') return joinedCandidateIds.has(item.candidateId);
+  if (filter === 'not_joined') return !joinedCandidateIds.has(item.candidateId);
   return true;
 }
 
@@ -84,18 +84,21 @@ function resultMatchesTag(tags: string[], selectedTag: string) {
   return selectedTag === ALL_OPTION || tags.includes(selectedTag);
 }
 
-function collectUniqueTags(results: MatchResultItem[], field: 'matched_tags' | 'missing_tags') {
+function collectUniqueTags(results: MatchResultItem[], field: 'matchedRequiredSkills' | 'missingRequiredSkills') {
   return Array.from(new Set(results.flatMap((item) => item[field] ?? []))).sort((a, b) => a.localeCompare(b, 'zh-CN'));
 }
 
 function candidateToManualResult(candidate: CandidateListItem, preview: MatchResultItem | undefined): MatchResultItem {
   if (preview) return preview;
   return {
-    candidate_id: candidate.id,
-    name_masked: candidate.name_masked,
+    candidateId: candidate.id,
+    candidateName: candidate.nameMasked,
     score: 0,
-    matched_tags: candidate.top_tags?.slice(0, 5).map((tag) => tag.tag) ?? [],
-    missing_tags: [],
+    matchedRequiredSkills: candidate.topTags?.slice(0, 5).map((tag) => tag.tag) ?? [],
+    missingRequiredSkills: [],
+    yearsOfExperience: null,
+    summary: '',
+    matchedPreferredSkills: [],
   };
 }
 
@@ -119,8 +122,8 @@ function MatchRow({
   onToggleSelect: (candidateId: number) => void;
   disabled: boolean;
 }) {
-  const matched = Array.isArray(item.matched_tags) ? item.matched_tags : [];
-  const missing = Array.isArray(item.missing_tags) ? item.missing_tags : [];
+  const matched = Array.isArray(item.matchedRequiredSkills) ? item.matchedRequiredSkills : [];
+  const missing = Array.isArray(item.missingRequiredSkills) ? item.missingRequiredSkills : [];
   const canSelect = joinState !== 'joined' && !disabled;
 
   return (
@@ -130,8 +133,8 @@ function MatchRow({
           type="checkbox"
           checked={selected}
           disabled={!canSelect}
-          onChange={() => onToggleSelect(item.candidate_id)}
-          aria-label={`选择 ${item.name_masked}`}
+          onChange={() => onToggleSelect(item.candidateId)}
+          aria-label={`选择 ${item.candidateName}`}
           className="h-4 w-4 rounded border-hairline text-ink focus:ring-ink disabled:opacity-40"
         />
       </td>
@@ -143,10 +146,10 @@ function MatchRow({
       {/* Name — links to candidate profile */}
       <td className="px-5 py-3.5">
         <Link
-          to={`/candidates/${item.candidate_id}`}
+          to={`/candidates/${item.candidateId}`}
           className="font-medium text-ink hover:text-body hover:underline"
         >
-          {item.name_masked}
+          {item.candidateName}
         </Link>
       </td>
 
@@ -194,7 +197,7 @@ function MatchRow({
               已加入流程
             </span>
             <Link
-              to={`/pipeline?job=${jobId}&candidate=${item.candidate_id}`}
+              to={`/pipeline?job=${jobId}&candidate=${item.candidateId}`}
               aria-label="查看候选人流程"
               className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-hairline bg-canvas px-3 text-sm font-semibold text-ink transition-colors hover:bg-surface-soft hover:border-surface-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
             >
@@ -208,7 +211,7 @@ function MatchRow({
             size="sm"
             loading={joinState === 'joining'}
             disabled={joinState === 'joining'}
-            onClick={() => onJoin(item.candidate_id)}
+            onClick={() => onJoin(item.candidateId)}
           >
             {joinState === 'error' ? '重试加入' : '加入流程'}
           </Button>
@@ -257,7 +260,7 @@ export function JobMatchPage() {
   const debouncedCandidateQuery = useDebounce(candidateQuery, 300);
 
   const existingPipelineIds = useMemo(
-    () => new Set((pipelineAsync.data?.candidates ?? []).map((c) => c.candidate_id)),
+    () => new Set((pipelineAsync.data?.candidates ?? []).map((c) => c.candidateId)),
     [pipelineAsync.data],
   );
   const sortedResults = useMemo(
@@ -267,14 +270,14 @@ export function JobMatchPage() {
   const libraryAsync = useAsync(
     () => {
       if (isInvalidId || matchView !== 'all') {
-        return Promise.resolve({ candidates: [], total: 0, page: 1, per_page: 50, pages: 1 });
+        return Promise.resolve({ candidates: [], total: 0, page: 1, perPage: 50, pages: 1 });
       }
       return api.searchCandidates({
         search: debouncedCandidateQuery || undefined,
         page: 1,
-        per_page: 50,
-        sort_by: 'created_at',
-        sort_order: 'desc',
+        perPage: 50,
+        sortBy: 'created_at',
+        sortOrder: 'desc',
       });
     },
     [isInvalidId, matchView, debouncedCandidateQuery],
@@ -287,7 +290,7 @@ export function JobMatchPage() {
   const manualPreviewAsync = useAsync(
     () => {
       if (isInvalidId || matchView !== 'all' || manualCandidateIds.length === 0) {
-        return Promise.resolve({ job_id: jobId, results: [] });
+        return Promise.resolve({ jobId: jobId, results: [] });
       }
       return api.previewJobMatch(jobId, manualCandidateIds);
     },
@@ -296,7 +299,7 @@ export function JobMatchPage() {
   const manualPreviewByCandidateId = useMemo(() => {
     const map = new Map<number, MatchResultItem>();
     for (const item of manualPreviewAsync.data?.results ?? []) {
-      map.set(item.candidate_id, item);
+      map.set(item.candidateId, item);
     }
     return map;
   }, [manualPreviewAsync.data]);
@@ -315,8 +318,8 @@ export function JobMatchPage() {
     return ids;
   }, [existingPipelineIds, joinStates]);
   const baseResults = matchView === 'ai' ? sortedResults : manualResults;
-  const matchedTagOptions = useMemo(() => collectUniqueTags(baseResults, 'matched_tags'), [baseResults]);
-  const missingTagOptions = useMemo(() => collectUniqueTags(baseResults, 'missing_tags'), [baseResults]);
+  const matchedTagOptions = useMemo(() => collectUniqueTags(baseResults, 'matchedRequiredSkills'), [baseResults]);
+  const missingTagOptions = useMemo(() => collectUniqueTags(baseResults, 'missingRequiredSkills'), [baseResults]);
   const filteredResults = useMemo(
     () =>
       baseResults.filter((item) => {
@@ -325,8 +328,8 @@ export function JobMatchPage() {
           matchesSearch &&
           resultMatchesScore(item, scoreFilter) &&
           resultMatchesPipeline(item, pipelineFilter, joinedCandidateIds) &&
-          resultMatchesTag(item.matched_tags, matchedTagFilter) &&
-          resultMatchesTag(item.missing_tags, missingTagFilter)
+          resultMatchesTag(item.matchedRequiredSkills, matchedTagFilter) &&
+          resultMatchesTag(item.missingRequiredSkills, missingTagFilter)
         );
       }),
     [
@@ -341,18 +344,18 @@ export function JobMatchPage() {
     ],
   );
   const selectableResults = useMemo(
-    () => filteredResults.filter((item) => !joinedCandidateIds.has(item.candidate_id)),
+    () => filteredResults.filter((item) => !joinedCandidateIds.has(item.candidateId)),
     [filteredResults, joinedCandidateIds],
   );
   const allSelected =
     selectableResults.length > 0 &&
-    selectableResults.every((item) => selectedIds.has(item.candidate_id));
+    selectableResults.every((item) => selectedIds.has(item.candidateId));
   const someSelected = selectedIds.size > 0;
-  const filteredResultKey = filteredResults.map((item) => item.candidate_id).join(',');
+  const filteredResultKey = filteredResults.map((item) => item.candidateId).join(',');
   const joinedCandidateKey = Array.from(joinedCandidateIds).sort((a, b) => a - b).join(',');
 
   useEffect(() => {
-    const visibleIds = new Set(filteredResults.map((item) => item.candidate_id));
+    const visibleIds = new Set(filteredResults.map((item) => item.candidateId));
     setSelectedIds((prev) => {
       const next = new Set(
         Array.from(prev).filter((candidateId) => visibleIds.has(candidateId) && !joinedCandidateIds.has(candidateId)),
@@ -381,7 +384,7 @@ export function JobMatchPage() {
     setBatchMessage(null);
     setSelectedIds(() => {
       if (allSelected) return new Set();
-      return new Set(selectableResults.map((item) => item.candidate_id));
+      return new Set(selectableResults.map((item) => item.candidateId));
     });
   }, [allSelected, selectableResults]);
 
@@ -405,9 +408,9 @@ export function JobMatchPage() {
     });
     try {
       await api.movePipeline({
-        candidate_id: candidateId,
-        job_id: jobId,
-        stage: 'pending',
+        candidateId: candidateId,
+        jobId: jobId,
+        toStage: 'pending',
       });
       setJoinStates((prev) => ({ ...prev, [candidateId]: 'joined' }));
       void pipelineAsync.reload();
@@ -432,7 +435,7 @@ export function JobMatchPage() {
       });
       setSelectedIds(new Set());
       setBatchStatus('done');
-      setBatchMessage(`成功加入 ${result.added} 位，已存在 ${result.skipped_existing} 位`);
+      setBatchMessage(`成功加入 ${result.added} 位，已存在 ${result.skippedExisting} 位`);
       void pipelineAsync.reload();
     } catch (err) {
       setBatchStatus('error');
@@ -670,16 +673,16 @@ export function JobMatchPage() {
                 <Reveal as="tbody" stagger={0.05} y={12}>
                   {results.map((item, i) => (
                     <MatchRow
-                      key={item.candidate_id}
+                      key={item.candidateId}
                       rank={i + 1}
                       item={item}
                       jobId={jobId}
                       joinState={
-                        joinStates[item.candidate_id] ??
-                        (existingPipelineIds.has(item.candidate_id) ? 'joined' : 'idle')
+                        joinStates[item.candidateId] ??
+                        (existingPipelineIds.has(item.candidateId) ? 'joined' : 'idle')
                       }
                       onJoin={handleJoin}
-                      selected={selectedIds.has(item.candidate_id)}
+                      selected={selectedIds.has(item.candidateId)}
                       onToggleSelect={toggleSelect}
                       disabled={batchStatus === 'adding'}
                     />

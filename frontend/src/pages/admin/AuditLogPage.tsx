@@ -30,9 +30,9 @@ function actionLabel(action: string): string {
 }
 
 function targetLabel(log: AuditLogItem): string {
-  if (!log.entity_type && !log.entity_id) return '-';
-  if (!log.entity_id) return log.entity_type ?? '-';
-  return `${log.entity_type ?? '记录'} #${log.entity_id}`;
+  if (!log.entityType && !log.entityId) return '-';
+  if (!log.entityId) return log.entityType ?? '-';
+  return `${log.entityType ?? '记录'} #${log.entityId}`;
 }
 
 function payloadLabel(payload: Record<string, unknown>): string {
@@ -44,7 +44,7 @@ function payloadLabel(payload: Record<string, unknown>): string {
 export function AuditLogContent() {
   const [page, setPage] = useState(1);
   const { data, loading, error, reload } = useAsync(
-    () => api.getAuditLogs({ page, per_page: 50 }),
+    () => api.getAuditLogs({ page, perPage: 50 }),
     [page],
   );
 
@@ -85,7 +85,7 @@ export function AuditLogContent() {
                   {log.ts ? formatDate(log.ts) : '-'}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 font-medium text-ink">
-                  {log.actor_name || `用户 #${log.actor_id ?? '-'}`}
+                  {log.actorName || `用户 #${log.actorId ?? '-'}`}
                 </td>
                 <td className="px-4 py-3">
                   <Badge tone="neutral">{actionLabel(log.action)}</Badge>
@@ -106,7 +106,7 @@ export function AuditLogContent() {
         page={data.page}
         totalPages={data.pages}
         onChange={setPage}
-        summary={`每页 ${data.per_page} 条`}
+        summary={`每页 ${data.perPage} 条`}
         className="justify-end"
       />
     </div>

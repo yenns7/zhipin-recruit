@@ -48,7 +48,7 @@ assert.match(
 
 assert.match(
   pendingFeedbackPanel,
-  /canOpenPipeline[\s\S]*\/candidates\/\$\{item\.candidate_id\}/,
+  /canOpenPipeline[\s\S]*\/candidates\/\$\{item\.candidateId\}/,
   'Interview workspace tests should keep interviewer links away from forbidden pipeline routes',
 );
 

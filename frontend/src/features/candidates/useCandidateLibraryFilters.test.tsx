@@ -6,17 +6,17 @@ import { useCandidateLibraryFilters } from './useCandidateLibraryFilters';
 const candidates: CandidateListItem[] = [
   {
     id: 1,
-    name_masked: '张三',
-    owner_hr_id: 7,
-    created_at: '2026-07-05T00:00:00Z',
-    tag_count: 2,
-    intent_city: '上海',
-    top_tags: [
+    nameMasked: '张三',
+    ownerHrId: 7,
+    createdAt: '2026-07-05T00:00:00Z',
+    tagCount: 2,
+    intentCity: '上海',
+    topTags: [
       { tag: 'Python', score: 5 },
       { tag: 'AI', score: 4 },
     ],
-    max_score: 4,
-    latest_experience: {
+    maxScore: 4,
+    latestExperience: {
       company: '甲公司',
       position: '后端工程师',
       duration: '2年',
@@ -24,13 +24,13 @@ const candidates: CandidateListItem[] = [
   },
   {
     id: 2,
-    name_masked: '李四',
-    owner_hr_id: 8,
-    created_at: '2026-07-06T00:00:00Z',
-    tag_count: 1,
-    intent_city: '北京',
-    top_tags: [{ tag: 'Go', score: 5 }],
-    max_score: 5,
+    nameMasked: '李四',
+    ownerHrId: 8,
+    createdAt: '2026-07-06T00:00:00Z',
+    tagCount: 1,
+    intentCity: '北京',
+    topTags: [{ tag: 'Go', score: 5 }],
+    maxScore: 5,
   },
 ];
 
@@ -38,21 +38,27 @@ const matchByCandidateId = new Map<number, MatchResultItem>([
   [
     1,
     {
-      candidate_id: 1,
-      name_masked: '张三',
+      candidateId: 1,
+      candidateName: '张三',
       score: 60,
-      matched_tags: ['Python'],
-      missing_tags: [],
+      matchedRequiredSkills: ['Python'],
+      missingRequiredSkills: [],
+      matchedPreferredSkills: [],
+      yearsOfExperience: null,
+      summary: '',
     },
   ],
   [
     2,
     {
-      candidate_id: 2,
-      name_masked: '李四',
+      candidateId: 2,
+      candidateName: '李四',
       score: 92,
-      matched_tags: ['Go'],
-      missing_tags: [],
+      matchedRequiredSkills: ['Go'],
+      missingRequiredSkills: [],
+      matchedPreferredSkills: [],
+      yearsOfExperience: null,
+      summary: '',
     },
   ],
 ]);

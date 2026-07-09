@@ -24,9 +24,9 @@ export interface ConversationMessageItem {
   id: number;
   role: 'user' | 'assistant';
   content: string;
-  tool_calls?: Array<{ tool: string; args: Record<string, unknown>; result?: unknown }> | null;
+  toolCalls?: Array<{ tool: string; args: Record<string, unknown>; result?: unknown }> | null;
   thoughts?: string[] | null;
-  created_at: string | null;
+  createdAt: string | null;
 }
 
 // ---- 对话视图模型（AgentPage 与本 Context 共用）----
@@ -175,7 +175,7 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
         kind: 'assistant',
         id: index + 1,
         thoughts: message.thoughts ?? [],
-        toolCalls: (message.tool_calls ?? []).map((call, callIndex) => ({
+        toolCalls: (message.toolCalls ?? []).map((call, callIndex) => ({
           id: callIndex + 1,
           tool: call.tool,
           args: call.args ?? {},
@@ -190,10 +190,10 @@ export function AgentChatProvider({ children }: { children: ReactNode }) {
 
   const reloadConversations = useCallback(async () => {
     try {
-      const data = await api.listConversations({ archived: false, per_page: 100 });
-      setConversations(data.items ?? []);
+      const data = await api.listConversations({ archived: false, size: 100 });
+      setConversations(data.conversations ?? []);
       // 记录最近会话 id 列表到 localStorage，便于刷新后恢复
-      const ids = (data.items ?? []).map((c) => c.id);
+      const ids = (data.conversations ?? []).map((c) => c.id);
       writeStoredRecentConversations(ids);
     } catch {
       // 列表加载失败不阻断对话

@@ -12,7 +12,7 @@ describe('agentPageHelpers', () => {
         thoughts: ['先查候选人', '再补岗位匹配', '最后总结'],
         toolCalls: [
           { id: 1, tool: 'list_candidates', args: { limit: 10 } },
-          { id: 2, tool: 'match_candidates_for_job', args: { job_id: 7, page: 1 } },
+          { id: 2, tool: 'match_candidates_for_job', args: { jobId: 7, page: 1 } },
         ],
         answer: '有 3 位高分候选人还没进入流程。',
         status: 'done',
@@ -24,7 +24,7 @@ describe('agentPageHelpers', () => {
       {
         role: 'assistant',
         content:
-          '[上轮思考] 先查候选人；再补岗位匹配；最后总结\n[上轮工具调用] list_candidates(limit=10)；match_candidates_for_job(job_id=7,page=1)\n有 3 位高分候选人还没进入流程。',
+          '[上轮思考] 先查候选人；再补岗位匹配；最后总结\n[上轮工具调用] list_candidates(limit=10)；match_candidates_for_job(jobId=7,page=1)\n有 3 位高分候选人还没进入流程。',
       },
     ]);
   });

@@ -75,7 +75,7 @@ assert.match(
 
 assert.match(
   pipelinePage,
-  /job\.job_code \|\| `JOB-\$\{job\.id\}`/,
+  /job\.jobCode \|\| `JOB-\$\{job\.id\}`/,
   'Pipeline job selector should fall back to a visible JOB-id when no job code exists',
 );
 

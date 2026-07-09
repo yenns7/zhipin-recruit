@@ -5,13 +5,13 @@ import type { CandidateListItem, MatchResultItem } from '../../features/candidat
 
 const candidate: CandidateListItem = {
   id: 17,
-  name_masked: '张**',
-  owner_hr_id: 3,
-  created_at: '2026-07-01T08:00:00Z',
-  tag_count: 4,
-  max_score: 5,
-  intent_city: '深圳',
-  top_tags: [
+  nameMasked: '张**',
+  ownerHrId: 3,
+  createdAt: '2026-07-01T08:00:00Z',
+  tagCount: 4,
+  maxScore: 5,
+  intentCity: '深圳',
+  topTags: [
     { tag: 'React', score: 5 },
     { tag: 'TypeScript', score: 4 },
     { tag: '招聘系统', score: 4 },
@@ -19,11 +19,14 @@ const candidate: CandidateListItem = {
 };
 
 const fit: MatchResultItem = {
-  candidate_id: 17,
-  name_masked: '张**',
+  candidateId: 17,
+  candidateName: '张**',
   score: 82,
-  matched_tags: ['React', 'TypeScript'],
-  missing_tags: ['招聘流程'],
+  matchedRequiredSkills: ['React', 'TypeScript'],
+  missingRequiredSkills: ['招聘流程'],
+  matchedPreferredSkills: [],
+  yearsOfExperience: null,
+  summary: '',
 };
 
 describe('CandidateJobFitSummary', () => {

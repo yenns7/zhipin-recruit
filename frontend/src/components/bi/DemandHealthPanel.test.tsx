@@ -7,11 +7,11 @@ describe('DemandHealthPanel', () => {
     render(
       <DemandHealthPanel
         demands={{
-          active_total: 12,
+          activeTotal: 12,
           overdue: 3,
-          hr_no_recommendation: 2,
-          business_feedback_pending: 4,
-          priority_counts: { A: 1, B: 5, C: 6 },
+          hrNoRecommendation: 2,
+          businessFeedbackPending: 4,
+          priorityCounts: { A: 1, B: 5, C: 6 },
         }}
       />,
     );

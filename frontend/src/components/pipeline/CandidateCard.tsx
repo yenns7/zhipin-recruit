@@ -58,10 +58,10 @@ export function CandidateCard({
   const stage = STAGE_BY_KEY[candidate.stage];
   const next = NEXT_STAGE[candidate.stage];
   const isTerminal = candidate.stage === 'onboarded' || candidate.stage === 'rejected';
-  const ageDays = stageAgeDays(candidate.updated_at);
+  const ageDays = stageAgeDays(candidate.updatedAt);
 
   const move = (toStage: PipelineStage) => {
-    onMove(candidate.candidate_id, toStage);
+    onMove(candidate.candidateId, toStage);
   };
 
   return (
@@ -73,20 +73,20 @@ export function CandidateCard({
     >
       <div className="flex items-start justify-between gap-2">
         <Link
-          to={`/candidates/${candidate.candidate_id}`}
+          to={`/candidates/${candidate.candidateId}`}
           className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-ink hover:underline"
         >
           <User className="h-3.5 w-3.5 shrink-0 text-muted" />
-          <span className="truncate">{candidate.name_masked}</span>
+          <span className="truncate">{candidate.nameMasked}</span>
         </Link>
         {busy && <Spinner size="sm" />}
       </div>
 
-      {candidate.updated_at && (
+      {candidate.updatedAt && (
         <p className={cn('mt-1 text-[11px]', stageAgeClass(candidate.stage, ageDays))}>
-          {formatDate(candidate.updated_at)}
+          {formatDate(candidate.updatedAt)}
           {ageDays !== null ? ` · 停留 ${ageDays} 天` : ''}
-          {candidate.updated_by_name ? ` · ${candidate.updated_by_name}` : ''}
+          {candidate.updatedByName ? ` · ${candidate.updatedByName}` : ''}
         </p>
       )}
 
@@ -133,7 +133,7 @@ export function CandidateCard({
         {atInterview && (
           <>
             <Link
-              to={`/interviews?job=${jobId}&candidate=${candidate.candidate_id}`}
+              to={`/interviews?job=${jobId}&candidate=${candidate.candidateId}`}
               className="rounded-md px-2 py-1 text-[11px] font-medium text-ink hover:bg-surface-soft"
             >
               填写面试反馈
@@ -194,7 +194,7 @@ export function CandidateCard({
           busy={busy}
           onCancel={() => setShowDisposition(false)}
           onSubmit={async (disposition, note) => {
-            await onMove(candidate.candidate_id, 'rejected', note, disposition);
+            await onMove(candidate.candidateId, 'rejected', note, disposition);
             setShowDisposition(false);
           }}
         />
@@ -204,16 +204,16 @@ export function CandidateCard({
       {atInterview && showFeedback && (
         <div className="mt-2">
             <FeedbackForm
-              candidateId={candidate.candidate_id}
+              candidateId={candidate.candidateId}
               jobId={jobId}
-              onMove={(toStage, note) => onMove(candidate.candidate_id, toStage, note)}
+              onMove={(toStage, note) => onMove(candidate.candidateId, toStage, note)}
               onSubmitted={() => setShowFeedback(false)}
             />
         </div>
       )}
 
       {candidate.stage === 'offer' && showOffer && (
-        <OfferDrawer candidateId={candidate.candidate_id} jobId={jobId} />
+        <OfferDrawer candidateId={candidate.candidateId} jobId={jobId} />
       )}
     </div>
   );

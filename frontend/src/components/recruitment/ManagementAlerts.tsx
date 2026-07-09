@@ -38,8 +38,8 @@ export function ManagementAlerts({ alerts }: { alerts: BiManagerAlert[] }) {
           <div className="divide-y divide-hairline-soft">
             {alerts.slice(0, 4).map((alert) => (
               <Link
-                key={`${alert.kind}-${alert.job_id}-${alert.candidate_id}-${alert.stage}`}
-                to={alert.action_path}
+                key={`${alert.kind}-${alert.jobId}-${alert.candidateId}-${alert.stage}`}
+                to={alert.actionPath}
                 className="flex items-start gap-3 px-5 py-4 transition-colors hover:bg-surface-soft focus:outline-none focus-visible:bg-surface-soft"
               >
                 <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning-50 text-warning-700">

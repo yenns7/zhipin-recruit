@@ -24,22 +24,22 @@ export function RecruiterPerformancePanel({ performance }: { performance: BiStaf
       >
         <KpiCard
           label="有效推荐"
-          value={valueOrNull(performance?.effective_recommendations)}
+          value={valueOrNull(performance?.effectiveRecommendations)}
           accent="#FF9500"
         />
         <KpiCard
           label="推荐成功面试"
-          value={valueOrNull(performance?.interview_entries)}
+          value={valueOrNull(performance?.interviewEntries)}
           accent="#007AFF"
         />
         <KpiCard
           label="面试通过"
-          value={valueOrNull(performance?.interview_passed)}
+          value={valueOrNull(performance?.interviewPassed)}
           accent="#5856D6"
         />
         <KpiCard
           label="Offer"
-          value={valueOrNull(performance?.offer_entries)}
+          value={valueOrNull(performance?.offerEntries)}
           accent="#AF52DE"
         />
         <KpiCard
@@ -49,7 +49,7 @@ export function RecruiterPerformancePanel({ performance }: { performance: BiStaf
         />
         <KpiCard
           label="待补反馈"
-          value={valueOrNull(performance?.feedback_pending)}
+          value={valueOrNull(performance?.feedbackPending)}
           accent="#FF3B30"
         />
       </Reveal>

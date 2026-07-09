@@ -4,7 +4,6 @@ export type {
   CandidateListItem,
   CandidateListResponse,
   CandidatePipelines,
-  CandidateSourceInfo,
   CandidateTag,
   CandidateListQuery,
   MatchResultItem,

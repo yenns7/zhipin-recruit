@@ -13,9 +13,9 @@ describe('TeamFunnelPanels', () => {
           offer: 2,
           onboarded: 1,
           rejected: 4,
-          conversion_rate: 8.3,
-          archived_total: 6,
-          pipeline_total: 27,
+          conversionRate: 8.3,
+          archivedTotal: 6,
+          pipelineTotal: 27,
         }}
       />,
     );

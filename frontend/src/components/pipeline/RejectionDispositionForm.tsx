@@ -14,25 +14,20 @@ export function RejectionDispositionForm({
   onCancel,
 }: RejectionDispositionFormProps) {
   const [reason, setReason] = useState('');
-  const [enterTalentPool, setEnterTalentPool] = useState(true);
+  const [intoPool, setEnterTalentPool] = useState(true);
   const [nextContactAt, setNextContactAt] = useState('');
   const [tagsText, setTagsText] = useState('');
   const [note, setNote] = useState('');
 
-  const tags = tagsText
-    .split(/[，,]/)
-    .map((tag) => tag.trim())
-    .filter(Boolean);
+  void tagsText;
 
   async function handleSubmit() {
     const finalNote = reason.trim() ? `淘汰原因：${reason.trim()}` : '淘汰沉淀';
     await onSubmit(
       {
         reason: reason.trim(),
-        enter_talent_pool: enterTalentPool,
-        next_contact_at: nextContactAt || undefined,
-        tags,
-        note: note.trim(),
+        intoPool: intoPool,
+        nextContactAt: nextContactAt || undefined,
       },
       note.trim() ? `${finalNote}；${note.trim()}` : finalNote,
     );
@@ -49,7 +44,7 @@ export function RejectionDispositionForm({
       <label className="flex items-center gap-2 text-sm text-body">
         <input
           type="checkbox"
-          checked={enterTalentPool}
+          checked={intoPool}
           onChange={(e) => setEnterTalentPool(e.target.checked)}
           className="h-4 w-4 rounded border-hairline"
         />

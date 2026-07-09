@@ -37,11 +37,11 @@ export function PendingFeedbackPanel({
         ) : (
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {items.map((item) => {
-              const key = `${item.job_id}-${item.candidate_id}-${item.round}`;
+              const key = `${item.jobId}-${item.candidateId}-${item.round}`;
               const active = activeKey === key;
               const detailLink = canOpenPipeline
-                ? `/pipeline?job=${item.job_id}&candidate=${item.candidate_id}`
-                : `/candidates/${item.candidate_id}`;
+                ? `/pipeline?job=${item.jobId}&candidate=${item.candidateId}`
+                : `/candidates/${item.candidateId}`;
               return (
                 <div
                   key={key}
@@ -50,15 +50,15 @@ export function PendingFeedbackPanel({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-medium text-ink">{item.name_masked}</p>
+                        <p className="font-medium text-ink">{item.nameMasked}</p>
                         <span className="rounded-full bg-canvas px-2 py-0.5 text-xs font-medium text-warning-700">
                           {roundLabel(item.round)}
                         </span>
                       </div>
-                      <p className="mt-1 truncate text-sm text-muted">{item.job_title}</p>
+                      <p className="mt-1 truncate text-sm text-muted">{item.jobTitle}</p>
                       <p className="mt-2 text-xs text-muted-soft">
-                        进入本轮：{item.updated_at ? formatDate(item.updated_at) : '—'}
-                        {item.updated_by_name ? ` · ${item.updated_by_name}` : ''}
+                        进入本轮：{item.updatedAt ? formatDate(item.updatedAt) : '—'}
+                        {item.updatedByName ? ` · ${item.updatedByName}` : ''}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">

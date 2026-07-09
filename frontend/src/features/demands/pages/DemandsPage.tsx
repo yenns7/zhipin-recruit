@@ -54,28 +54,28 @@ type DemandInsightTone = 'success' | 'warning' | 'danger' | 'neutral';
 type DemandActionMode = 'close' | 'restore' | 'priority';
 
 interface DemandFormState {
-  job_id: string;
-  request_no: string;
-  requester_name: string;
-  requester_department: string;
-  hiring_manager_name: string;
-  requested_at: string;
-  accepted_at: string;
-  target_date: string;
+  jobId: string;
+  requestNo: string;
+  requesterName: string;
+  requesterDepartment: string;
+  hiringManagerName: string;
+  requestedAt: string;
+  acceptedAt: string;
+  targetDate: string;
   priority: DemandPriority;
   headcount: string;
   note: string;
 }
 
 const EMPTY_FORM: DemandFormState = {
-  job_id: '',
-  request_no: '',
-  requester_name: '',
-  requester_department: '',
-  hiring_manager_name: '',
-  requested_at: '',
-  accepted_at: '',
-  target_date: '',
+  jobId: '',
+  requestNo: '',
+  requesterName: '',
+  requesterDepartment: '',
+  hiringManagerName: '',
+  requestedAt: '',
+  acceptedAt: '',
+  targetDate: '',
   priority: 'B',
   headcount: '1',
   note: '',
@@ -87,7 +87,7 @@ interface DemandActionState {
 }
 
 function formatJobOption(job: JobListItem) {
-  const code = job.job_code || `JOB-${job.id}`;
+  const code = job.jobCode || `JOB-${job.id}`;
   return [code, job.title, job.city, job.department].filter(Boolean).join(' · ');
 }
 
@@ -105,17 +105,18 @@ function statusTone(status: DemandStatus): 'success' | 'warning' | 'danger' | 'n
 }
 
 function metricItems(demand: RecruitmentDemand) {
-  const metrics = demand.metrics;
+  const metrics = demand.metrics ?? { recommendedCount: 0, businessReviewCount: 0, interviewCount: 0, offerCount: 0, onboardedCount: 0, currentStageCounts: {} };
   return [
-    ['已推简历', metrics.recommended_count],
-    ['业务待反馈', metrics.business_review_count],
-    ['进入面试', metrics.interview_count],
-    ['Offer', metrics.offer_count],
+    ['已推简历', metrics.recommendedCount],
+    ['业务待反馈', metrics.businessReviewCount],
+    ['进入面试', metrics.interviewCount],
+    ['Offer', metrics.offerCount],
   ];
 }
 
 function stageDistributionItems(demand: RecruitmentDemand) {
-  return Object.entries(demand.metrics.current_stage_counts ?? {})
+  const currentStageCounts = demand.metrics?.currentStageCounts ?? {};
+  return Object.entries(currentStageCounts)
     .filter(([, count]) => Number(count) > 0)
     .map(([stage, count]) => ({
       stage,
@@ -129,15 +130,18 @@ function demandInsight(demand: RecruitmentDemand): {
   description: string;
   tone: DemandInsightTone;
 } {
-  if (demand.risk_flags.includes('business_feedback_pending')) {
+  const flags = demand.riskFlags ?? [];
+  const m = demand.metrics ?? { recommendedCount: 0, businessReviewCount: 0, interviewCount: 0, offerCount: 0, onboardedCount: 0, currentStageCounts: {} };
+
+  if (flags.includes('business_feedback_pending')) {
     return {
       title: '业务侧卡点',
-      description: `${demand.metrics.business_review_count} 位候选人正在等用人部门反馈`,
+      description: `${m.businessReviewCount} 位候选人正在等用人部门反馈`,
       tone: 'warning',
     };
   }
 
-  if (demand.risk_flags.includes('hr_no_recommendation')) {
+  if (flags.includes('hr_no_recommendation')) {
     return {
       title: 'HR 侧卡点',
       description: 'HR 已接手超过 7 天，但该需求还没有候选人进入流程',
@@ -145,7 +149,7 @@ function demandInsight(demand: RecruitmentDemand): {
     };
   }
 
-  if (demand.risk_flags.includes('overdue')) {
+  if (flags.includes('overdue')) {
     return {
       title: '时间风险',
       description: '已超过期望完成时间，需要重新确认优先级或关闭原因',
@@ -153,10 +157,10 @@ function demandInsight(demand: RecruitmentDemand): {
     };
   }
 
-  if (demand.metrics.recommended_count > 0) {
+  if (m.recommendedCount > 0) {
     return {
       title: '流程推进中',
-      description: `已有 ${demand.metrics.recommended_count} 位候选人进入该岗位流程`,
+      description: `已有 ${m.recommendedCount} 位候选人进入该岗位流程`,
       tone: 'success',
     };
   }
@@ -191,19 +195,19 @@ function DemandCard({
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-display text-lg text-ink">{demand.job_title}</h3>
+              <h3 className="font-display text-lg text-ink">{demand.jobTitle}</h3>
               <Badge tone={priorityTone(demand.priority)}>{PRIORITY_LABELS[demand.priority]}</Badge>
               <Badge tone={statusTone(demand.status)}>{STATUS_LABELS[demand.status]}</Badge>
             </div>
             <p className="mt-1 text-sm text-muted">
-              {demand.requester_department || demand.job_department || '未记录部门'}
-              {demand.requester_name ? ` · ${demand.requester_name}` : ''}
-              {demand.request_no ? ` · ${demand.request_no}` : ''}
+              {demand.requesterDepartment || demand.jobDepartment || '未记录部门'}
+              {demand.requesterName ? ` · ${demand.requesterName}` : ''}
+              {demand.requestNo ? ` · ${demand.requestNo}` : ''}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Link
-              to={`/pipeline?job=${demand.job_id}`}
+              to={`/pipeline?job=${demand.jobId}`}
               className="inline-flex h-8 items-center rounded-md border border-hairline px-3 text-sm font-semibold text-ink hover:bg-surface-soft"
             >
               查看流程
@@ -275,16 +279,16 @@ function DemandCard({
         </div>
 
         <div className="grid gap-2 text-sm text-muted md:grid-cols-4">
-          <span>业务提需求时间：{demand.requested_at ? formatDate(demand.requested_at) : '未记录'}</span>
-          <span>HR 接手时间：{demand.accepted_at ? formatDate(demand.accepted_at) : '未记录'}</span>
-          <span>期望完成：{demand.target_date ? formatDate(demand.target_date) : '未记录'}</span>
+          <span>业务提需求时间：{demand.requestedAt ? formatDate(demand.requestedAt) : '未记录'}</span>
+          <span>HR 接手时间：{demand.acceptedAt ? formatDate(demand.acceptedAt) : '未记录'}</span>
+          <span>期望完成：{demand.targetDate ? formatDate(demand.targetDate) : '未记录'}</span>
           <span>需求人数：{demand.headcount}</span>
         </div>
 
-        {demand.risk_flags.length > 0 && (
+        {demand.riskFlags && demand.riskFlags.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 border-t border-hairline-soft pt-3">
             <AlertTriangle className="h-4 w-4 text-warning-700" />
-            {demand.risk_flags.map((flag) => (
+            {demand.riskFlags.map((flag) => (
               <Badge key={flag} tone="warning">
                 {RISK_LABELS[flag] ?? flag}
               </Badge>
@@ -292,9 +296,9 @@ function DemandCard({
           </div>
         )}
 
-        {(demand.close_reason || demand.downgrade_reason || demand.note) && (
+        {(demand.closeReason || demand.downgradeReason || demand.note) && (
           <p className="border-t border-hairline-soft pt-3 text-sm text-muted">
-            {demand.close_reason || demand.downgrade_reason || demand.note}
+            {demand.closeReason || demand.downgradeReason || demand.note}
           </p>
         )}
       </CardBody>
@@ -327,10 +331,10 @@ function DemandActionDialog({
   const isPriority = mode === 'priority';
   const title =
     mode === 'close'
-      ? `关闭需求：${demand.job_title}`
+      ? `关闭需求：${demand.jobTitle}`
       : mode === 'restore'
-        ? `恢复需求：${demand.job_title}`
-        : `调整优先级：${demand.job_title}`;
+        ? `恢复需求：${demand.jobTitle}`
+        : `调整优先级：${demand.jobTitle}`;
   const confirmLabel =
     mode === 'close' ? '确认关闭' : mode === 'restore' ? '确认恢复' : '保存优先级';
   const impact =
@@ -437,7 +441,7 @@ export function DemandsPage() {
 
   const jobs = useMemo(() => jobsAsync.data ?? [], [jobsAsync.data]);
   const demands = useMemo(() => demandsAsync.data ?? [], [demandsAsync.data]);
-  const canCreate = jobs.length > 0 && form.job_id && !submitting;
+  const canCreate = jobs.length > 0 && form.jobId && !submitting;
 
   const activeDemands = useMemo(
     () => demands.filter((item) => item.status !== 'filled' && item.status !== 'cancelled'),
@@ -445,10 +449,10 @@ export function DemandsPage() {
   );
 
   useEffect(() => {
-    if (!form.job_id && jobs.length > 0) {
-      setForm((current) => ({ ...current, job_id: String(jobs[0].id) }));
+    if (!form.jobId && jobs.length > 0) {
+      setForm((current) => ({ ...current, jobId: String(jobs[0].id) }));
     }
-  }, [form.job_id, jobs]);
+  }, [form.jobId, jobs]);
 
   function updateField<K extends keyof DemandFormState>(key: K, value: DemandFormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -460,21 +464,21 @@ export function DemandsPage() {
     setMessage(null);
     try {
       await demandsApi.createDemand({
-        job_id: Number(form.job_id),
-        request_no: form.request_no.trim(),
-        requester_name: form.requester_name.trim(),
-        requester_department: form.requester_department.trim(),
-        hiring_manager_name: form.hiring_manager_name.trim(),
-        requested_at: form.requested_at,
-        accepted_at: form.accepted_at,
-        target_date: form.target_date,
+        jobId: Number(form.jobId),
+        requestNo: form.requestNo.trim(),
+        requesterName: form.requesterName.trim(),
+        requesterDepartment: form.requesterDepartment.trim(),
+        hiringManagerName: form.hiringManagerName.trim(),
+        requestedAt: form.requestedAt,
+        acceptedAt: form.acceptedAt,
+        targetDate: form.targetDate,
         priority: form.priority,
         headcount: Number(form.headcount || 1),
         status: 'active',
         note: form.note.trim(),
       });
       setMessage('需求已创建');
-      setForm((current) => ({ ...EMPTY_FORM, job_id: current.job_id }));
+      setForm((current) => ({ ...EMPTY_FORM, jobId: current.jobId }));
       demandsAsync.reload();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : '创建需求失败');
@@ -513,7 +517,7 @@ export function DemandsPage() {
       if (mode === 'close') {
         await demandsApi.closeDemand(demand.id, {
           status: 'cancelled',
-          close_reason: reason,
+          closeReason: reason,
         });
         setMessage('需求已关闭');
       } else if (mode === 'restore') {
@@ -582,8 +586,8 @@ export function DemandsPage() {
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-ink">关联岗位</span>
                   <select
-                    value={form.job_id}
-                    onChange={(event) => updateField('job_id', event.target.value)}
+                    value={form.jobId}
+                    onChange={(event) => updateField('jobId', event.target.value)}
                     className="h-10 w-full rounded-md border border-hairline bg-canvas px-3 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
                   >
                     {jobs.map((job) => (
@@ -596,26 +600,26 @@ export function DemandsPage() {
                 <Input
                   label="需求编号"
                   placeholder="例：REQ-2026-001"
-                  value={form.request_no}
-                  onChange={(event) => updateField('request_no', event.target.value)}
+                  value={form.requestNo}
+                  onChange={(event) => updateField('requestNo', event.target.value)}
                 />
                 <Input
                   label="用人部门"
                   placeholder="例：科技部"
-                  value={form.requester_department}
-                  onChange={(event) => updateField('requester_department', event.target.value)}
+                  value={form.requesterDepartment}
+                  onChange={(event) => updateField('requesterDepartment', event.target.value)}
                 />
                 <Input
                   label="需求发起人"
                   placeholder="例：宋总"
-                  value={form.requester_name}
-                  onChange={(event) => updateField('requester_name', event.target.value)}
+                  value={form.requesterName}
+                  onChange={(event) => updateField('requesterName', event.target.value)}
                 />
                 <Input
                   label="用人负责人"
                   placeholder="例：产品负责人"
-                  value={form.hiring_manager_name}
-                  onChange={(event) => updateField('hiring_manager_name', event.target.value)}
+                  value={form.hiringManagerName}
+                  onChange={(event) => updateField('hiringManagerName', event.target.value)}
                 />
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium text-ink">优先级</span>
@@ -632,20 +636,20 @@ export function DemandsPage() {
                 <Input
                   label="业务提需求时间"
                   type="date"
-                  value={form.requested_at}
-                  onChange={(event) => updateField('requested_at', event.target.value)}
+                  value={form.requestedAt}
+                  onChange={(event) => updateField('requestedAt', event.target.value)}
                 />
                 <Input
                   label="HR 接手时间"
                   type="date"
-                  value={form.accepted_at}
-                  onChange={(event) => updateField('accepted_at', event.target.value)}
+                  value={form.acceptedAt}
+                  onChange={(event) => updateField('acceptedAt', event.target.value)}
                 />
                 <Input
                   label="期望完成时间"
                   type="date"
-                  value={form.target_date}
-                  onChange={(event) => updateField('target_date', event.target.value)}
+                  value={form.targetDate}
+                  onChange={(event) => updateField('targetDate', event.target.value)}
                 />
                 <Input
                   label="需求人数"

@@ -16,10 +16,10 @@ const kanbanColumn = readSource('components/pipeline/KanbanColumn.tsx');
 const candidateCard = readSource('components/pipeline/CandidateCard.tsx');
 
 assert.match(
-  jobMatchPage,
-  /to=\{`\/pipeline\?job=\$\{jobId\}&candidate=\$\{item\.candidate_id\}`\}/,
-  'Joined match rows should link directly to the pipeline board for the same job and candidate',
-);
+    jobMatchPage,
+    /to=\{`\/pipeline\?job=\$\{jobId\}&candidate=\$\{item\.candidateId\}`\}/,
+    'Joined match rows should link directly to the pipeline board for the same job and candidate',
+  );
 
 assert.match(
   jobMatchPage,
@@ -34,10 +34,10 @@ assert.match(
 );
 
 assert.match(
-  jobMatchPage,
-  /existingPipelineIds\.has\(item\.candidate_id\)/,
-  'Match rows should treat candidates already in the job pipeline as joined',
-);
+    jobMatchPage,
+    /joinedCandidateIds\.has\(item\.candidateId\)/,
+    'Match rows should treat candidates already in the job pipeline as joined',
+  );
 
 assert.match(
   pipelinePage,

@@ -40,7 +40,7 @@ export interface AgentWriteTool extends AgentTool {
 
 export interface AgentToolsResponse {
   tools: AgentTool[];
-  write_tools?: AgentWriteTool[];
+  writeTools?: AgentWriteTool[];
 }
 
 // Discriminated union of every SSE event the chat endpoint can emit.
@@ -99,7 +99,7 @@ export async function executeWriteTool(
 ): Promise<ExecuteWriteResult> {
   const token = getToken();
   const body: Record<string, unknown> = { tool, args };
-  if (conversationId) body.conversation_id = conversationId;
+  if (conversationId) body.conversationId = conversationId;
   const resp = await fetch(`${API_BASE}/agent/execute`, {
     method: 'POST',
     headers: {
@@ -134,7 +134,7 @@ export async function streamChat(
 ): Promise<void> {
   const token = getToken();
   const body: Record<string, unknown> = { message, history };
-  if (conversationId) body.conversation_id = conversationId;
+  if (conversationId) body.conversationId = conversationId;
   const resp = await fetch(`${API_BASE}/agent/chat`, {
     method: 'POST',
     headers: {

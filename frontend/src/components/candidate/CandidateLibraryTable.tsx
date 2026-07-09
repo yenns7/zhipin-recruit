@@ -20,7 +20,7 @@ function ParseStatusPill({ status }: { status?: ParseStatus }) {
 }
 
 function ResumeSummary({ candidate }: { candidate: CandidateListItem }) {
-  const exp = candidate.latest_experience;
+  const exp = candidate.latestExperience;
 
   return (
     <div className="min-w-[220px] space-y-1">
@@ -30,23 +30,23 @@ function ResumeSummary({ candidate }: { candidate: CandidateListItem }) {
         <p className="text-muted-soft">暂无工作经历</p>
       )}
       {exp?.duration && <p className="text-xs text-muted-soft">{exp.duration}</p>}
-      {candidate.intent_city && <p className="text-xs text-muted">意向城市：{candidate.intent_city}</p>}
-      {candidate.education_summary && (
-        <p className="text-xs text-muted">{candidate.education_summary}</p>
+      {candidate.intentCity && <p className="text-xs text-muted">意向城市：{candidate.intentCity}</p>}
+      {candidate.educationSummary && (
+        <p className="text-xs text-muted">{candidate.educationSummary}</p>
       )}
     </div>
   );
 }
 
 function SourceSummary({ candidate }: { candidate: CandidateListItem }) {
-  const source = candidate.source;
+  const source = candidate.source as Record<string, unknown> | null;
 
   if (!source) {
     return (
       <div className="space-y-2">
         <span className="text-muted-soft">未记录来源</span>
         <div>
-          <ParseStatusPill status={candidate.parse_status} />
+          <ParseStatusPill status={candidate.parseStatus} />
         </div>
       </div>
     );
@@ -54,16 +54,16 @@ function SourceSummary({ candidate }: { candidate: CandidateListItem }) {
 
   return (
     <div className="min-w-[160px] space-y-1 text-xs">
-      <p className="font-medium text-ink">来源渠道：{source.channel || '未填写'}</p>
-      <p className="text-muted">目标岗位：{source.target_job_title || '未关联'}</p>
-      {(source.target_job_city || source.target_job_department) && (
+      <p className="font-medium text-ink">来源渠道：{String(source?.channel ?? '未填写')}</p>
+      <p className="text-muted">目标岗位：{String(source?.targetJobTitle ?? '未关联')}</p>
+      {(!!source?.targetJobCity || !!source?.targetJobDepartment) && (
         <p className="text-muted-soft">
-          岗位归属：{source.target_job_city || '未设置'} / {source.target_job_department || '未设置'}
+          岗位归属：{String(source?.targetJobCity ?? '未设置')} / {String(source?.targetJobDepartment ?? '未设置')}
         </p>
       )}
-      {source.referrer && <p className="text-muted-soft">推荐人：{source.referrer}</p>}
+      {!!source?.referrer && <p className="text-muted-soft">推荐人：{String(source?.referrer)}</p>}
       <div className="pt-1">
-        <ParseStatusPill status={candidate.parse_status} />
+        <ParseStatusPill status={candidate.parseStatus} />
       </div>
     </div>
   );
@@ -95,11 +95,11 @@ function CandidateRow({
       <td className="px-5 py-4">
         <div className="min-w-[180px]">
           <Link to={`/candidates/${candidate.id}`} className="font-medium text-ink hover:underline">
-            {candidate.name_masked || `候选人 #${candidate.id}`}
+            {candidate.nameMasked || `候选人 #${candidate.id}`}
           </Link>
           <div className="mt-1 space-y-0.5 text-xs text-muted-soft">
-            {candidate.email_masked && <p>{candidate.email_masked}</p>}
-            {candidate.phone_masked && <p>{candidate.phone_masked}</p>}
+            {candidate.emailMasked && <p>{candidate.emailMasked}</p>}
+            {candidate.phoneMasked && <p>{candidate.phoneMasked}</p>}
           </div>
         </div>
       </td>
@@ -119,9 +119,9 @@ function CandidateRow({
         <SourceSummary candidate={candidate} />
       </td>
       <td className="px-5 py-4">
-        <ScorePill score={candidate.max_score ?? 0} />
+        <ScorePill score={candidate.maxScore ?? 0} />
       </td>
-      <td className="px-5 py-4 text-sm text-muted">{formatDate(candidate.created_at)}</td>
+      <td className="px-5 py-4 text-sm text-muted">{formatDate(candidate.createdAt)}</td>
       <td className="px-5 py-4 text-right">
         <div className="flex flex-col items-end gap-2">
           <Link

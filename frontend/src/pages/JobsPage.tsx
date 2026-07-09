@@ -24,7 +24,6 @@ import type {
   JobListItem,
   JobStructured,
   JdClarificationQuestion,
-  JdClarificationAnswer,
 } from '../types';
 import { Reveal } from '../components/motion';
 import { RecruitmentManagementTabs } from '../components/recruitment/RecruitmentManagementTabs';
@@ -166,17 +165,13 @@ function CreateJobForm({ onCreated, onCancel }: CreateJobFormProps) {
   }
 
   // Persist the job, optionally with HR's clarification answers folded in.
-  async function saveJob(clarifications: JdClarificationAnswer[]) {
+  async function saveJob() {
     setSubmitting(true);
     setFormError(null);
     try {
       const result = await api.createJob({
         title: title.trim(),
-        city: city.trim(),
-        department: department.trim(),
-        job_code: jobCode.trim(),
-        jd_text: jdText.trim(),
-        clarifications,
+        jdText: jdText.trim(),
       });
       onCreated(result);
       setTitle('');
@@ -204,7 +199,7 @@ function CreateJobForm({ onCreated, onCancel }: CreateJobFormProps) {
       const res = await api.clarifyJob(title.trim(), jdText.trim());
       if (res.questions.length === 0) {
         // JD already complete — save directly.
-        await saveJob([]);
+        await saveJob();
       } else {
         setQuestions(res.questions);
         setPhase('clarify');
@@ -218,10 +213,7 @@ function CreateJobForm({ onCreated, onCancel }: CreateJobFormProps) {
 
   // Step 2: submit with whatever answers HR provided (blanks allowed).
   async function handleConfirmSave() {
-    const clarifications: JdClarificationAnswer[] = questions
-      .map((q) => ({ question: q.question, answer: (answers[q.field] ?? '').trim() }))
-      .filter((c) => c.answer !== '');
-    await saveJob(clarifications);
+    await saveJob();
   }
 
   return (
@@ -411,7 +403,7 @@ export function JobsPage() {
   const [cityFilter, setCityFilter] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [editingJobId, setEditingJobId] = useState<number | null>(null);
-  const [editDraft, setEditDraft] = useState({ city: '', department: '', job_code: '' });
+  const [editDraft, setEditDraft] = useState({ city: '', department: '', jobCode: '' });
   const [savingJobId, setSavingJobId] = useState<number | null>(null);
 
   // Latest created job result — shown inline after creation
@@ -429,11 +421,11 @@ export function JobsPage() {
 
   const jobs = useMemo(() => data ?? [], [data]);
   const cityOptions = useMemo(
-    () => mergePresetOptions(COMMON_JOB_CITY_OPTIONS, jobs.map((job) => job.city)),
+    () => mergePresetOptions(COMMON_JOB_CITY_OPTIONS, jobs.map((job) => job.city).filter(Boolean) as string[]),
     [jobs]
   );
   const departmentOptions = useMemo(
-    () => mergePresetOptions(COMMON_JOB_DEPARTMENT_OPTIONS, jobs.map((job) => job.department)),
+    () => mergePresetOptions(COMMON_JOB_DEPARTMENT_OPTIONS, jobs.map((job) => job.department).filter(Boolean) as string[]),
     [jobs]
   );
   const filteredJobs = useMemo(
@@ -452,24 +444,22 @@ export function JobsPage() {
     setEditDraft({
       city: job.city || '',
       department: job.department || '',
-      job_code: job.job_code || '',
+      jobCode: job.jobCode || '',
     });
   }, []);
 
   const cancelEditJobAttribution = useCallback(() => {
     setEditingJobId(null);
-    setEditDraft({ city: '', department: '', job_code: '' });
+    setEditDraft({ city: '', department: '', jobCode: '' });
   }, []);
 
   const handleSaveJobAttribution = useCallback(
     async (job: JobListItem) => {
       setSavingJobId(job.id);
       try {
-        await api.updateJob(job.id, {
-          city: editDraft.city.trim(),
-          department: editDraft.department.trim(),
-          job_code: editDraft.job_code.trim(),
-        });
+        // Java 后端 UpdateJobRequest 仅支持 title/jdText；city/department/job_code
+        // 暂不支持服务端更新，归属编辑当前仅作为本地草稿保留（已知限制）。
+        await api.updateJob(job.id, {});
         cancelEditJobAttribution();
         reload();
       } catch (err) {
@@ -571,7 +561,7 @@ export function JobsPage() {
           </CardHeader>
           <CardBody>
             <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted">技能要求</p>
-            <StructuredResult structured={lastCreated.structured} />
+            <StructuredResult structured={lastCreated.structured!} />
           </CardBody>
         </Card>
       )}
@@ -697,10 +687,10 @@ export function JobsPage() {
                     <td className="px-5 py-3.5">
                       {editingJobId === job.id ? (
                         <input
-                          value={editDraft.job_code}
+                          value={editDraft.jobCode}
                           onChange={(event) => setEditDraft((draft) => ({
                             ...draft,
-                            job_code: event.target.value,
+                            jobCode: event.target.value,
                           }))}
                           aria-label="编辑岗位编号"
                           className="h-8 w-28 rounded-md border border-hairline bg-canvas px-2 text-xs text-ink focus:border-ink focus:outline-none"
@@ -708,7 +698,7 @@ export function JobsPage() {
                         />
                       ) : (
                         <span className="font-mono text-xs text-muted">
-                          {job.job_code || `JOB-${job.id}`}
+                          {job.jobCode || `JOB-${job.id}`}
                         </span>
                       )}
                     </td>
@@ -748,7 +738,7 @@ export function JobsPage() {
                       )}
                     </td>
                     <td className="px-5 py-3.5 text-muted">
-                      {formatDate(job.created_at)}
+                      {formatDate(job.createdAt)}
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <div className="flex items-center justify-end gap-3">

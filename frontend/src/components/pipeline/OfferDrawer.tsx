@@ -31,10 +31,10 @@ export function OfferDrawer({ candidateId, jobId }: OfferDrawerProps) {
 
   useEffect(() => {
     if (!data) return;
-    setSalaryRange(data.salary_range ?? '');
-    setOnboardDate(data.onboard_date ?? '');
-    setApprovalStatus(data.approval_status ?? 'draft');
-    setNote(data.note ?? '');
+    setSalaryRange(data.salary ?? '');
+    setOnboardDate(data.startDate ?? '');
+    setApprovalStatus(data.status ?? 'draft');
+    setNote(data.remark ?? '');
   }, [data]);
 
   async function handleSave() {
@@ -42,10 +42,10 @@ export function OfferDrawer({ candidateId, jobId }: OfferDrawerProps) {
     setMessage(null);
     try {
       await api.saveOfferRecord(jobId, candidateId, {
-        salary_range: salaryRange.trim(),
-        onboard_date: onboardDate || null,
-        approval_status: approvalStatus,
-        note: note.trim(),
+        salary: salaryRange.trim(),
+        startDate: onboardDate || null,
+        status: approvalStatus,
+        remark: note.trim(),
       });
       setMessage('Offer 信息已保存');
       await reload();

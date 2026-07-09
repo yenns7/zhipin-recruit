@@ -10,10 +10,10 @@ interface MyInterviewsPanelProps {
 }
 
 export function MyInterviewsPanel({ assignments, onStartFeedback }: MyInterviewsPanelProps) {
-  const pending = assignments.filter((item) => !item.feedback_submitted);
-  const overdue = assignments.filter((item) => item.is_overdue);
-  const done = assignments.filter((item) => item.feedback_submitted);
-  const focusItems = [...overdue, ...pending.filter((item) => !item.is_overdue)].slice(0, 4);
+  const pending = assignments.filter((item) => !item.feedbackSubmitted);
+  const overdue = assignments.filter((item) => item.isOverdue);
+  const done = assignments.filter((item) => item.feedbackSubmitted);
+  const focusItems = [...overdue, ...pending.filter((item) => !item.isOverdue)].slice(0, 4);
 
   return (
     <Card>
@@ -49,24 +49,24 @@ export function MyInterviewsPanel({ assignments, onStartFeedback }: MyInterviews
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-medium text-ink">{item.name_masked ?? `候选人 #${item.candidate_id}`}</p>
-                      <Badge tone={item.is_overdue ? 'danger' : 'warning'}>
-                        {item.is_overdue ? '超时待反馈' : roundLabel(item.round)}
+                      <p className="font-medium text-ink">{item.nameMasked ?? `候选人 #${item.candidateId}`}</p>
+                      <Badge tone={item.isOverdue ? 'danger' : 'warning'}>
+                        {item.isOverdue ? '超时待反馈' : roundLabel(item.round)}
                       </Badge>
                     </div>
-                    <p className="mt-1 truncate text-sm text-muted">{item.job_title ?? `岗位 #${item.job_id}`}</p>
+                    <p className="mt-1 truncate text-sm text-muted">{item.jobTitle ?? `岗位 #${item.jobId}`}</p>
                     <p className="mt-1 text-xs text-muted-soft">
-                      {item.scheduled_at ? formatDate(item.scheduled_at) : '未定时间'}
-                      {item.interviewer_name ? ` · ${item.interviewer_name}` : ''}
+                      {item.scheduledAt ? formatDate(item.scheduledAt) : '未定时间'}
+                      {item.interviewerName ? ` · ${item.interviewerName}` : ''}
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-2">
-                    {item.is_overdue && <AlertTriangle className="h-4 w-4 text-danger-700" aria-hidden="true" />}
-                    {onStartFeedback && !item.feedback_submitted && (
+                    {item.isOverdue && <AlertTriangle className="h-4 w-4 text-danger-700" aria-hidden="true" />}
+                    {onStartFeedback && !item.feedbackSubmitted && (
                       <Button
                         type="button"
                         size="sm"
-                        variant={item.is_overdue ? 'danger' : 'secondary'}
+                        variant={item.isOverdue ? 'danger' : 'secondary'}
                         onClick={() => onStartFeedback(item)}
                       >
                         填写反馈

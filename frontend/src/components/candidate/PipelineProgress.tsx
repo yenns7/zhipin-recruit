@@ -29,7 +29,7 @@ function JourneyDetail({ candidateId, jobId }: { candidateId: number; jobId: num
 
   return (
     <div className="space-y-4 border-t border-hairline pt-3">
-      <DecisionSummaryPanel summary={data.decision_summary} />
+      <DecisionSummaryPanel summary={data.decisionSummary} />
       {showGuide && (
         <InterviewGuidePanel candidateId={candidateId} jobId={jobId} round={guideRound} />
       )}
@@ -44,7 +44,7 @@ function JourneyDetail({ candidateId, jobId }: { candidateId: number; jobId: num
                 {correctionText(t.note) && (
                   <Badge tone="warning">阶段修正</Badge>
                 )}
-                {t.updated_by_name && <span className="text-muted"> · {t.updated_by_name}</span>}
+                {t.updatedByName && <span className="text-muted"> · {t.updatedByName}</span>}
                 {t.ts && <span className="text-muted-soft"> · {formatDate(t.ts)}</span>}
                 {t.note && (
                   <p className="text-xs text-muted">
@@ -57,13 +57,13 @@ function JourneyDetail({ candidateId, jobId }: { candidateId: number; jobId: num
           {data.timeline.length === 0 && <li className="text-sm text-muted-soft">暂无流转记录</li>}
         </ol>
       </div>
-      {data.ai_interviews.length > 0 && (
+      {data.aiInterviews.length > 0 && (
         <div>
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">AI 预筛记录</p>
-          {data.ai_interviews.map((iv) => (
+          {data.aiInterviews.map((iv) => (
             <p key={iv.id} className="text-sm text-body">
               均分 {iv.score ?? '—'} · {iv.pass ? '参考通过' : '参考不通过'}
-              {iv.created_at && <span className="text-muted-soft"> · {formatDate(iv.created_at)}</span>}
+              {iv.createdAt && <span className="text-muted-soft"> · {formatDate(iv.createdAt)}</span>}
             </p>
           ))}
         </div>
@@ -80,7 +80,7 @@ function JourneyDetail({ candidateId, jobId }: { candidateId: number; jobId: num
                   </span>
                   <Badge tone={f.passed ? 'success' : 'danger'}>{f.passed ? '通过' : '不通过'}</Badge>
                   <span className="text-muted">{f.score ?? '—'}/5</span>
-                  {f.interviewer_name && <span className="text-muted-soft">· {f.interviewer_name}</span>}
+                  {f.interviewerName && <span className="text-muted-soft">· {f.interviewerName}</span>}
                 </div>
                 {f.strengths && <p className="mt-1 text-xs text-body">优势：{f.strengths}</p>}
                 {f.concerns && <p className="text-xs text-body">顾虑：{f.concerns}</p>}
@@ -106,12 +106,12 @@ function JourneyDetail({ candidateId, jobId }: { candidateId: number; jobId: num
               <div key={d.id} className="rounded-md border border-danger-100 bg-danger-50 px-3 py-2 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-ink">{d.reason || '未填写原因'}</span>
-                  <Badge tone={d.enter_talent_pool ? 'success' : 'neutral'}>
-                    {d.enter_talent_pool ? '进入人才池' : '不入人才池'}
+                  <Badge tone={d.intoPool ? 'success' : 'neutral'}>
+                    {d.intoPool ? '进入人才池' : '不入人才池'}
                   </Badge>
                 </div>
-                {d.next_contact_at && (
-                  <p className="mt-1 text-xs text-muted">未来可联系：{formatDate(d.next_contact_at)}</p>
+                {d.nextContactAt && (
+                  <p className="mt-1 text-xs text-muted">未来可联系：{formatDate(d.nextContactAt)}</p>
                 )}
                 {d.tags.length > 0 && (
                   <div className="mt-1 flex flex-wrap gap-1">
@@ -148,21 +148,21 @@ export function PipelineProgress({ candidateId }: { candidateId: number }) {
   return (
     <ul className="space-y-2">
       {pipelines.map((p) => (
-        <li key={p.job_id} className="rounded-lg border border-hairline px-4 py-3">
+        <li key={p.jobId} className="rounded-lg border border-hairline px-4 py-3">
           <button
             type="button"
-            onClick={() => setOpenJob(openJob === p.job_id ? null : p.job_id)}
+            onClick={() => setOpenJob(openJob === p.jobId ? null : p.jobId)}
             className="flex w-full items-center justify-between gap-3 text-left"
           >
-            <span className="font-medium text-ink">{p.job_title}</span>
+            <span className="font-medium text-ink">{p.jobTitle}</span>
             <span className="flex items-center gap-2">
               <Badge tone="brand">{stageLabel(p.stage)}</Badge>
-              <span className="text-xs text-muted-soft">{openJob === p.job_id ? '收起' : '展开'}</span>
+              <span className="text-xs text-muted-soft">{openJob === p.jobId ? '收起' : '展开'}</span>
             </span>
           </button>
-          {openJob === p.job_id && (
+          {openJob === p.jobId && (
             <div className="mt-3">
-              <JourneyDetail candidateId={candidateId} jobId={p.job_id} />
+              <JourneyDetail candidateId={candidateId} jobId={p.jobId} />
             </div>
           )}
         </li>

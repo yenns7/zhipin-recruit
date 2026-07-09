@@ -13,12 +13,12 @@ export function StaffKpiGrid({ staffMember }: StaffKpiGridProps) {
       <KpiCard
         label="简历量"
         value={<AnimatedNumber value={safeNum(staffMember.resumes)} />}
-        sub={`解析失败 ${safeNum(staffMember.parse_failed)}`}
+        sub={`解析失败 ${safeNum(staffMember.parseFailed)}`}
         accent="#007AFF"
       />
       <KpiCard
         label="有效推荐"
-        value={<AnimatedNumber value={safeNum(staffMember.effective_recommendations)} />}
+        value={<AnimatedNumber value={safeNum(staffMember.effectiveRecommendations)} />}
         sub="进入候选人流程"
         accent="#FF9500"
       />
@@ -26,7 +26,7 @@ export function StaffKpiGrid({ staffMember }: StaffKpiGridProps) {
         label="推荐成功面试"
         value={
           <span className="inline-flex items-baseline gap-1">
-            <AnimatedNumber value={safeNum(staffMember.interview_entries)} />
+            <AnimatedNumber value={safeNum(staffMember.interviewEntries)} />
           </span>
         }
         sub="进入面试中阶段"
@@ -36,18 +36,18 @@ export function StaffKpiGrid({ staffMember }: StaffKpiGridProps) {
         label="面试通过"
         value={
           <span className="inline-flex items-baseline gap-1">
-            <AnimatedNumber value={safeNum(staffMember.interview_passed)} />
+            <AnimatedNumber value={safeNum(staffMember.interviewPassed)} />
             <span className="text-base text-muted">
-              / {safeNum(staffMember.interview_entries)}
+              / {safeNum(staffMember.interviewEntries)}
             </span>
           </span>
         }
-        sub={`通过率 ${pct(safeNum(staffMember.interview_pass_rate))}`}
+        sub={`通过率 ${pct(safeNum(staffMember.interviewPassRate))}`}
         accent="#5856D6"
       />
       <KpiCard
         label="Offer"
-        value={<AnimatedNumber value={safeNum(staffMember.offer_entries)} />}
+        value={<AnimatedNumber value={safeNum(staffMember.offerEntries)} />}
         sub="已推进到 Offer"
         accent="#AF52DE"
       />
@@ -61,7 +61,7 @@ export function StaffKpiGrid({ staffMember }: StaffKpiGridProps) {
         label="推荐入职率"
         value={
           <AnimatedNumber
-            value={safeNum(staffMember.recommendation_to_onboard_rate)}
+            value={safeNum(staffMember.recommendationToOnboardRate)}
             decimals={1}
             suffix="%"
           />
@@ -70,8 +70,8 @@ export function StaffKpiGrid({ staffMember }: StaffKpiGridProps) {
       />
       <KpiCard
         label="反馈待补"
-        value={<AnimatedNumber value={safeNum(staffMember.feedback_pending)} />}
-        sub={`${safeNum(staffMember.feedback_overdue)} 条已超时`}
+        value={<AnimatedNumber value={safeNum(staffMember.feedbackPending)} />}
+        sub={`${safeNum(staffMember.feedbackOverdue)} 条已超时`}
         accent="#FF3B30"
       />
     </Reveal>

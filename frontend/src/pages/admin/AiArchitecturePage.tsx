@@ -80,25 +80,25 @@ export function AiArchitectureContent() {
     return <ErrorState message={error?.message ?? '加载失败'} onRetry={reload} />;
   }
 
-  const permissions = data.permission_model;
-  const readGuarded = !permissions.read_tools_available_to_authenticated_users;
+  const permissions = data.permissionModel;
+  const readGuarded = !permissions.readToolsAvailableToAuthenticatedUsers;
 
   return (
     <div className="space-y-6">
       <div className="grid gap-3 md:grid-cols-4">
-        <StatCard icon={Brain} label="查询工具" value={`${data.read_tools.length} 个`} />
-        <StatCard icon={Wrench} label="写操作工具" value={`${data.write_tools.length} 个`} tone="warning" />
+        <StatCard icon={Brain} label="查询工具" value={`${data.readTools.length} 个`} />
+        <StatCard icon={Wrench} label="写操作工具" value={`${data.writeTools.length} 个`} tone="warning" />
         <StatCard
           icon={Database}
           label="数据库接入"
-          value={permissions.database_access ? '已接入' : '未接入'}
-          tone={permissions.database_access ? 'success' : 'neutral'}
+          value={permissions.databaseAccess ? '已接入' : '未接入'}
+          tone={permissions.databaseAccess ? 'success' : 'neutral'}
         />
         <StatCard
           icon={LockKeyhole}
           label="写操作保护"
-          value={permissions.write_requires_confirmation ? '需确认' : '无确认'}
-          tone={permissions.write_requires_confirmation ? 'success' : 'danger'}
+          value={permissions.writeRequiresConfirmation ? '需确认' : '无确认'}
+          tone={permissions.writeRequiresConfirmation ? 'success' : 'danger'}
         />
       </div>
 
@@ -125,17 +125,17 @@ export function AiArchitectureContent() {
               readGuarded ? 'text-success-700' : 'text-warning-700',
             ].join(' ')}
             >
-              {permissions.read_scope_note}
+              {permissions.readScopeNote}
             </p>
           </div>
           <div className="rounded-md border border-success-200 bg-success-50 px-4 py-3">
             <p className="text-sm font-medium text-success-800">改数据有确认和角色限制</p>
-            <p className="mt-1 text-sm text-success-700">{permissions.write_scope_note}</p>
+            <p className="mt-1 text-sm text-success-700">{permissions.writeScopeNote}</p>
           </div>
           <div>
             <p className="mb-2 text-sm font-medium text-ink">AI 助手不能做的事</p>
             <div className="flex flex-wrap gap-2">
-              {permissions.cannot_do.map((item) => (
+              {permissions.cannotDo.map((item) => (
                 <Badge key={item} tone="neutral">{item}</Badge>
               ))}
             </div>
@@ -153,7 +153,7 @@ export function AiArchitectureContent() {
           </CardHeader>
           <CardBody>
             <pre className="max-h-[520px] overflow-auto whitespace-pre-wrap rounded-md bg-surface-soft p-4 text-xs leading-6 text-body">
-              {data.system_prompt}
+              {data.systemPrompt}
             </pre>
           </CardBody>
         </Card>
@@ -163,14 +163,14 @@ export function AiArchitectureContent() {
             <CardHeader>
               <CardTitle>查询工具</CardTitle>
             </CardHeader>
-            <ToolList tools={data.read_tools} />
+            <ToolList tools={data.readTools} />
           </Card>
 
           <Card>
             <CardHeader>
               <CardTitle>写操作工具</CardTitle>
             </CardHeader>
-            <ToolList tools={data.write_tools} />
+            <ToolList tools={data.writeTools} />
           </Card>
         </div>
       </div>
@@ -205,7 +205,7 @@ export function AiArchitectureContent() {
         </CardHeader>
         <CardBody>
           <ul className="space-y-2 text-sm text-body">
-            {data.recommended_next_steps.map((item) => (
+            {data.recommendedNextSteps.map((item) => (
               <li key={item} className="flex gap-2">
                 <span className="mt-1 h-1.5 w-1.5 rounded-full bg-ink" />
                 <span>{item}</span>

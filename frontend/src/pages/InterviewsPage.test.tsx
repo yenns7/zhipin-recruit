@@ -22,10 +22,10 @@ vi.mock('../lib/api', async () => {
 const candidates: CandidateListItem[] = [
   {
     id: 101,
-    name_masked: '张候选',
-    owner_hr_id: 7,
-    created_at: '2026-07-06T00:00:00Z',
-    tag_count: 0,
+    nameMasked: '张候选',
+    ownerHrId: 7,
+    createdAt: '2026-07-06T00:00:00Z',
+    tagCount: 0,
   },
 ];
 
@@ -35,9 +35,11 @@ const jobs: JobListItem[] = [
     title: '后端工程师',
     city: '上海',
     department: '研发',
-    job_code: 'JOB-11',
+    jobCode: 'JOB-11',
     status: 'active',
-    created_at: '2026-07-06T00:00:00Z',
+    createdAt: '2026-07-06T00:00:00Z',
+    jdText: '',
+    ownerHrId: 1,
   },
 ];
 
@@ -47,8 +49,7 @@ describe('InterviewsPage', () => {
     vi.mocked(api.listCandidates).mockResolvedValue(candidates);
     vi.mocked(api.listJobs).mockResolvedValue(jobs);
     vi.mocked(api.startInterview).mockResolvedValue({
-      candidate_id: 101,
-      job_id: 11,
+      sessionId: 1,
       questions: ['请介绍一次你主导的项目。'],
     });
   });

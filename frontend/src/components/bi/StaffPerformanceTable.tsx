@@ -13,11 +13,11 @@ interface StaffPerformanceTableProps {
 
 export function StaffPerformanceTable({ staff, onSelect }: StaffPerformanceTableProps) {
   const maxResumes = Math.max(...staff.map((s) => safeNum(s.resumes)), 1);
-  const maxRecommendations = Math.max(...staff.map((s) => safeNum(s.effective_recommendations)), 1);
+  const maxRecommendations = Math.max(...staff.map((s) => safeNum(s.effectiveRecommendations)), 1);
   const maxOnboarded = Math.max(...staff.map((s) => safeNum(s.onboarded)), 1);
   const avgRecommendRate = staff.length === 0
     ? 0
-    : staff.reduce((acc, s) => acc + safeNum(s.recommendation_to_onboard_rate), 0) / staff.length;
+    : staff.reduce((acc, s) => acc + safeNum(s.recommendationToOnboardRate), 0) / staff.length;
 
   if (staff.length === 0) {
     return <p className="py-2 text-sm text-muted">暂无专员数据</p>;
@@ -53,21 +53,21 @@ export function StaffPerformanceTable({ staff, onSelect }: StaffPerformanceTable
         </thead>
         <Reveal as="tbody" stagger={0.05} y={10}>
           {staff.map((s) => {
-            const recommendRate = safeNum(s.recommendation_to_onboard_rate);
+            const recommendRate = safeNum(s.recommendationToOnboardRate);
             const aboveAvg = recommendRate > avgRecommendRate;
             const atAvg = recommendRate === avgRecommendRate;
             const convColor = aboveAvg ? '#34C759' : atAvg ? '#111111' : '#FF3B30';
 
             return (
               <tr
-                key={s.hr_id}
+                key={s.hrId}
                 className="cursor-pointer border-b border-hairline-soft transition-all duration-200 hover:bg-surface-soft hover:shadow-apple-sm"
-                onClick={() => onSelect(s.hr_id)}
+                onClick={() => onSelect(s.hrId)}
                 tabIndex={0}
                 role="button"
                 aria-label={`查看 ${s.name} 的详情`}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') onSelect(s.hr_id);
+                  if (e.key === 'Enter' || e.key === ' ') onSelect(s.hrId);
                 }}
               >
                 <td className="whitespace-nowrap py-3 pr-4 font-medium text-ink">
@@ -78,7 +78,7 @@ export function StaffPerformanceTable({ staff, onSelect }: StaffPerformanceTable
                 </td>
                 <td className="py-3 pr-6" style={{ minWidth: 100 }}>
                   <InlineBar
-                    value={safeNum(s.effective_recommendations)}
+                    value={safeNum(s.effectiveRecommendations)}
                     max={maxRecommendations}
                     color={BAR_COLOR_RECOMMENDATIONS}
                   />
@@ -86,7 +86,7 @@ export function StaffPerformanceTable({ staff, onSelect }: StaffPerformanceTable
                 <td className="py-3 pr-6" style={{ minWidth: 96 }}>
                   <div className="flex flex-col gap-0.5">
                     <span className="text-sm font-semibold tabular-nums text-ink">
-                      {safeNum(s.interview_entries)}
+                      {safeNum(s.interviewEntries)}
                     </span>
                     <span className="text-xs tabular-nums text-muted-soft">推荐进面</span>
                   </div>
@@ -94,10 +94,10 @@ export function StaffPerformanceTable({ staff, onSelect }: StaffPerformanceTable
                 <td className="py-3 pr-6" style={{ minWidth: 96 }}>
                   <div className="flex flex-col gap-0.5">
                     <span className="text-sm font-semibold tabular-nums text-ink">
-                      {safeNum(s.interview_passed)} / {safeNum(s.interview_entries)}
+                      {safeNum(s.interviewPassed)} / {safeNum(s.interviewEntries)}
                     </span>
                     <span className="text-xs tabular-nums text-muted-soft">
-                      {pct(safeNum(s.interview_pass_rate))}
+                      {pct(safeNum(s.interviewPassRate))}
                     </span>
                   </div>
                 </td>

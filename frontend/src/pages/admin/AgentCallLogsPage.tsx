@@ -37,7 +37,7 @@ export function AgentCallLogsPage() {
     () =>
       api.listCallLogs({
         page,
-        per_page: 20,
+        perPage: 20,
         ...(statusFilter ? { status: statusFilter } : {}),
         ...(kindFilter ? { kind: kindFilter } : {}),
       }),
@@ -144,10 +144,10 @@ export function AgentCallLogsPage() {
       </Card>
 
       {/* 分页 */}
-      {data && data.total > data.per_page && (
+      {data && data.total > data.perPage && (
         <Pagination
           page={data.page}
-          totalPages={Math.ceil(data.total / data.per_page)}
+          totalPages={Math.ceil(data.total / data.perPage)}
           onChange={setPage}
         />
       )}
@@ -164,10 +164,10 @@ function LogRow({
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const created = log.created_at
-    ? new Date(log.created_at).toLocaleString('zh-CN', { hour12: false })
+  const created = log.createdAt
+    ? new Date(log.createdAt).toLocaleString('zh-CN', { hour12: false })
     : '—';
-  const toolCalls = Array.isArray(log.tool_calls) ? log.tool_calls : [];
+  const toolCalls = Array.isArray(log.toolCalls) ? log.toolCalls : [];
 
   return (
     <div className="px-5 py-3">
@@ -188,11 +188,11 @@ function LogRow({
         <Badge tone="glass">{KIND_LABEL[log.kind] ?? log.kind}</Badge>
         <span className="shrink-0 text-xs text-muted">{created}</span>
         <span className="min-w-0 flex-1 truncate text-sm text-body">
-          {log.input_text ?? '（无输入）'}
+          {log.inputText ?? '（无输入）'}
         </span>
         <span className="shrink-0 text-xs text-muted-soft">
-          {log.model ?? '—'} · {log.prompt_tokens ?? 0}+{log.completion_tokens ?? 0} tok ·{' '}
-          {log.duration_ms ?? '—'}ms
+          {log.model ?? '—'} · {log.promptTokens ?? 0}+{log.completionTokens ?? 0} tok ·{' '}
+          {log.durationMs ?? '—'}ms
         </span>
       </button>
 
@@ -218,21 +218,21 @@ function LogRow({
           )}
 
           {/* 输入 */}
-          {log.input_text && (
+          {log.inputText && (
             <div>
               <p className="mb-1 text-xs font-medium text-muted-soft">输入</p>
               <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-md bg-surface-soft p-3 text-xs leading-6 text-body">
-                {log.input_text}
+                {log.inputText}
               </pre>
             </div>
           )}
 
           {/* 输出 */}
-          {log.output_text && (
+          {log.outputText && (
             <div>
               <p className="mb-1 text-xs font-medium text-muted-soft">输出</p>
               <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-md bg-surface-soft p-3 text-xs leading-6 text-body">
-                {log.output_text}
+                {log.outputText}
               </pre>
             </div>
           )}
@@ -253,17 +253,17 @@ function LogRow({
           )}
 
           {/* 错误 */}
-          {log.error_msg && (
+          {log.errorMsg && (
             <div className="rounded-md bg-danger-50 px-3 py-2 text-xs text-danger-700">
               <span className="font-medium">错误：</span>
-              {log.error_msg}
+              {log.errorMsg}
             </div>
           )}
 
           {/* 元数据 */}
           <div className="flex flex-wrap gap-4 text-xs text-muted">
-            <span>用户 #{log.user_id}（{log.role}）</span>
-            {log.conversation_id && <span>会话 #{log.conversation_id}</span>}
+            <span>用户 #{log.userId}（{log.role}）</span>
+            {log.conversationId && <span>会话 #{log.conversationId}</span>}
             {log.model && <span>模型：{log.model}</span>}
           </div>
         </div>
@@ -308,9 +308,9 @@ function computeStats(items: AgentCallLogItem[]) {
   let durationCount = 0;
   let errorCount = 0;
   for (const it of items) {
-    totalTokens += (it.prompt_tokens ?? 0) + (it.completion_tokens ?? 0);
-    if (it.duration_ms !== null) {
-      totalDuration += it.duration_ms;
+    totalTokens += (it.promptTokens ?? 0) + (it.completionTokens ?? 0);
+    if (it.durationMs !== null) {
+      totalDuration += it.durationMs;
       durationCount += 1;
     }
     if (it.status !== 'ok') errorCount += 1;

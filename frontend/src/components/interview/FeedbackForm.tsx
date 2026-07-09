@@ -92,16 +92,11 @@ export function FeedbackForm({
     setMsg(null);
     try {
       await api.submitFeedback({
-        candidate_id: candidateId,
-        job_id: jobId,
-        round,
-          score,
-          passed,
-          evaluation,
-          reason_tags: reasonTags,
-          strengths,
-          concerns,
-        });
+        candidateId: candidateId,
+        jobId: jobId,
+        score,
+        passRecommended: passed,
+      });
       if (targetStage) {
         const roundText = ROUNDS.find((item) => item.key === round)?.label ?? '面试';
         const note = `${roundText}反馈${passed ? '通过' : '未通过'}，评分 ${score}/5`;
@@ -109,10 +104,9 @@ export function FeedbackForm({
           await onMove(targetStage, note);
         } else {
           await api.movePipeline({
-            candidate_id: candidateId,
-            job_id: jobId,
-            stage: targetStage,
-            note,
+            candidateId: candidateId,
+            jobId: jobId,
+            toStage: targetStage,
           });
         }
       }

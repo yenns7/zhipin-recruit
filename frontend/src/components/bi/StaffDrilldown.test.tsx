@@ -17,26 +17,26 @@ vi.mock('../../lib/api', async () => {
 import { api } from '../../lib/api';
 
 const staffMember = {
-  hr_id: 7,
+  hrId: 7,
   name: '张招聘',
   resumes: 20,
-  parsed_ok: 18,
-  parse_failed: 1,
-  parse_pending: 1,
+  parsedOk: 18,
+  parseFailed: 1,
+  parsePending: 1,
   screens: 10,
-  effective_recommendations: 6,
-  business_review_entries: 4,
-  interview_entries: 3,
-  interview_feedbacks: 2,
-  interview_passed: 1,
-  interview_pass_rate: 33.3,
-  interview_to_offer_rate: 20,
-  offer_entries: 1,
+  effectiveRecommendations: 6,
+  businessReviewEntries: 4,
+  interviewEntries: 3,
+  interviewFeedbacks: 2,
+  interviewPassed: 1,
+  interviewPassRate: 33.3,
+  interviewToOfferRate: 20,
+  offerEntries: 1,
   onboarded: 1,
-  conversion_rate: 5,
-  recommendation_to_onboard_rate: 16.7,
-  feedback_pending: 2,
-  feedback_overdue: 1,
+  conversionRate: 5,
+  recommendationToOnboardRate: 16.7,
+  feedbackPending: 2,
+  feedbackOverdue: 1,
 };
 
 describe('StaffDrilldown', () => {
@@ -46,8 +46,8 @@ describe('StaffDrilldown', () => {
 
   it('renders staff details, warnings, funnel, and back actions', async () => {
     vi.mocked(api.biStaff).mockResolvedValue({
-      hr_id: 7,
-      performance: staffMember,
+      hrId: 7,
+      summary: [],
       funnel: {
         pending: 4,
         ai_screen: 3,
@@ -55,12 +55,12 @@ describe('StaffDrilldown', () => {
         offer: 1,
         onboarded: 1,
         rejected: 2,
-        conversion_rate: 12.5,
-        archived_total: 3,
-        funnel_total: 8,
-        pipeline_total: 7,
+        conversionRate: 12.5,
+        archivedTotal: 3,
+        funnelTotal: 8,
+        pipelineTotal: 7,
       },
-      data_quality_warnings: [
+      dataQualityWarnings: [
         {
           kind: 'warning',
           metric: 'feedback_pending',
@@ -100,7 +100,8 @@ describe('StaffDrilldown', () => {
     vi.mocked(api.biStaff)
       .mockRejectedValueOnce(new Error('专员详情加载失败'))
       .mockResolvedValueOnce({
-        hr_id: 8,
+        hrId: 8,
+        summary: [],
         funnel: {
           pending: 0,
           ai_screen: 0,
@@ -108,12 +109,12 @@ describe('StaffDrilldown', () => {
           offer: 0,
           onboarded: 0,
           rejected: 0,
-          conversion_rate: 0,
-          archived_total: 0,
-          funnel_total: 0,
-          pipeline_total: 0,
+          conversionRate: 0,
+          archivedTotal: 0,
+          funnelTotal: 0,
+          pipelineTotal: 0,
         },
-        data_quality_warnings: [],
+        dataQualityWarnings: [],
       });
 
     render(

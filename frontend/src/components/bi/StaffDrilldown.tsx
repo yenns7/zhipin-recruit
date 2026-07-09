@@ -29,7 +29,7 @@ export function StaffDrilldown({
   );
 
   const name = staffMember?.name ?? `专员 #${hrId}`;
-  const conv = staffMember ? safeNum(staffMember.conversion_rate) : null;
+  const conv = staffMember ? safeNum(staffMember.conversionRate) : null;
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -54,7 +54,7 @@ export function StaffDrilldown({
       )}
 
       {!loading && !error && (
-        <DataQualityWarningsPanel warnings={data?.data_quality_warnings ?? []} />
+        <DataQualityWarningsPanel warnings={data?.dataQualityWarnings ?? []} />
       )}
 
       {!loading && !error && data && <StaffFunnelPanel funnel={data.funnel} />}

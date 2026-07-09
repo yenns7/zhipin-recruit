@@ -14,7 +14,7 @@ export function DemandHealthPanel({ demands }: DemandHealthPanelProps) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle>需求健康</CardTitle>
           <Badge tone="neutral">
-            A/B/C {demands.priority_counts.A} / {demands.priority_counts.B} / {demands.priority_counts.C}
+            A/B/C {demands.priorityCounts.A} / {demands.priorityCounts.B} / {demands.priorityCounts.C}
           </Badge>
         </div>
       </CardHeader>
@@ -22,7 +22,7 @@ export function DemandHealthPanel({ demands }: DemandHealthPanelProps) {
         <div className="grid grid-cols-2 gap-3">
           <MetricTile
             label="活跃需求"
-            value={<AnimatedNumber value={demands.active_total} />}
+            value={<AnimatedNumber value={demands.activeTotal} />}
             sub="待处理与招聘中"
           />
           <MetricTile
@@ -33,15 +33,15 @@ export function DemandHealthPanel({ demands }: DemandHealthPanelProps) {
           />
           <MetricTile
             label="HR 无推荐"
-            value={<AnimatedNumber value={demands.hr_no_recommendation} />}
+            value={<AnimatedNumber value={demands.hrNoRecommendation} />}
             sub="接手 7 天未推荐"
-            tone={demands.hr_no_recommendation > 0 ? 'warning' : 'success'}
+            tone={demands.hrNoRecommendation > 0 ? 'warning' : 'success'}
           />
           <MetricTile
             label="业务待反馈"
-            value={<AnimatedNumber value={demands.business_feedback_pending} />}
+            value={<AnimatedNumber value={demands.businessFeedbackPending} />}
             sub="卡在业务复核"
-            tone={demands.business_feedback_pending > 0 ? 'warning' : 'success'}
+            tone={demands.businessFeedbackPending > 0 ? 'warning' : 'success'}
           />
         </div>
       </CardBody>

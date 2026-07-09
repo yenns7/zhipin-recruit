@@ -59,17 +59,17 @@ const PARSE_STATUS_LABELS: Record<ParseStatus, string> = {
 };
 
 function candidateTags(candidate: CandidateListItem): CandidateTag[] {
-  return Array.isArray(candidate.top_tags) ? candidate.top_tags : [];
+  return Array.isArray(candidate.topTags) ? candidate.topTags : [];
 }
 
 function searchableText(candidate: CandidateListItem): string {
-  const exp = candidate.latest_experience;
+  const exp = candidate.latestExperience;
   return [
-    candidate.name_masked,
-    candidate.email_masked,
-    candidate.phone_masked,
-    candidate.intent_city,
-    candidate.education_summary,
+    candidate.nameMasked,
+    candidate.emailMasked,
+    candidate.phoneMasked,
+    candidate.intentCity,
+    candidate.educationSummary,
     exp?.company,
     exp?.position,
     exp?.duration,
@@ -115,7 +115,7 @@ function ParseStatusPill({ status }: { status?: ParseStatus }) {
 }
 
 function ResumeSummary({ candidate }: { candidate: CandidateListItem }) {
-  const exp = candidate.latest_experience;
+  const exp = candidate.latestExperience;
   return (
     <div className="min-w-[220px] space-y-1">
       {exp?.company || exp?.position ? (
@@ -126,11 +126,11 @@ function ResumeSummary({ candidate }: { candidate: CandidateListItem }) {
         <p className="text-muted-soft">暂无工作经历</p>
       )}
       {exp?.duration && <p className="text-xs text-muted-soft">{exp.duration}</p>}
-      {candidate.intent_city && (
-        <p className="text-xs text-muted">意向城市：{candidate.intent_city}</p>
+      {candidate.intentCity && (
+        <p className="text-xs text-muted">意向城市：{candidate.intentCity}</p>
       )}
-      {candidate.education_summary && (
-        <p className="text-xs text-muted">{candidate.education_summary}</p>
+      {candidate.educationSummary && (
+        <p className="text-xs text-muted">{candidate.educationSummary}</p>
       )}
     </div>
   );
@@ -140,7 +140,7 @@ function SkillBadges({ candidate }: { candidate: CandidateListItem }) {
   const tags = candidateTags(candidate);
   if (tags.length === 0) return <span className="text-muted-soft">暂无标签</span>;
   const visibleTags = tags.slice(0, 3);
-  const hiddenCount = Math.max((candidate.tag_count ?? tags.length) - visibleTags.length, 0);
+  const hiddenCount = Math.max((candidate.tagCount ?? tags.length) - visibleTags.length, 0);
   return (
     <div className="flex max-w-[360px] flex-wrap gap-1.5">
       {visibleTags.map((skill, index) => (
@@ -194,8 +194,8 @@ function JobFitSummary({
     );
   }
 
-  const matched = Array.isArray(jobFit.matched_tags) ? jobFit.matched_tags : [];
-  const missing = Array.isArray(jobFit.missing_tags) ? jobFit.missing_tags : [];
+  const matched = Array.isArray(jobFit.matchedRequiredSkills) ? jobFit.matchedRequiredSkills : [];
+  const missing = Array.isArray(jobFit.missingRequiredSkills) ? jobFit.missingRequiredSkills : [];
   const recommendation = fitRecommendation(jobFit.score, missing.length);
 
   return (
@@ -232,7 +232,7 @@ function SourceSummary({ candidate }: { candidate: CandidateListItem }) {
       <div className="space-y-2">
         <span className="text-muted-soft">未记录来源</span>
         <div>
-          <ParseStatusPill status={candidate.parse_status} />
+          <ParseStatusPill status={candidate.parseStatus} />
         </div>
       </div>
     );
@@ -240,19 +240,19 @@ function SourceSummary({ candidate }: { candidate: CandidateListItem }) {
   return (
     <div className="min-w-[160px] space-y-1 text-xs">
       <p className="font-medium text-ink">
-        来源渠道：{source.channel || '未填写'}
+        来源渠道：{String((source as Record<string, unknown>)?.channel ?? '未填写')}
       </p>
       <p className="text-muted">
-        目标岗位：{source.target_job_title || '未关联'}
+        目标岗位：{String((source as Record<string, unknown>)?.targetJobTitle ?? '未关联')}
       </p>
-      {(source.target_job_city || source.target_job_department) && (
+      {(!!(source as Record<string, unknown>)?.targetJobCity || !!(source as Record<string, unknown>)?.targetJobDepartment) && (
         <p className="text-muted-soft">
-          岗位归属：{source.target_job_city || '未设置'} / {source.target_job_department || '未设置'}
+          岗位归属：{String((source as Record<string, unknown>)?.targetJobCity ?? '未设置')} / {String((source as Record<string, unknown>)?.targetJobDepartment ?? '未设置')}
         </p>
       )}
-      {source.referrer && <p className="text-muted-soft">推荐人：{source.referrer}</p>}
+      {!!(source as Record<string, unknown>)?.referrer && <p className="text-muted-soft">推荐人：{String((source as Record<string, unknown>)?.referrer)}</p>}
       <div className="pt-1">
-        <ParseStatusPill status={candidate.parse_status} />
+        <ParseStatusPill status={candidate.parseStatus} />
       </div>
     </div>
   );
@@ -286,11 +286,11 @@ function CandidateRow({
             to={`/candidates/${candidate.id}`}
             className="font-medium text-ink hover:underline"
           >
-            {candidate.name_masked || `候选人 #${candidate.id}`}
+            {candidate.nameMasked || `候选人 #${candidate.id}`}
           </Link>
           <div className="mt-1 space-y-0.5 text-xs text-muted-soft">
-            {candidate.email_masked && <p>{candidate.email_masked}</p>}
-            {candidate.phone_masked && <p>{candidate.phone_masked}</p>}
+            {candidate.emailMasked && <p>{candidate.emailMasked}</p>}
+            {candidate.phoneMasked && <p>{candidate.phoneMasked}</p>}
           </div>
         </div>
       </td>
@@ -310,9 +310,9 @@ function CandidateRow({
         <SourceSummary candidate={candidate} />
       </td>
       <td className="px-5 py-4">
-        <ScorePill score={candidate.max_score ?? 0} />
+        <ScorePill score={candidate.maxScore ?? 0} />
       </td>
-      <td className="px-5 py-4 text-sm text-muted">{formatDate(candidate.created_at)}</td>
+      <td className="px-5 py-4 text-sm text-muted">{formatDate(candidate.createdAt)}</td>
       <td className="px-5 py-4 text-right">
         <div className="flex flex-col items-end gap-2">
           <Link
@@ -358,13 +358,13 @@ export function CandidatesPage() {
     () => api.searchCandidates({
       search: debouncedQuery || undefined,
       city: cityFilter === 'all' ? undefined : cityFilter,
-      source_channel: sourceChannelFilter === 'all' ? undefined : sourceChannelFilter,
-      parse_status: parseStatusFilter === 'all' ? undefined : parseStatusFilter,
-      pipeline_status: pipelineStatusFilter === 'all' ? undefined : pipelineStatusFilter,
+      sourceChannel: sourceChannelFilter === 'all' ? undefined : sourceChannelFilter,
+      parseStatus: parseStatusFilter === 'all' ? undefined : parseStatusFilter,
+      pipelineStatus: pipelineStatusFilter === 'all' ? undefined : pipelineStatusFilter,
       page,
-      per_page: 20,
-      sort_by: 'created_at',
-      sort_order: 'desc',
+      perPage: 20,
+      sortBy: 'created_at',
+      sortOrder: 'desc',
     }),
     [debouncedQuery, cityFilter, sourceChannelFilter, parseStatusFilter, pipelineStatusFilter, page],
   );
@@ -385,7 +385,7 @@ export function CandidatesPage() {
   const matchPreviewAsync = useAsync(
     () => {
       if (!selectedJobId || candidateIds.length === 0) {
-        return Promise.resolve({ job_id: selectedJobId, results: [] });
+        return Promise.resolve({ jobId: selectedJobId, results: [] });
       }
       return api.previewJobMatch(selectedJobId, candidateIds);
     },
@@ -394,14 +394,14 @@ export function CandidatesPage() {
   const matchByCandidateId = useMemo(() => {
     const map = new Map<number, MatchResultItem>();
     for (const item of matchPreviewAsync.data?.results ?? []) {
-      map.set(item.candidate_id, item);
+      map.set(item.candidateId, item);
     }
     return map;
   }, [matchPreviewAsync.data]);
 
   const cityOptions = useMemo(() => {
     const parsedCities = candidates
-      .map((candidate) => candidate.intent_city)
+      .map((candidate) => candidate.intentCity)
       .filter((city): city is string => Boolean(city));
     return Array.from(new Set([...COMMON_CITY_OPTIONS, ...parsedCities]));
   }, [candidates]);
@@ -422,8 +422,8 @@ export function CandidatesPage() {
     const values = new Set<string>(COMMON_SOURCE_OPTIONS);
     if (sourceChannelFilter !== 'all') values.add(sourceChannelFilter);
     for (const candidate of candidates) {
-      const channel = candidate.source?.channel?.trim();
-      if (channel) values.add(channel);
+      const channel = (candidate.source as Record<string, unknown>)?.channel;
+      if (typeof channel === 'string' && channel.trim()) values.add(channel.trim());
     }
     return Array.from(values);
   }, [candidates, sourceChannelFilter]);
@@ -434,10 +434,10 @@ export function CandidatesPage() {
     return candidates
       .filter((candidate) => {
         const matchesQuery = !normalizedQuery || searchableText(candidate).includes(normalizedQuery);
-        const matchesCity = cityFilter === 'all' || candidate.intent_city === cityFilter;
+        const matchesCity = cityFilter === 'all' || candidate.intentCity === cityFilter;
         const matchesTag =
           tagFilter === 'all' || candidateTags(candidate).some((skill) => skill.tag === tagFilter);
-        const matchesScore = (candidate.max_score ?? 0) >= minScore;
+        const matchesScore = (candidate.maxScore ?? 0) >= minScore;
         return matchesQuery && matchesCity && matchesTag && matchesScore;
       })
       .sort((a, b) => {
@@ -445,14 +445,14 @@ export function CandidatesPage() {
           const fitDiff = (matchByCandidateId.get(b.id)?.score ?? 0) - (matchByCandidateId.get(a.id)?.score ?? 0);
           if (fitDiff !== 0) return fitDiff;
         }
-        const scoreDiff = (b.max_score ?? 0) - (a.max_score ?? 0);
+        const scoreDiff = (b.maxScore ?? 0) - (a.maxScore ?? 0);
         if (scoreDiff !== 0) return scoreDiff;
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       });
   }, [candidates, cityFilter, matchByCandidateId, query, scoreFilter, selectedJobId, tagFilter]);
 
   const uniqueTagCount = tagOptions.length;
-  const highScoreCount = candidates.filter((c) => (c.max_score ?? 0) >= 4).length;
+  const highScoreCount = candidates.filter((c) => (c.maxScore ?? 0) >= 4).length;
   const hasActiveFilters =
     query.trim() !== '' ||
     cityFilter !== 'all' ||
@@ -491,7 +491,7 @@ export function CandidatesPage() {
       if (result.added > 0) {
         setActionMessage('已加入岗位流程，当前阶段为待筛选');
         reload();
-      } else if (result.skipped_existing > 0) {
+      } else if (result.skippedExisting > 0) {
         setActionMessage('这位候选人已经在该岗位流程中');
       } else {
         setActionMessage('未加入岗位流程，请刷新后重试');
@@ -699,7 +699,7 @@ export function CandidatesPage() {
                     <option value="">不限制岗位</option>
                     {(jobsAsync.data ?? []).map((job) => (
                       <option key={job.id} value={job.id}>
-                        {[job.job_code, job.title, job.city, job.department].filter(Boolean).join(' · ')}
+                        {[job.jobCode, job.title, job.city, job.department].filter(Boolean).join(' · ')}
                       </option>
                     ))}
                   </Select>

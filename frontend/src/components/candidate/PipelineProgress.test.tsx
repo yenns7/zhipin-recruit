@@ -34,7 +34,7 @@ describe('PipelineProgress', () => {
 
   it('uses the shared alert-style error state when journey detail loading fails', async () => {
     apiMocks.getCandidatePipelines.mockResolvedValueOnce({
-      pipelines: [{ job_id: 101, job_title: '前端工程师', stage: 'interview' }],
+      pipelines: [{ jobId: 101, jobTitle: '前端工程师', stage: 'interview' }],
     });
     apiMocks.getCandidateJourney.mockRejectedValueOnce(new Error('时间线加载失败'));
 

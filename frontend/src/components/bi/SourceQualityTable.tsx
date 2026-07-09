@@ -73,33 +73,33 @@ export function SourceQualityTable({ sources }: { sources: BiSourceQuality[] }) 
                 />
               </td>
               <td className="py-3 pr-6 tabular-nums text-body" style={{ minWidth: 96 }}>
-                {safeNum(source.interview_entries)}
+                {safeNum(source.interviewEntries)}
                 <span className="ml-1 text-xs text-muted-soft">
-                  {pct(safeRate(safeNum(source.interview_entries), safeNum(source.resumes)))}
+                  {pct(safeRate(safeNum(source.interviewEntries), safeNum(source.resumes)))}
                 </span>
               </td>
               <td className="py-3 pr-6" style={{ minWidth: 96 }}>
                 <div className="flex flex-col gap-0.5">
                   <span className="text-sm font-semibold tabular-nums text-ink">
-                    {safeNum(source.interview_passed)} / {safeNum(source.interview_entries)}
+                    {safeNum(source.interviewPassed)} / {safeNum(source.interviewEntries)}
                   </span>
                   <span className="text-xs tabular-nums text-muted-soft">
-                    {pct(safeNum(source.interview_pass_rate))}
+                    {pct(safeNum(source.interviewPassRate))}
                   </span>
                 </div>
               </td>
               <td className="py-3 pr-6" style={{ minWidth: 96 }}>
                 <div className="flex flex-col gap-0.5">
                   <span className="text-sm font-semibold tabular-nums text-ink">
-                    {safeNum(source.offer_entries)} / {safeNum(source.interview_entries)}
+                    {safeNum(source.offerEntries)} / {safeNum(source.interviewEntries)}
                   </span>
                   <span className="text-xs tabular-nums text-muted-soft">
-                    {pct(safeNum(source.interview_to_offer_rate))}
+                    {pct(safeNum(source.interviewToOfferRate))}
                   </span>
                 </div>
               </td>
               <td className="py-3 pr-6 tabular-nums text-body" style={{ minWidth: 90 }}>
-                {safeNum(source.offer_entries)}
+                {safeNum(source.offerEntries)}
               </td>
               <td className="py-3" style={{ minWidth: 100 }}>
                 <div className="flex items-center gap-2">
@@ -111,7 +111,7 @@ export function SourceQualityTable({ sources }: { sources: BiSourceQuality[] }) 
                     />
                   </div>
                   <span className="text-xs font-semibold tabular-nums text-success-700">
-                    {pct(safeNum(source.onboard_rate))}
+                    {pct(safeNum(source.onboardRate))}
                   </span>
                 </div>
               </td>

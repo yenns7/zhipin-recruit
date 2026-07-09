@@ -14,26 +14,26 @@ export function DecisionSummaryPanel({ summary }: DecisionSummaryPanelProps) {
         <div>
           <p className="text-sm font-semibold text-ink">主管决策汇总</p>
           <p className="mt-1 text-xs text-muted-soft">
-            {summary.current_stage ? stageLabel(summary.current_stage) : '暂无阶段'} · {summary.feedback_count} 条面试反馈
+            {summary.currentStage ? stageLabel(summary.currentStage) : '暂无阶段'} · {summary.feedbackCount} 条面试反馈
           </p>
         </div>
-        <Badge tone={summary.failed_count > 0 ? 'warning' : 'success'}>{summary.recommendation}</Badge>
+        <Badge tone={summary.failedCount > 0 ? 'warning' : 'success'}>{summary.recommendation}</Badge>
       </div>
 
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
         <div className="rounded-md bg-canvas px-3 py-2">
           <p className="text-xs text-muted-soft">平均评分</p>
           <p className="mt-1 font-semibold text-ink">
-            {summary.average_score === null ? '—' : `${summary.average_score}/5`}
+            {summary.averageScore === null ? '—' : `${summary.averageScore}/5`}
           </p>
         </div>
         <div className="rounded-md bg-canvas px-3 py-2">
           <p className="text-xs text-muted-soft">通过反馈</p>
-          <p className="mt-1 font-semibold text-success-700">{summary.passed_count}</p>
+          <p className="mt-1 font-semibold text-success-700">{summary.passedCount}</p>
         </div>
         <div className="rounded-md bg-canvas px-3 py-2">
           <p className="text-xs text-muted-soft">风险反馈</p>
-          <p className="mt-1 font-semibold text-warning-700">{summary.failed_count + summary.risks.length}</p>
+          <p className="mt-1 font-semibold text-warning-700">{summary.failedCount + summary.risks.length}</p>
         </div>
       </div>
 

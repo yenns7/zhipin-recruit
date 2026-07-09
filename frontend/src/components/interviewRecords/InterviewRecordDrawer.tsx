@@ -20,8 +20,8 @@ interface InterviewRecordDrawerProps {
 
 export function InterviewRecordDrawer({ item, onClose }: InterviewRecordDrawerProps) {
   const journeyAsync = useAsync(
-    () => api.getCandidateJourney(item.candidate_id, item.job_id),
-    [item.candidate_id, item.job_id],
+    () => api.getCandidateJourney(item.candidateId, item.jobId),
+    [item.candidateId, item.jobId],
   );
   const journey = journeyAsync.data;
 
@@ -40,10 +40,10 @@ export function InterviewRecordDrawer({ item, onClose }: InterviewRecordDrawerPr
               {item.type === 'ai' ? 'AI 预筛报告' : `${roundLabel(item.round)}反馈`}
             </p>
             <h2 className="mt-1 truncate text-xl font-semibold text-ink">
-              {item.name_masked ?? `候选人 #${item.candidate_id}`}
+              {item.nameMasked ?? `候选人 #${item.candidateId}`}
             </h2>
             <p className="mt-1 truncate text-sm text-muted">
-              {item.job_title ?? `岗位 #${item.job_id}`}
+              {item.jobTitle ?? `岗位 #${item.jobId}`}
             </p>
           </div>
           <button
@@ -72,13 +72,13 @@ export function InterviewRecordDrawer({ item, onClose }: InterviewRecordDrawerPr
               <div>
                 <p className="text-xs text-muted">面试官</p>
                 <p className="mt-1 font-medium text-ink">
-                  {item.interviewer_name ?? (item.type === 'ai' ? 'AI' : '—')}
+                  {item.interviewerName ?? (item.type === 'ai' ? 'AI' : '—')}
                 </p>
               </div>
               <div>
                 <p className="text-xs text-muted">提交时间</p>
                 <p className="mt-1 text-ink">
-                  {item.created_at ? formatDate(item.created_at) : '—'}
+                  {item.createdAt ? formatDate(item.createdAt) : '—'}
                 </p>
               </div>
             </div>
@@ -100,11 +100,11 @@ export function InterviewRecordDrawer({ item, onClose }: InterviewRecordDrawerPr
                   </div>
                 </div>
               )}
-              {item.reason_tags.length > 0 && (
+              {item.reasonTags.length > 0 && (
                 <div className="rounded-md border border-hairline bg-canvas px-3 py-2">
                   <p className="text-xs font-medium text-muted">原因分类</p>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {item.reason_tags.map((tag) => (
+                    {item.reasonTags.map((tag) => (
                       <Badge key={tag} tone="warning">
                         {tag}
                       </Badge>
@@ -157,7 +157,7 @@ export function InterviewRecordDrawer({ item, onClose }: InterviewRecordDrawerPr
                         </p>
                         <p className="text-xs text-muted">
                           {step.ts ? formatDate(step.ts) : '—'}
-                          {step.updated_by_name ? ` · ${step.updated_by_name}` : ''}
+                          {step.updatedByName ? ` · ${step.updatedByName}` : ''}
                         </p>
                         {step.note && <p className="mt-1 text-sm text-body">{step.note}</p>}
                       </div>
@@ -186,16 +186,16 @@ export function InterviewRecordDrawer({ item, onClose }: InterviewRecordDrawerPr
                       </Badge>
                     </div>
                     <p className="mt-1 text-xs text-muted">
-                      {feedback.interviewer_name ?? '—'} · {feedback.score ?? '—'} 分
+                      {feedback.interviewerName ?? '—'} · {feedback.score ?? '—'} 分
                     </p>
                     {(feedback.concerns || feedback.note || feedback.strengths) && (
                       <p className="mt-1 text-sm text-body">
                         {feedback.concerns || feedback.note || feedback.strengths}
                       </p>
                     )}
-                    {feedback.reason_tags.length > 0 && (
+                    {feedback.reasonTags.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1">
-                        {feedback.reason_tags.map((tag) => (
+                        {feedback.reasonTags.map((tag) => (
                           <Badge key={tag} tone="warning">
                             {tag}
                           </Badge>

@@ -24,15 +24,15 @@ assert.match(
   'BI should type department accountability metrics',
 );
 assert.match(
-  types,
-  /interviewer_accountability:\s*BiInterviewerAccountability\[\]/,
-  'BiOverview should expose interviewer accountability rows',
-);
-assert.match(
-  types,
-  /department_accountability:\s*BiDepartmentAccountability\[\]/,
-  'BiOverview should expose department accountability rows',
-);
+    types,
+    /interviewerAccountability:\s*BiInterviewerAccountability\[\]/,
+    'BiOverview should expose interviewer accountability rows',
+  );
+  assert.match(
+    types,
+    /departmentAccountability:\s*BiDepartmentAccountability\[\]/,
+    'BiOverview should expose department accountability rows',
+  );
 assert.match(
   biPage,
   /面试反馈跟进/,

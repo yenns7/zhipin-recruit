@@ -56,10 +56,10 @@ function TodoCard({
 }
 
 export function RecruiterTodoPanel({ stats }: { stats: DashboardStats }) {
-  const feedbackPending = valueOrNull(stats.performance?.feedback_pending);
-  const businessReview = valueOrNull(stats.performance?.business_review_entries ?? stats.businessReview);
-  const interview = valueOrNull(stats.performance?.interview_entries ?? stats.interview);
-  const offer = valueOrNull(stats.performance?.offer_entries ?? stats.offer);
+  const feedbackPending = valueOrNull(stats.performance?.feedbackPending);
+  const businessReview = valueOrNull(stats.performance?.businessReviewEntries ?? stats.businessReview);
+  const interview = valueOrNull(stats.performance?.interviewEntries ?? stats.interview);
+  const offer = valueOrNull(stats.performance?.offerEntries ?? stats.offer);
 
   return (
     <section>

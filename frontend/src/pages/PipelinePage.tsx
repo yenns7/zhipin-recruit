@@ -28,7 +28,7 @@ import { PipelineCandidateList } from '../components/pipeline/PipelineCandidateL
 import { PipelineCandidatePanel } from '../components/pipeline/PipelineCandidatePanel';
 
 function formatJobOption(job: JobListItem) {
-  const code = job.job_code || `JOB-${job.id}`;
+  const code = job.jobCode || `JOB-${job.id}`;
   return [code, job.title, job.city, job.department].filter(Boolean).join(' · ');
 }
 
@@ -92,7 +92,7 @@ export function PipelinePage() {
     [boardAsync.data],
   );
   const highlightedCandidate = highlightedCandidateId
-    ? candidates.find((c) => c.candidate_id === highlightedCandidateId)
+    ? candidates.find((c) => c.candidateId === highlightedCandidateId)
     : null;
   const listHighlightCandidateId = recentlyMovedCandidateId ?? highlightedCandidateId;
 
@@ -107,7 +107,7 @@ export function PipelinePage() {
 
   // 已在本岗位流程中的候选人 id 集合（供"加入流程"排除）。
   const existingIds = useMemo(
-    () => new Set(candidates.map((c) => c.candidate_id)),
+    () => new Set(candidates.map((c) => c.candidateId)),
     [candidates],
   );
 
@@ -135,12 +135,12 @@ export function PipelinePage() {
     [activeStage, byStage],
   );
   const selectedCandidate =
-    candidates.find((candidate) => candidate.candidate_id === selectedCandidateId) ?? null;
+    candidates.find((candidate) => candidate.candidateId === selectedCandidateId) ?? null;
 
   useEffect(() => {
     if (highlightedCandidate) {
       setActiveStage(highlightedCandidate.stage);
-      setSelectedCandidateId(highlightedCandidate.candidate_id);
+      setSelectedCandidateId(highlightedCandidate.candidateId);
     }
   }, [highlightedCandidate]);
 
@@ -151,7 +151,7 @@ export function PipelinePage() {
     const autoStageKey = [
       effectiveJobId,
       requestedStage ?? 'auto',
-      candidates.map((candidate) => `${candidate.candidate_id}:${candidate.stage}`).join(','),
+      candidates.map((candidate) => `${candidate.candidateId}:${candidate.stage}`).join(','),
     ].join('|');
     if (autoStageKeyRef.current === autoStageKey) return;
     autoStageKeyRef.current = autoStageKey;
@@ -165,16 +165,16 @@ export function PipelinePage() {
 
     if (nextStage !== activeStage) {
       setActiveStage(nextStage);
-      setSelectedCandidateId(byStage[nextStage]?.[0]?.candidate_id ?? null);
+      setSelectedCandidateId(byStage[nextStage]?.[0]?.candidateId ?? null);
       setSearchParams({ job: String(effectiveJobId), stage: nextStage }, { replace: true });
       return;
     }
 
     if (
       selectedCandidateId === null ||
-      !byStage[nextStage]?.some((candidate) => candidate.candidate_id === selectedCandidateId)
+      !byStage[nextStage]?.some((candidate) => candidate.candidateId === selectedCandidateId)
     ) {
-      setSelectedCandidateId(byStage[nextStage]?.[0]?.candidate_id ?? null);
+      setSelectedCandidateId(byStage[nextStage]?.[0]?.candidateId ?? null);
     }
   }, [
     activeStage,
@@ -195,7 +195,7 @@ export function PipelinePage() {
     if (!pendingMove) return;
     const movedCandidate = candidates.find(
       (candidate) =>
-        candidate.candidate_id === pendingMove.candidateId &&
+        candidate.candidateId === pendingMove.candidateId &&
         candidate.stage === pendingMove.toStage,
     );
     if (!movedCandidate) return;
@@ -232,9 +232,9 @@ export function PipelinePage() {
     }
     if (
       selectedCandidateId === null ||
-      !activeCandidates.some((candidate) => candidate.candidate_id === selectedCandidateId)
+      !activeCandidates.some((candidate) => candidate.candidateId === selectedCandidateId)
     ) {
-      setSelectedCandidateId(activeCandidates[0].candidate_id);
+      setSelectedCandidateId(activeCandidates[0].candidateId);
     }
   }, [activeCandidates, pendingMove, selectedCandidateId]);
 
@@ -242,23 +242,21 @@ export function PipelinePage() {
     async (
       candidateId: number,
       toStage: PipelineStage,
-      note?: string,
-      disposition?: CandidateDispositionInput,
+      _note?: string,
+      _disposition?: CandidateDispositionInput,
     ) => {
       if (effectiveJobId === null) return;
       setBusyId(candidateId);
       setPendingMove(null);
       setRecentlyMovedCandidateId(null);
       try {
-        const res = await api.movePipeline({
-          candidate_id: candidateId,
-          job_id: effectiveJobId,
-          stage: toStage,
-          note,
-          disposition,
+        await api.movePipeline({
+          candidateId: candidateId,
+          jobId: effectiveJobId,
+          toStage: toStage,
         });
         setPendingMove({ candidateId, toStage });
-        toast.success(`${res.name_masked || '候选人'} 已更新至「${stageLabel(toStage)}」`);
+        toast.success(`候选人 已更新至「${stageLabel(toStage)}」`);
         boardAsync.reload();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : '操作失败');
@@ -283,7 +281,7 @@ export function PipelinePage() {
   const handleStageSelect = useCallback(
     (stage: PipelineStage) => {
       setActiveStage(stage);
-      setSelectedCandidateId(byStage[stage]?.[0]?.candidate_id ?? null);
+      setSelectedCandidateId(byStage[stage]?.[0]?.candidateId ?? null);
       if (effectiveJobId !== null) {
         setSearchParams({ job: String(effectiveJobId), stage });
       } else {
@@ -400,7 +398,7 @@ export function PipelinePage() {
 
           {highlightedCandidate && (
             <div className="rounded-md border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700">
-              已定位到 {highlightedCandidate.name_masked}。下一步可在右侧详情推进主流程，
+              已定位到 {highlightedCandidate.nameMasked}。下一步可在右侧详情推进主流程，
               面试轮次和反馈请进入「面试任务」记录。
             </div>
           )}
@@ -428,7 +426,7 @@ export function PipelinePage() {
                   highlightedCandidateId={listHighlightCandidateId}
                   busyId={busyId}
                   onJumpToStage={handleStageSelect}
-                  onSelect={(candidate) => setSelectedCandidateId(candidate.candidate_id)}
+                  onSelect={(candidate) => setSelectedCandidateId(candidate.candidateId)}
                 />
                 {effectiveJobId !== null && (
                   <PipelineCandidatePanel
@@ -436,8 +434,8 @@ export function PipelinePage() {
                     jobId={effectiveJobId}
                     busy={
                       selectedCandidate
-                        ? busyId === selectedCandidate.candidate_id ||
-                          pendingMove?.candidateId === selectedCandidate.candidate_id
+                        ? busyId === selectedCandidate.candidateId ||
+                          pendingMove?.candidateId === selectedCandidate.candidateId
                         : false
                     }
                     onMove={handleMove}

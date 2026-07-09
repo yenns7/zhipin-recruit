@@ -11,11 +11,11 @@ describe('PipelineCandidatePanel', () => {
     render(
       <PipelineCandidatePanel
         candidate={{
-          candidate_id: 7,
-          name_masked: '候选人A',
+          candidateId: 7,
+          nameMasked: '候选人A',
           stage: 'pending',
-          updated_at: '2026-07-01T10:00:00Z',
-          updated_by_name: '招聘专员甲',
+          updatedAt: '2026-07-01T10:00:00Z',
+          updatedByName: '招聘专员甲',
         }}
         jobId={21}
         busy={false}

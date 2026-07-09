@@ -62,7 +62,7 @@ function loadSession(): Session | null {
     return null;
   }
   const payload = decodeJwt(token);
-  const userId = payload && typeof payload.user_id === 'number' ? payload.user_id : null;
+  const userId = payload && typeof payload.userId === 'number' ? payload.userId : null;
   const role = (localStorage.getItem(ROLE_KEY) as Role | null) ?? null;
   const name = localStorage.getItem(NAME_KEY);
   if (!role || !name) {
@@ -98,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem(ROLE_KEY, res.role);
         const payload = decodeJwt(res.token);
         const userId =
-          payload && typeof payload.user_id === 'number' ? payload.user_id : null;
+          payload && typeof payload.userId === 'number' ? payload.userId : null;
         setSession({ token: res.token, role: res.role, name: res.name, userId });
       },
       logout: () => {

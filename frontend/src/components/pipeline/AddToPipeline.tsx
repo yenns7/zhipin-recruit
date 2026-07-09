@@ -40,9 +40,9 @@ export function AddToPipeline({ jobId, existingIds, onAdded, onClose }: AddToPip
     setError(null);
     try {
       await api.movePipeline({
-        candidate_id: cid,
-        job_id: jobId,
-        stage: 'pending' as PipelineStage,
+        candidateId: cid,
+        jobId: jobId,
+        toStage: 'pending' as PipelineStage,
       });
       setCandidateId('');
       onAdded();
@@ -108,7 +108,7 @@ export function AddToPipeline({ jobId, existingIds, onAdded, onClose }: AddToPip
               <option value="">— 选择候选人 —</option>
               {available.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name_masked} (ID {c.id})
+                  {c.nameMasked} (ID {c.id})
                 </option>
               ))}
             </Select>

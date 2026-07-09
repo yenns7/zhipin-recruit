@@ -27,33 +27,36 @@ vi.mock('../lib/api', async () => {
 });
 
 const matchResponse: MatchResponse = {
-  job_id: 21,
+  jobId: 21,
   results: [
     {
-      candidate_id: 101,
-      name_masked: '张候选',
+      candidateId: 101,
+      candidateName: '张候选',
       score: 0.86,
-      matched_tags: ['React'],
-      missing_tags: ['TypeScript'],
+      matchedRequiredSkills: ['React'],
+      missingRequiredSkills: ['TypeScript'],
+      matchedPreferredSkills: [],
+      yearsOfExperience: null,
+      summary: '',
     },
   ],
 };
 
 const pipelineBoard: PipelineBoard = {
-  job_id: 21,
-  job_title: '前端工程师',
-  stage_order: ['pending'],
+  jobId: 21,
+  jobTitle: '前端工程师',
+  stageOrder: ['pending'],
   candidates: [],
 };
 
 const libraryCandidates: CandidateListItem[] = [
   {
     id: 201,
-    name_masked: '李补找',
-    owner_hr_id: 7,
-    created_at: '2026-07-06T00:00:00Z',
-    tag_count: 1,
-    top_tags: [{ tag: 'React', score: 0.92 }],
+    nameMasked: '李补找',
+    ownerHrId: 7,
+    createdAt: '2026-07-06T00:00:00Z',
+    tagCount: 1,
+    topTags: [{ tag: 'React', score: 0.92 }],
   },
 ];
 
@@ -61,7 +64,7 @@ const candidateListResponse: CandidateListResponse = {
   candidates: libraryCandidates,
   total: 1,
   page: 1,
-  per_page: 50,
+  perPage: 50,
   pages: 1,
 };
 
@@ -82,7 +85,7 @@ describe('JobMatchPage', () => {
     vi.mocked(api.getPipelineBoard).mockResolvedValue(pipelineBoard);
     vi.mocked(api.searchCandidates).mockResolvedValue(candidateListResponse);
     vi.mocked(api.previewJobMatch).mockResolvedValue({
-      job_id: 21,
+      jobId: 21,
       results: [],
     });
   });

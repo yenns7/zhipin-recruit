@@ -35,7 +35,7 @@ describe('AssistantBubble', () => {
           error: '请求出错',
           proposal: {
             tool: 'move_pipeline',
-            args: { candidate_id: 12, stage: 'interview' },
+            args: { candidateId: 12, stage: 'interview' },
             summary: '准备推进候选人到面试阶段',
             status: 'pending',
           },

@@ -35,16 +35,14 @@ describe('ConversationSidebar', () => {
           {
             id: 1,
             title: '当前会话',
-            created_at: null,
-            updated_at: null,
-            message_count: 2,
+            updatedAt: null,
+            messageCount: 2,
           },
           {
             id: 2,
             title: '另一个会话',
-            created_at: null,
-            updated_at: null,
-            message_count: 1,
+            updatedAt: null,
+            messageCount: 1,
           },
         ]}
         currentId={1}

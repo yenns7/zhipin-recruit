@@ -1,6 +1,12 @@
-// Typed API client for the HireInsight backend.
-// All requests are prefixed with /api (proxied to the Flask server in dev).
+// Typed API client for the HireInsight backend (Spring Boot, Java).
+// All requests are prefixed with /api/v1 (proxied to the Java backend in dev).
 // The JWT is read from localStorage and injected as a Bearer token.
+//
+// Backend contract: every REST endpoint returns an ApiResponse envelope:
+//   { code: number, message: string, data: T | null, timestamp: number }
+// request<T>() unwraps `.data` so callers receive the business payload directly.
+// Errors also use the envelope; the message field carries the human text and,
+// for validation errors, the field map lives under `.data`.
 
 import type {
   AdminAiArchitecture,
@@ -156,12 +162,12 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
 
   // Parse JSON when present; some endpoints may return empty bodies.
   const text = await res.text();
-  let data: unknown = null;
+  let parsed: unknown = null;
   if (text) {
     try {
-      data = JSON.parse(text);
+      parsed = JSON.parse(text);
     } catch {
-      data = text;
+      parsed = text;
     }
   }
 
@@ -171,45 +177,35 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     if (res.status === 401 && unauthorizedHandler) {
       unauthorizedHandler();
     }
-    // 错误体形态有两种：
-    //   1) 多数蓝图：{ error: "字符串消息" }
-    //   2) boss 蓝图：{ ok:false, error: { code, message } }（嵌套对象）
-    // 对嵌套对象需取 error.message，否则 String(对象) 会得到 "[object Object]"，
-    // 既丢失真实提示，也让上层基于 message 文本的错误分类失效。
-    const rawError =
-      data && typeof data === 'object' && 'error' in data
-        ? (data as Record<string, unknown>).error
-        : null;
-    const nestedErrorMessage =
-      rawError && typeof rawError === 'object' && 'message' in rawError
-        ? String((rawError as Record<string, unknown>).message)
-        : null;
-    // boss 蓝图错误体为 { ok:false, error:{ code, message } }，提取 code 供上层
-    // 按 code（如 needs_stoken）分支处理，而不止依赖 message 文本。
-    const nestedErrorCode =
-      rawError && typeof rawError === 'object' && 'code' in rawError
-        ? String((rawError as Record<string, unknown>).code)
-        : undefined;
+    // Java 后端错误体统一为 { code, message, data?, timestamp }。
+    // message 是人类可读提示；校验错误的字段明细放在 data（一个 map）。
+    // 兼容个别仍返回 { error: "..." } 的历史形态，避免丢消息。
+    const envelope =
+      parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null;
     const message =
-      nestedErrorMessage ||
-      (typeof rawError === 'string' ? rawError : null) ||
-      (data && typeof data === 'object' && 'message' in data
-        ? String((data as Record<string, unknown>).message)
-        : null) ||
+      (envelope && typeof envelope.message === 'string' && envelope.message) ||
+      (envelope && typeof envelope.error === 'string' && envelope.error) ||
       `Request failed with status ${res.status}`;
-    throw new ApiError(res.status, message, nestedErrorCode);
+    const code =
+      envelope && typeof envelope.code === 'number'
+        ? String(envelope.code)
+        : undefined;
+    throw new ApiError(res.status, message, code);
   }
 
-  return data as T;
+  // 成功：解包 ApiResponse.data。SSE/裸文本响应（非对象）原样返回。
+  const envelope =
+    parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null;
+  if (envelope && 'data' in envelope) {
+    return envelope.data as T;
+  }
+  return parsed as T;
 }
 
-// Boss 端点返回 {ok, data, error?} 信封；解包 data，错误抛 ApiError。
+// Boss 端点与其它 REST 端点一样返回标准 ApiResponse {code,message,data}；
+// request() 已统一解包 data，因此 bossRequest 直接复用，无需额外信封处理。
 async function bossRequest<T>(path: string, opts: RequestOptions = {}): Promise<T> {
-  const res = await request<{ ok: boolean; data: T; error?: { code: string; message: string } }>(path, opts);
-  if (!res.ok) {
-    throw new ApiError(0, res.error?.message ?? 'BOSS 接口错误', res.error?.code);
-  }
-  return res.data;
+  return request<T>(path, opts);
 }
 
 export const api = {
@@ -228,11 +224,9 @@ export const api = {
   uploadResumes(
     files: File[],
     source?: {
-      source_channel?: string;
-      source_link?: string;
-      referrer?: string;
-      target_job_id?: number | null;
-      source_note?: string;
+      source?: string;
+      channel?: string;
+      notes?: string;
     },
   ): Promise<ResumeUploadResponse> {
     const form = new FormData();
@@ -247,16 +241,18 @@ export const api = {
     return request('/resumes/upload', { method: 'POST', formData: form });
   },
   getCandidate(candidateId: number): Promise<CandidateDetail> {
-    return request(`/interviews/${candidateId}`);
+    return request(`/candidates/${candidateId}`);
   },
   retryCandidateParse(candidateId: number): Promise<RetryParseResponse> {
-    return request(`/interviews/${candidateId}/retry-parse`, { method: 'POST' });
+    return request(`/resumes/${candidateId}/retry-parse`, { method: 'POST' });
   },
   updateCandidateProfile(
     candidateId: number,
     payload: CandidateProfileUpdateRequest,
   ): Promise<CandidateDetail> {
-    return request(`/interviews/${candidateId}/profile`, { method: 'PATCH', body: payload });
+    // Java 后端 CandidateController 暂无 profile 更新端点；保留方法签名以兼容旧调用，
+    // 联调期间如被调用会返回 404，待后端补端点或前端移除该入口。
+    return request(`/candidates/${candidateId}/profile`, { method: 'PATCH', body: payload });
   },
   listCandidates(): Promise<CandidateListItem[]> {
     return request('/candidates');
@@ -278,26 +274,24 @@ export const api = {
   createJob(payload: CreateJobRequest): Promise<CreateJobResponse> {
     return request('/jobs', { method: 'POST', body: payload });
   },
-  // Ask the AI which key details the JD is missing, before saving.
+  // Java 后端 JobController 暂无 JD 澄清端点（/jobs/clarify 返回 500/404）。
+  // 保留方法以兼容旧调用，待后端补端点后恢复。
   clarifyJob(title: string, jdText: string): Promise<JdClarifyResponse> {
     return request('/jobs/clarify', {
       method: 'POST',
-      body: { title, jd_text: jdText },
+      body: { title, jdText },
     });
   },
   // Single job detail incl. structured JD.
   getJob(jobId: number): Promise<JobDetail> {
     return request(`/jobs/${jobId}`);
   },
-  // Edit a job's title / JD / attribution fields. JD change re-runs structuring server-side.
+  // Edit a job's title / JD. JD change re-runs structuring server-side.
   updateJob(
     jobId: number,
     payload: {
       title?: string;
-      jd_text?: string;
-      city?: string;
-      department?: string;
-      job_code?: string;
+      jdText?: string;
     },
   ): Promise<JobDetail> {
     return request(`/jobs/${jobId}`, { method: 'PUT', body: payload });
@@ -377,59 +371,64 @@ export const api = {
   },
   // CANONICAL match endpoint — feature pages (F3 job-to-candidate match) should
   // use this RESTful, job-scoped method.
-  matchJob(jobId: number): Promise<MatchResponse> {
-    return request(`/jobs/${jobId}/match`, { method: 'POST' });
+  matchJob(jobId: number, candidateIds?: number[]): Promise<MatchResponse> {
+    return request(`/match/jobs/${jobId}/match`, {
+      method: 'POST',
+      body: candidateIds?.length ? { candidateIds } : {},
+    });
   },
   previewJobMatch(jobId: number, candidateIds?: number[]): Promise<MatchResponse> {
     const search = new URLSearchParams();
     if (candidateIds?.length) {
-      search.set('candidate_ids', candidateIds.join(','));
+      search.set('candidateIds', candidateIds.join(','));
     }
     const suffix = search.toString() ? `?${search.toString()}` : '';
-    return request(`/jobs/${jobId}/match-preview${suffix}`);
+    return request(`/match/jobs/${jobId}/preview${suffix}`);
   },
   batchAddToPipeline(
     jobId: number,
     candidateIds: number[],
   ): Promise<BatchAddToPipelineResponse> {
-    return request(`/jobs/${jobId}/batch-pipeline`, {
+    // Java 后端无独立 batch-pipeline 端点；匹配并加入流程统一走
+    // POST /match/jobs/{jobId}/match（带 candidateIds，初始阶段 ai_screen）。
+    return request(`/match/jobs/${jobId}/match`, {
       method: 'POST',
-      body: { candidate_ids: candidateIds },
+      body: { candidateIds },
     });
   },
-  // Thin alias kept only for backend compatibility (POST /match with job_id in
+  // Thin alias kept only for backend compatibility (POST /match with jobId in
   // the body). Prefer matchJob above; do not build new pages on this.
-  match(jobId: number): Promise<MatchResponse> {
-    return request('/match', { method: 'POST', body: { job_id: jobId } });
+  match(jobId: number, candidateIds?: number[]): Promise<MatchResponse> {
+    return request('/match', { method: 'POST', body: { jobId, candidateIds: candidateIds ?? [] } });
   },
 
   // ---- Interview ----
   startInterview(payload: InterviewStartRequest): Promise<InterviewStartResponse> {
-    return request('/interview/start', { method: 'POST', body: payload });
+    return request('/interviews/start', { method: 'POST', body: payload });
   },
   submitInterview(payload: InterviewSubmitRequest): Promise<InterviewSubmitResponse> {
-    return request('/interview/submit', { method: 'POST', body: payload });
+    return request('/interviews/submit', { method: 'POST', body: payload });
   },
   getInterview(interviewId: number): Promise<InterviewRecord> {
-    return request(`/interview/${interviewId}`);
+    return request(`/interviews/${interviewId}`);
   },
   listInterviews(): Promise<InterviewListItem[]> {
     return request('/interviews');
   },
   submitFeedback(payload: InterviewFeedbackInput): Promise<{ id: number; status: string }> {
-    return request('/interview/feedback', { method: 'POST', body: payload });
+    return request('/interviews/feedback', { method: 'POST', body: payload });
   },
   listInterviewers(): Promise<InterviewerOption[]> {
-    return request('/interview/interviewers');
+    return request('/interviews/interviewers');
   },
   listInterviewAssignments(): Promise<InterviewAssignment[]> {
-    return request('/interview/assignments');
+    return request('/interviews/assignments');
   },
   createInterviewAssignment(payload: InterviewAssignmentInput): Promise<InterviewAssignment> {
-    return request('/interview/assignments', { method: 'POST', body: payload });
+    return request('/interviews/assignments', { method: 'POST', body: payload });
   },
   getInterviewGuide(candidateId: number, jobId: number, round: string): Promise<InterviewGuide> {
-    return request(`/interview/guide?candidate_id=${candidateId}&job_id=${jobId}&round=${round}`);
+    return request(`/interviews/guide?candidateId=${candidateId}&jobId=${jobId}&round=${round}`);
   },
 
   // ---- Pipeline ----
@@ -445,13 +444,13 @@ export const api = {
   },
   // Stage-transition timeline for one candidate in one job.
   getPipelineHistory(jobId: number, candidateId: number): Promise<PipelineHistory> {
-    return request(`/pipeline/${jobId}/history/${candidateId}`);
+    return request(`/pipeline/${jobId}/candidates/${candidateId}/history`);
   },
   getOfferRecord(jobId: number, candidateId: number): Promise<OfferRecord> {
-    return request(`/pipeline/${jobId}/offer/${candidateId}`);
+    return request(`/pipeline/${jobId}/candidates/${candidateId}/offer`);
   },
   saveOfferRecord(jobId: number, candidateId: number, payload: Partial<OfferRecord>): Promise<OfferRecord> {
-    return request(`/pipeline/${jobId}/offer/${candidateId}`, { method: 'PUT', body: payload });
+    return request(`/pipeline/${jobId}/candidates/${candidateId}/offer`, { method: 'PUT', body: payload });
   },
 
   // ---- BI (manager/admin only) ----
@@ -473,7 +472,7 @@ export const api = {
   changePassword(oldPassword: string, newPassword: string): Promise<{ status: string }> {
     return request('/users/me/password', {
       method: 'PUT',
-      body: { old_password: oldPassword, new_password: newPassword },
+      body: { currentPassword: oldPassword, newPassword },
     });
   },
 
@@ -486,7 +485,7 @@ export const api = {
   },
   updateUser(
     userId: number,
-    payload: { role?: Role; is_active?: boolean },
+    payload: { role?: Role; active?: boolean },
   ): Promise<AdminUser> {
     return request(`/admin/users/${userId}`, { method: 'PATCH', body: payload });
   },
@@ -504,12 +503,14 @@ export const api = {
   listConversations(params: {
     archived?: boolean;
     page?: number;
-    per_page?: number;
+    size?: number;
+    q?: string;
   } = {}): Promise<ConversationListResponse> {
     const search = new URLSearchParams();
     if (params.archived !== undefined) search.set('archived', String(params.archived));
     if (params.page !== undefined) search.set('page', String(params.page));
-    if (params.per_page !== undefined) search.set('per_page', String(params.per_page));
+    if (params.size !== undefined) search.set('size', String(params.size));
+    if (params.q !== undefined) search.set('q', params.q);
     const query = search.toString();
     return request(`/agent/conversations${query ? `?${query}` : ''}`);
   },
@@ -555,8 +556,9 @@ export const api = {
   },
 
   // ---- Notifications ----
+  // Java 后端分页查询参数为 page(0-based)/size；响应里分页大小字段为 per_page。
   getNotifications(page = 1, perPage = 20): Promise<NotificationListResponse> {
-    return request(`/notifications?page=${page - 1}&per_page=${perPage}`);
+    return request(`/notifications?page=${page - 1}&size=${perPage}`);
   },
   getUnreadCount(): Promise<{ count: number }> {
     return request('/notifications/unread-count');
@@ -575,16 +577,16 @@ export const api = {
     return request(`/candidates/${candidateId}/pipelines`);
   },
   getCandidateJourney(candidateId: number, jobId: number): Promise<CandidateJourney> {
-    return request(`/candidates/${candidateId}/journey?job_id=${jobId}`);
+    return request(`/candidates/${candidateId}/journey?jobId=${jobId}`);
   },
   reassignCandidate(
     candidateId: number,
     ownerHrId: number,
     reason: string,
-  ): Promise<{ candidate_id: number; owner_hr_id: number; reason: string }> {
+  ): Promise<{ candidateId: number; ownerHrId: number; reason: string }> {
     return request(`/candidates/${candidateId}/owner`, {
       method: 'PATCH',
-      body: { owner_hr_id: ownerHrId, reason },
+      body: { ownerHrId, reason },
     });
   },
 
@@ -624,11 +626,11 @@ export const api = {
   // ---- 招聘闭环：批量导入 / AI 初筛 ----
   // 批量下载并导入收件箱候选人简历到候选人库（限量+间隔+去重）。
   bossBatchImport(params: BossBatchImportParams): Promise<BossBatchImportResult> {
-    return bossRequest('/boss/candidates/batch-import', { method: 'POST', body: params });
+    return bossRequest('/boss/batch-import', { method: 'POST', body: params });
   },
   // 对已导入候选人做 AI 简历初筛（LLM 评估 + 写 Interview + 推进 ai_screen）。
   bossAiScreen(params: BossAiScreenParams): Promise<BossAiScreenResult> {
-    return bossRequest('/boss/candidates/ai-screen', { method: 'POST', body: params });
+    return bossRequest('/boss/ai-screen', { method: 'POST', body: params });
   },
   // 简历下载走专用 URL（返回 text/markdown），由调用方用 window.open 触发；
   // ?token= 让后端做查询参数鉴权（无法带 Authorization 头）。
@@ -645,7 +647,7 @@ export const api = {
   // ---- BOSS 账号管理 ----
   // 从浏览器粘贴 Cookie 导入（招聘端 Web API 需要浏览器 cookie，QR 扫码无效）。
   bossImportBrowserCookie(cookies: string, label = ''): Promise<BossAccount> {
-    return bossRequest('/boss/login/browser-cookie', { method: 'POST', body: { cookies, label } });
+    return bossRequest('/boss/browser-cookie', { method: 'POST', body: { cookies, label } });
   },
   // 浏览器扩展下载走专用 URL（返回 ZIP），window.open 触发。
   bossExtensionDownloadUrl(): string {
@@ -672,9 +674,9 @@ export const api = {
   bossLabels(): Promise<unknown> {
     return bossRequest('/boss/labels');
   },
-  // 聊天记录
+  // 聊天记录（Java 端为 POST /boss/chat，body 传 friendId）
   bossChat(friendId: string): Promise<unknown> {
-    return bossRequest(`/boss/chat/${encodeURIComponent(friendId)}`);
+    return bossRequest('/boss/chat', { method: 'POST', body: { friendId } });
   },
   // 导出候选人列表
   bossExport(): Promise<unknown> {

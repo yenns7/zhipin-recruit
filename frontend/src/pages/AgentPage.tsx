@@ -287,7 +287,7 @@ export function AgentPage() {
             if (m.kind !== 'assistant' || m.id !== assistantId || !m.proposal) return m;
             if (res.ok) {
               const r = res.result || {};
-              const jid = r.job_id ?? r.candidate_id;
+              const jid = r.jobId ?? r.candidateId;
               return {
                 ...m,
                 proposal: {

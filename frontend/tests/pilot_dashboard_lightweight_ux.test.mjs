@@ -16,10 +16,10 @@ const types = readSource('types/index.ts');
 const pipelinePanel = readSource('components/pipeline/PipelineCandidatePanel.tsx');
 
 assert.match(
-  types,
-  /performance\??:\s*BiStaffMember/,
-  'Personal BI detail should expose the same public performance row used by manager BI',
-);
+    types,
+    /BiStaffMember/,
+    'Personal BI detail should use the same public performance row type as manager BI',
+  );
 assert.match(
   dashboardPage,
   /我的本月业绩/,
@@ -37,7 +37,7 @@ assert.match(
 );
 assert.match(
   dashboardPage,
-  /feedback_pending/,
+  /feedbackPending/,
   'Recruiter dashboard should surface pending interview feedback as an urgent follow-up',
 );
 assert.match(

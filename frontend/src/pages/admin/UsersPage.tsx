@@ -45,7 +45,7 @@ export function UsersManagementContent() {
 
   async function toggleActive(id: number, isActive: boolean) {
     setBusyId(id);
-    try { await api.updateUser(id, { is_active: isActive }); await reload(); }
+    try { await api.updateUser(id, { active: isActive }); await reload(); }
     finally { setBusyId(null); }
   }
 
@@ -158,12 +158,12 @@ export function UsersManagementContent() {
                         </Select>
                       </td>
                       <td className="px-5 py-3">
-                        {u.is_active
+                        {u.active
                           ? <Badge tone="success">启用</Badge>
                           : <Badge tone="danger">停用</Badge>}
                       </td>
                       <td className="px-5 py-3 text-muted">
-                        {u.created_at ? formatDate(u.created_at) : '—'}
+                        {u.createdAt ? formatDate(u.createdAt) : '—'}
                       </td>
                       <td className="px-5 py-3">
                         <div className="flex min-w-[220px] items-end gap-2">
@@ -191,10 +191,10 @@ export function UsersManagementContent() {
                       <td className="px-5 py-3 text-right">
                         <button
                           disabled={busyId === u.id}
-                          onClick={() => toggleActive(u.id, !u.is_active)}
+                          onClick={() => toggleActive(u.id, !u.active)}
                           className="text-xs font-medium text-muted hover:text-ink disabled:opacity-50"
                         >
-                          {u.is_active ? '停用' : '启用'}
+                          {u.active ? '停用' : '启用'}
                         </button>
                       </td>
                     </tr>

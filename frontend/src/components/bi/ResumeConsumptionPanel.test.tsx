@@ -7,14 +7,14 @@ describe('ResumeConsumptionPanel', () => {
     render(
       <ResumeConsumptionPanel
         resumes={{
-          total_candidates: 120,
-          linked_to_job: 90,
+          totalCandidates: 120,
+          linkedToJob: 90,
           unassigned: 30,
-          matched_candidates: 80,
-          match_rate: 66.7,
-          in_pipeline: 50,
-          not_in_pipeline: 70,
-          pipeline_entry_rate: 41.7,
+          matchedCandidates: 80,
+          matchRate: 66.7,
+          inPipeline: 50,
+          notInPipeline: 70,
+          pipelineEntryRate: 41.7,
         }}
       />,
     );

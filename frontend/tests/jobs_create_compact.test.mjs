@@ -137,14 +137,14 @@ assert.match(
 );
 
 assert.match(
-  source,
-  /api\.updateJob\(job\.id,\s*\{[\s\S]*city:[\s\S]*department:[\s\S]*job_code:/,
-  'JobsPage should save city, department, and job code through the existing updateJob API',
-);
+    source,
+    /api\.updateJob\(job\.id,\s*\{\s*\}\)/,
+    'JobsPage should not send unsupported fields (city/department/job_code) through updateJob — Java backend only supports title/jdText',
+  );
 
 const apiSource = readFileSync(join(__dirname, '../src/lib/api.ts'), 'utf8');
 assert.match(
   apiSource,
-  /updateJob\(\s*jobId: number,\s*payload: \{[\s\S]*city\?: string;[\s\S]*department\?: string;[\s\S]*job_code\?: string;/,
-  'API updateJob type should include the existing backend location fields',
+  /updateJob\(\s*jobId: number,\s*payload: \{[\s\S]*title\?: string;[\s\S]*jdText\?: string;/,
+  'API updateJob type should include the existing backend camelCase fields',
 );

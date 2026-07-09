@@ -55,7 +55,7 @@ export function buildPipelineInsight(candidate: PipelineBoardCandidate | null): 
     };
   }
 
-  const days = stageAgeDays(candidate.updated_at);
+  const days = stageAgeDays(candidate.updatedAt);
   if (isTerminalStage(candidate.stage)) {
     return {
       title: '已到终态',

@@ -189,11 +189,11 @@ function StaffTable({
   onSelect: (hrId: number) => void;
 }) {
   const maxResumes = Math.max(...staff.map((s) => safeNum(s.resumes)), 1);
-  const maxRecommendations = Math.max(...staff.map((s) => safeNum(s.effective_recommendations)), 1);
+  const maxRecommendations = Math.max(...staff.map((s) => safeNum(s.effectiveRecommendations)), 1);
   const maxOnboarded = Math.max(...staff.map((s) => safeNum(s.onboarded)), 1);
   const avgRecommendRate = staff.length === 0
     ? 0
-    : staff.reduce((acc, s) => acc + safeNum(s.recommendation_to_onboard_rate), 0) / staff.length;
+    : staff.reduce((acc, s) => acc + safeNum(s.recommendationToOnboardRate), 0) / staff.length;
 
   if (staff.length === 0) {
     return <p className="text-sm text-muted py-2">暂无专员数据</p>;
@@ -229,20 +229,20 @@ function StaffTable({
         </thead>
         <Reveal as="tbody" stagger={0.05} y={10}>
           {staff.map((s) => {
-            const recommendRate = safeNum(s.recommendation_to_onboard_rate);
+            const recommendRate = safeNum(s.recommendationToOnboardRate);
             const aboveAvg = recommendRate > avgRecommendRate;
             const atAvg = recommendRate === avgRecommendRate;
             const convColor = aboveAvg ? '#34C759' : atAvg ? '#111111' : '#FF3B30';
             return (
               <tr
-                key={s.hr_id}
+                key={s.hrId}
                 className="border-b border-hairline-soft transition-all duration-200 hover:bg-surface-soft hover:shadow-apple-sm cursor-pointer"
-                onClick={() => onSelect(s.hr_id)}
+                onClick={() => onSelect(s.hrId)}
                 tabIndex={0}
                 role="button"
                 aria-label={`查看 ${s.name} 的详情`}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') onSelect(s.hr_id);
+                  if (e.key === 'Enter' || e.key === ' ') onSelect(s.hrId);
                 }}
               >
                 <td className="py-3 pr-4 font-medium text-ink whitespace-nowrap">
@@ -253,7 +253,7 @@ function StaffTable({
                 </td>
                 <td className="py-3 pr-6" style={{ minWidth: 100 }}>
                   <InlineBar
-                    value={safeNum(s.effective_recommendations)}
+                    value={safeNum(s.effectiveRecommendations)}
                     max={maxRecommendations}
                     color={BAR_COLOR_RECOMMENDATIONS}
                   />
@@ -261,7 +261,7 @@ function StaffTable({
 	                <td className="py-3 pr-6" style={{ minWidth: 96 }}>
 	                  <div className="flex flex-col gap-0.5">
 	                    <span className="text-sm font-semibold tabular-nums text-ink">
-	                      {safeNum(s.interview_entries)}
+	                      {safeNum(s.interviewEntries)}
 	                    </span>
 	                    <span className="text-xs tabular-nums text-muted-soft">
 	                      推荐进面
@@ -271,10 +271,10 @@ function StaffTable({
 	                <td className="py-3 pr-6" style={{ minWidth: 96 }}>
 	                  <div className="flex flex-col gap-0.5">
 	                    <span className="text-sm font-semibold tabular-nums text-ink">
-	                      {safeNum(s.interview_passed)} / {safeNum(s.interview_entries)}
+	                      {safeNum(s.interviewPassed)} / {safeNum(s.interviewEntries)}
 	                    </span>
 	                    <span className="text-xs tabular-nums text-muted-soft">
-	                      {pct(safeNum(s.interview_pass_rate))}
+	                      {pct(safeNum(s.interviewPassRate))}
 	                    </span>
 	                  </div>
 	                </td>
@@ -345,33 +345,33 @@ function SourceQualityTable({ sources }: { sources: BiSourceQuality[] }) {
                 <InlineBar value={safeNum(source.resumes)} max={maxResumes} color={BAR_COLOR_RESUMES} />
               </td>
 	              <td className="py-3 pr-6 tabular-nums text-body" style={{ minWidth: 96 }}>
-	                {safeNum(source.interview_entries)}
+	                {safeNum(source.interviewEntries)}
 	                <span className="ml-1 text-xs text-muted-soft">
-	                  {pct(safeRate(safeNum(source.interview_entries), safeNum(source.resumes)))}
+	                  {pct(safeRate(safeNum(source.interviewEntries), safeNum(source.resumes)))}
 	                </span>
 	              </td>
 	              <td className="py-3 pr-6" style={{ minWidth: 96 }}>
 	                <div className="flex flex-col gap-0.5">
 	                  <span className="text-sm font-semibold tabular-nums text-ink">
-	                    {safeNum(source.interview_passed)} / {safeNum(source.interview_entries)}
+	                    {safeNum(source.interviewPassed)} / {safeNum(source.interviewEntries)}
 	                  </span>
 	                  <span className="text-xs tabular-nums text-muted-soft">
-	                    {pct(safeNum(source.interview_pass_rate))}
+	                    {pct(safeNum(source.interviewPassRate))}
 	                  </span>
 	                </div>
 	              </td>
 	              <td className="py-3 pr-6" style={{ minWidth: 96 }}>
 	                <div className="flex flex-col gap-0.5">
 	                  <span className="text-sm font-semibold tabular-nums text-ink">
-	                    {safeNum(source.offer_entries)} / {safeNum(source.interview_entries)}
+	                    {safeNum(source.offerEntries)} / {safeNum(source.interviewEntries)}
 	                  </span>
 	                  <span className="text-xs tabular-nums text-muted-soft">
-	                    {pct(safeNum(source.interview_to_offer_rate))}
+	                    {pct(safeNum(source.interviewToOfferRate))}
 	                  </span>
 	                </div>
 	              </td>
               <td className="py-3 pr-6 tabular-nums text-body" style={{ minWidth: 90 }}>
-                {safeNum(source.offer_entries)}
+                {safeNum(source.offerEntries)}
               </td>
               <td className="py-3" style={{ minWidth: 100 }}>
                 <div className="flex items-center gap-2">
@@ -379,7 +379,7 @@ function SourceQualityTable({ sources }: { sources: BiSourceQuality[] }) {
                     <InlineBar value={safeNum(source.onboarded)} max={maxOnboarded} color={BAR_COLOR_ONBOARDED} />
                   </div>
                   <span className="text-xs font-semibold tabular-nums text-success-700">
-                    {pct(safeNum(source.onboard_rate))}
+                    {pct(safeNum(source.onboardRate))}
                   </span>
                 </div>
               </td>
@@ -421,32 +421,32 @@ function InterviewerAccountabilityTable({ interviewers }: { interviewers: BiInte
         <Reveal as="tbody" stagger={0.04} y={8}>
           {interviewers.map((item) => (
             <tr
-              key={`${item.interviewer_id ?? 'unknown'}-${item.interviewer_name}`}
+              key={`${item.interviewerId ?? 'unknown'}-${item.interviewerName}`}
               className="border-b border-hairline-soft transition-colors hover:bg-surface-soft"
             >
               <td className="py-3 pr-4 font-medium text-ink whitespace-nowrap">
-                {item.interviewer_name}
+                {item.interviewerName}
               </td>
               <td className="py-3 pr-4 tabular-nums text-body whitespace-nowrap">
-                {safeNum(item.assigned_count)}
+                {safeNum(item.assignedCount)}
                 <span className="ml-1 text-xs text-muted-soft">
-                  已反馈 {safeNum(item.feedback_submitted)}
+                  已反馈 {safeNum(item.feedbackSubmitted)}
                 </span>
               </td>
               <td className="py-3 pr-4 tabular-nums whitespace-nowrap">
-                <span className="text-success-700">{safeNum(item.passed_count)}</span>
+                <span className="text-success-700">{safeNum(item.passedCount)}</span>
                 <span className="mx-1 text-muted-soft">/</span>
-                <span className="text-danger-700">{safeNum(item.rejected_count)}</span>
+                <span className="text-danger-700">{safeNum(item.rejectedCount)}</span>
               </td>
               <td className="py-3 pr-4 tabular-nums text-body whitespace-nowrap">
-                {pct(safeNum(item.pass_rate))}
+                {pct(safeNum(item.passRate))}
               </td>
               <td className="py-3 tabular-nums whitespace-nowrap">
-                <span className={item.pending_feedback > 0 ? 'text-warning-700' : 'text-muted'}>
-                  {safeNum(item.pending_feedback)}
+                <span className={item.pendingFeedback > 0 ? 'text-warning-700' : 'text-muted'}>
+                  {safeNum(item.pendingFeedback)}
                 </span>
                 <span className="ml-1 text-xs text-muted-soft">
-                  超时 {safeNum(item.overdue_feedback)}
+                  超时 {safeNum(item.overdueFeedback)}
                 </span>
               </td>
             </tr>
@@ -493,29 +493,29 @@ function DepartmentAccountabilityTable({ departments }: { departments: BiDepartm
               <td className="py-3 pr-4 font-medium text-ink whitespace-nowrap">
                 {item.department}
                 <div className="mt-0.5 text-xs text-muted-soft">
-                  {safeNum(item.jobs_count)} 个岗位 · {safeNum(item.interviewers_count)} 位面试官
+                  {safeNum(item.jobsCount)} 个岗位 · {safeNum(item.interviewersCount)} 位面试官
                 </div>
               </td>
               <td className="py-3 pr-4 tabular-nums text-body whitespace-nowrap">
-                {safeNum(item.assigned_count)}
+                {safeNum(item.assignedCount)}
                 <span className="ml-1 text-xs text-muted-soft">
-                  已反馈 {safeNum(item.feedback_submitted)}
+                  已反馈 {safeNum(item.feedbackSubmitted)}
                 </span>
               </td>
               <td className="py-3 pr-4 tabular-nums whitespace-nowrap">
-                <span className="text-success-700">{safeNum(item.passed_count)}</span>
+                <span className="text-success-700">{safeNum(item.passedCount)}</span>
                 <span className="mx-1 text-muted-soft">/</span>
-                <span className="text-danger-700">{safeNum(item.rejected_count)}</span>
+                <span className="text-danger-700">{safeNum(item.rejectedCount)}</span>
                 <span className="ml-2 text-xs text-muted-soft">
-                  {pct(safeNum(item.pass_rate))}
+                  {pct(safeNum(item.passRate))}
                 </span>
               </td>
               <td className="py-3 pr-4 tabular-nums whitespace-nowrap">
-                <span className={item.pending_feedback > 0 ? 'text-warning-700' : 'text-muted'}>
-                  {safeNum(item.pending_feedback)}
+                <span className={item.pendingFeedback > 0 ? 'text-warning-700' : 'text-muted'}>
+                  {safeNum(item.pendingFeedback)}
                 </span>
                 <span className="ml-1 text-xs text-muted-soft">
-                  超时 {safeNum(item.overdue_feedback)}
+                  超时 {safeNum(item.overdueFeedback)}
                 </span>
               </td>
               <td className="py-3">
@@ -525,7 +525,7 @@ function DepartmentAccountabilityTable({ departments }: { departments: BiDepartm
                       key={`${item.department}-${round.round}`}
                       className="rounded-md bg-surface-soft px-2 py-1 text-xs tabular-nums text-body"
                     >
-                      {round.round_label} {safeNum(round.passed_count)}/{safeNum(round.assigned_count)}
+                      {round.roundLabel} {safeNum(round.passedCount)}/{safeNum(round.assignedCount)}
                     </span>
                   ))}
                 </div>
@@ -553,18 +553,18 @@ function TeamOverview({
   );
 
   const [selectedHrId, setSelectedHrId] = useState<number | null>(null);
-  const sourceQuality = data?.source_quality ?? [];
-  const interviewerPendingFeedback = data?.interviewer_accountability.reduce(
-    (acc, item) => acc + safeNum(item.pending_feedback),
+  const sourceQuality = data?.sourceQuality ?? [];
+  const interviewerPendingFeedback = data?.interviewerAccountability.reduce(
+    (acc, item) => acc + safeNum(item.pendingFeedback),
     0,
   ) ?? 0;
-  const departmentPendingFeedback = data?.department_accountability.reduce(
-    (acc, item) => acc + safeNum(item.pending_feedback),
+  const departmentPendingFeedback = data?.departmentAccountability.reduce(
+    (acc, item) => acc + safeNum(item.pendingFeedback),
     0,
   ) ?? 0;
 
   if (selectedHrId !== null) {
-    const staffMember = data?.staff.find((s) => s.hr_id === selectedHrId) ?? null;
+    const staffMember = data?.staff.find((s) => s.hrId === selectedHrId) ?? null;
     const avgConv = data ? teamAvgConversion(data.staff) : null;
     return (
       <StaffDrilldown
@@ -610,7 +610,7 @@ function TeamOverview({
 
       {!loading && !error && data && (
         <div className="space-y-6">
-          <DataQualityWarningsPanel warnings={data.data_quality_warnings} />
+          <DataQualityWarningsPanel warnings={data.dataQualityWarnings} />
 
           {/* KPI 指标行 — Apple 风格毛玻璃卡片 */}
           <Reveal as="div" className="grid grid-cols-2 gap-4 sm:grid-cols-4" stagger={0.07}>
@@ -623,18 +623,18 @@ function TeamOverview({
             <KpiCard
               label="当前入职"
               value={<AnimatedNumber value={safeNum(data.funnel.onboarded)} />}
-              sub={`归档 ${safeNum(data.funnel.archived_total)} 人`}
+              sub={`归档 ${safeNum(data.funnel.archivedTotal)} 人`}
               accent="#34C759"
             />
             <KpiCard
               label="全流程入职占比"
-              value={<AnimatedNumber value={safeNum(data.funnel.conversion_rate)} decimals={1} suffix="%" />}
+              value={<AnimatedNumber value={safeNum(data.funnel.conversionRate)} decimals={1} suffix="%" />}
               sub="活跃流程 + 归档结果"
               accent="#AF52DE"
             />
             <KpiCard
               label="当前流程人数"
-              value={<AnimatedNumber value={safeNum(data.funnel.pipeline_total)} />}
+              value={<AnimatedNumber value={safeNum(data.funnel.pipelineTotal)} />}
               sub="不含已入职/已淘汰"
               accent="#FF9500"
             />
@@ -643,7 +643,7 @@ function TeamOverview({
           <Reveal as="div" className="grid grid-cols-2 gap-4 sm:grid-cols-4" stagger={0.07}>
             <KpiCard
               label="有效推荐"
-              value={<AnimatedNumber value={sumStaff(data.staff, 'effective_recommendations')} />}
+              value={<AnimatedNumber value={sumStaff(data.staff, 'effectiveRecommendations')} />}
               sub="已进入候选人流程"
               accent="#FF9500"
             />
@@ -651,7 +651,7 @@ function TeamOverview({
               label="推荐成功面试"
               value={
                 <span className="inline-flex items-baseline gap-1">
-                  <AnimatedNumber value={sumStaff(data.staff, 'interview_entries')} />
+                  <AnimatedNumber value={sumStaff(data.staff, 'interviewEntries')} />
                 </span>
               }
               sub="进入面试中阶段"
@@ -661,22 +661,22 @@ function TeamOverview({
               label="面试通过"
               value={
                 <span className="inline-flex items-baseline gap-1">
-                  <AnimatedNumber value={sumStaff(data.staff, 'interview_passed')} />
+                  <AnimatedNumber value={sumStaff(data.staff, 'interviewPassed')} />
                   <span className="text-base text-muted">
-                    / {sumStaff(data.staff, 'interview_entries')}
+                    / {sumStaff(data.staff, 'interviewEntries')}
                   </span>
                 </span>
               }
               sub={`通过率 ${pct(safeRate(
-                sumStaff(data.staff, 'interview_passed'),
-                sumStaff(data.staff, 'interview_entries'),
+                sumStaff(data.staff, 'interviewPassed'),
+                sumStaff(data.staff, 'interviewEntries'),
               ))}`}
               accent="#5856D6"
             />
             <KpiCard
               label="待补反馈"
-              value={<AnimatedNumber value={sumStaff(data.staff, 'feedback_pending')} />}
-              sub={`${sumStaff(data.staff, 'feedback_overdue')} 条已超时`}
+              value={<AnimatedNumber value={sumStaff(data.staff, 'feedbackPending')} />}
+              sub={`${sumStaff(data.staff, 'feedbackOverdue')} 条已超时`}
               accent="#FF3B30"
             />
           </Reveal>
@@ -687,7 +687,7 @@ function TeamOverview({
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <CardTitle>需求健康</CardTitle>
                   <Badge tone="neutral">
-                    A/B/C {safeNum(data.demands.priority_counts.A)} / {safeNum(data.demands.priority_counts.B)} / {safeNum(data.demands.priority_counts.C)}
+                    A/B/C {safeNum(data.demands.priorityCounts.A)} / {safeNum(data.demands.priorityCounts.B)} / {safeNum(data.demands.priorityCounts.C)}
                   </Badge>
                 </div>
               </CardHeader>
@@ -695,7 +695,7 @@ function TeamOverview({
                 <div className="grid grid-cols-2 gap-3">
                   <MetricTile
                     label="活跃需求"
-                    value={<AnimatedNumber value={data.demands.active_total} />}
+                    value={<AnimatedNumber value={data.demands.activeTotal} />}
                     sub="待处理与招聘中"
                   />
                   <MetricTile
@@ -706,15 +706,15 @@ function TeamOverview({
                   />
                   <MetricTile
                     label="HR 无推荐"
-                    value={<AnimatedNumber value={data.demands.hr_no_recommendation} />}
+                    value={<AnimatedNumber value={data.demands.hrNoRecommendation} />}
                     sub="接手 7 天未推荐"
-                    tone={data.demands.hr_no_recommendation > 0 ? 'warning' : 'success'}
+                    tone={data.demands.hrNoRecommendation > 0 ? 'warning' : 'success'}
                   />
                   <MetricTile
                     label="业务待反馈"
-                    value={<AnimatedNumber value={data.demands.business_feedback_pending} />}
+                    value={<AnimatedNumber value={data.demands.businessFeedbackPending} />}
                     sub="卡在业务复核"
-                    tone={data.demands.business_feedback_pending > 0 ? 'warning' : 'success'}
+                    tone={data.demands.businessFeedbackPending > 0 ? 'warning' : 'success'}
                   />
                 </div>
               </CardBody>
@@ -725,7 +725,7 @@ function TeamOverview({
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <CardTitle>简历消化</CardTitle>
                   <Badge tone="neutral">
-                    进流程 {pct(safeNum(data.resumes.pipeline_entry_rate))}
+                    进流程 {pct(safeNum(data.resumes.pipelineEntryRate))}
                   </Badge>
                 </div>
               </CardHeader>
@@ -733,36 +733,36 @@ function TeamOverview({
                 <div className="grid grid-cols-2 gap-3">
                   <MetricTile
                     label="入库简历"
-                    value={<AnimatedNumber value={data.resumes.total_candidates} />}
+                    value={<AnimatedNumber value={data.resumes.totalCandidates} />}
                     sub="当前周期"
                   />
                   <MetricTile
                     label="绑定岗位"
-                    value={<AnimatedNumber value={data.resumes.linked_to_job} />}
+                    value={<AnimatedNumber value={data.resumes.linkedToJob} />}
                     sub={`${data.resumes.unassigned} 份暂未绑定`}
                   />
                   <MetricTile
                     label="已匹配"
-                    value={<AnimatedNumber value={data.resumes.matched_candidates} />}
-                    sub={`匹配率 ${pct(safeNum(data.resumes.match_rate))}`}
+                    value={<AnimatedNumber value={data.resumes.matchedCandidates} />}
+                    sub={`匹配率 ${pct(safeNum(data.resumes.matchRate))}`}
                   />
                   <MetricTile
                     label="已进流程"
-                    value={<AnimatedNumber value={data.resumes.in_pipeline} />}
-                    sub={`${data.resumes.not_in_pipeline} 份未进流程`}
-                    tone={data.resumes.not_in_pipeline > 0 ? 'warning' : 'success'}
+                    value={<AnimatedNumber value={data.resumes.inPipeline} />}
+                    sub={`${data.resumes.notInPipeline} 份未进流程`}
+                    tone={data.resumes.notInPipeline > 0 ? 'warning' : 'success'}
                   />
                   <MetricTile
                     label="进流程率"
                     value={
                       <AnimatedNumber
-                        value={safeNum(data.resumes.pipeline_entry_rate)}
+                        value={safeNum(data.resumes.pipelineEntryRate)}
                         decimals={1}
                         suffix="%"
                       />
                     }
                     sub="入库到流程转化"
-                    tone={data.resumes.pipeline_entry_rate > 0 ? 'success' : 'neutral'}
+                    tone={data.resumes.pipelineEntryRate > 0 ? 'success' : 'neutral'}
                   />
                 </div>
               </CardBody>
@@ -797,7 +797,7 @@ function TeamOverview({
               <CardBody>
                 <div className="mb-5 flex justify-center">
                   <ConversionRing
-                    percent={safeNum(data.funnel.conversion_rate)}
+                    percent={safeNum(data.funnel.conversionRate)}
                     label="全流程入职占比"
                     color="#007AFF"
                   />
@@ -845,7 +845,7 @@ function TeamOverview({
                       看谁还有反馈没补，不是用来简单排名面试官。
                     </p>
                   </div>
-                  {data.interviewer_accountability.length > 0 && (
+                  {data.interviewerAccountability.length > 0 && (
                     <Badge tone={interviewerPendingFeedback > 0 ? 'warning' : 'neutral'}>
                       待补 {interviewerPendingFeedback}
                     </Badge>
@@ -853,7 +853,7 @@ function TeamOverview({
                 </div>
               </CardHeader>
               <CardBody>
-                <InterviewerAccountabilityTable interviewers={data.interviewer_accountability} />
+                <InterviewerAccountabilityTable interviewers={data.interviewerAccountability} />
               </CardBody>
             </Card>
 
@@ -866,7 +866,7 @@ function TeamOverview({
                       看哪个部门需要同步反馈和判断标准，不是给部门贴标签。
                     </p>
                   </div>
-                  {data.department_accountability.length > 0 && (
+                  {data.departmentAccountability.length > 0 && (
                     <Badge tone={departmentPendingFeedback > 0 ? 'warning' : 'neutral'}>
                       待补 {departmentPendingFeedback}
                     </Badge>
@@ -874,7 +874,7 @@ function TeamOverview({
                 </div>
               </CardHeader>
               <CardBody>
-                <DepartmentAccountabilityTable departments={data.department_accountability} />
+                <DepartmentAccountabilityTable departments={data.departmentAccountability} />
               </CardBody>
             </Card>
           </Reveal>
@@ -919,7 +919,7 @@ function StaffDrilldown({
   );
 
   const name = staffMember?.name ?? `专员 #${hrId}`;
-  const conv = staffMember ? safeNum(staffMember.conversion_rate) : null;
+  const conv = staffMember ? safeNum(staffMember.conversionRate) : null;
   const avg = teamAvgConv ?? 0;
   const aboveAvg = conv !== null && conv > avg;
   const atAvg = conv !== null && conv === avg;
@@ -954,12 +954,12 @@ function StaffDrilldown({
           <KpiCard
             label="简历量"
             value={<AnimatedNumber value={safeNum(staffMember.resumes)} />}
-            sub={`解析失败 ${safeNum(staffMember.parse_failed)}`}
+            sub={`解析失败 ${safeNum(staffMember.parseFailed)}`}
             accent="#007AFF"
           />
           <KpiCard
             label="有效推荐"
-            value={<AnimatedNumber value={safeNum(staffMember.effective_recommendations)} />}
+            value={<AnimatedNumber value={safeNum(staffMember.effectiveRecommendations)} />}
             sub="进入候选人流程"
             accent="#FF9500"
           />
@@ -967,7 +967,7 @@ function StaffDrilldown({
             label="推荐成功面试"
             value={
               <span className="inline-flex items-baseline gap-1">
-                <AnimatedNumber value={safeNum(staffMember.interview_entries)} />
+                <AnimatedNumber value={safeNum(staffMember.interviewEntries)} />
               </span>
             }
             sub="进入面试中阶段"
@@ -977,18 +977,18 @@ function StaffDrilldown({
             label="面试通过"
             value={
               <span className="inline-flex items-baseline gap-1">
-                <AnimatedNumber value={safeNum(staffMember.interview_passed)} />
+                <AnimatedNumber value={safeNum(staffMember.interviewPassed)} />
                 <span className="text-base text-muted">
-                  / {safeNum(staffMember.interview_entries)}
+                  / {safeNum(staffMember.interviewEntries)}
                 </span>
               </span>
             }
-            sub={`通过率 ${pct(safeNum(staffMember.interview_pass_rate))}`}
+            sub={`通过率 ${pct(safeNum(staffMember.interviewPassRate))}`}
             accent="#5856D6"
           />
           <KpiCard
             label="Offer"
-            value={<AnimatedNumber value={safeNum(staffMember.offer_entries)} />}
+            value={<AnimatedNumber value={safeNum(staffMember.offerEntries)} />}
             sub="已推进到 Offer"
             accent="#AF52DE"
           />
@@ -1002,7 +1002,7 @@ function StaffDrilldown({
             label="推荐入职率"
             value={
               <AnimatedNumber
-                value={safeNum(staffMember.recommendation_to_onboard_rate)}
+                value={safeNum(staffMember.recommendationToOnboardRate)}
                 decimals={1}
                 suffix="%"
               />
@@ -1011,8 +1011,8 @@ function StaffDrilldown({
           />
           <KpiCard
             label="反馈待补"
-            value={<AnimatedNumber value={safeNum(staffMember.feedback_pending)} />}
-            sub={`${safeNum(staffMember.feedback_overdue)} 条已超时`}
+            value={<AnimatedNumber value={safeNum(staffMember.feedbackPending)} />}
+            sub={`${safeNum(staffMember.feedbackOverdue)} 条已超时`}
             accent="#FF3B30"
           />
         </Reveal>
@@ -1034,7 +1034,7 @@ function StaffDrilldown({
       )}
 
       {!loading && !error && (
-        <DataQualityWarningsPanel warnings={data?.data_quality_warnings ?? []} />
+        <DataQualityWarningsPanel warnings={data?.dataQualityWarnings ?? []} />
       )}
 
       {!loading && !error && data && (
@@ -1055,7 +1055,7 @@ function StaffDrilldown({
               />
               <div className="flex justify-center lg:px-4">
                 <ConversionRing
-                  percent={safeNum(data.funnel.conversion_rate)}
+                  percent={safeNum(data.funnel.conversionRate)}
                   label="个人入职占比"
                   color="#007AFF"
                   size={160}
