@@ -2,62 +2,60 @@ package com.hireinsight.offer;
 
 import com.hireinsight.common.ApiResponse;
 import com.hireinsight.model.OfferRecord;
-import com.hireinsight.repository.OfferRecordRepository;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import lombok.Data;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/offers")
 public class OfferController {
 
-    private final OfferRecordRepository offerRepository;
+    private final OfferService offerService;
 
-    public OfferController(OfferRecordRepository offerRepository) {
-        this.offerRepository = offerRepository;
+    public OfferController(OfferService offerService) {
+        this.offerService = offerService;
     }
 
     @PostMapping("/{id}/withdraw")
     public ResponseEntity<ApiResponse<Map<String, Object>>> withdraw(@PathVariable Long id, Authentication auth) {
-        OfferRecord offer = offerRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Offer not found: " + id));
-        offer.setStatus(OfferRecord.Status.WITHDRAWN);
-        offer = offerRepository.save(offer);
-        return ResponseEntity.ok(ApiResponse.ok(Map.of(
-                "id", offer.getId(),
-                "status", offer.getStatus().name()
-        )));
+        OfferRecord offer = offerService.withdraw(id);
+        return ResponseEntity.ok(ApiResponse.ok(offerService.toResponse(offer)));
     }
 
     @PostMapping("/{id}/approve")
     public ResponseEntity<ApiResponse<Map<String, Object>>> approve(@PathVariable Long id, Authentication auth) {
-        OfferRecord offer = offerRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Offer not found: " + id));
-        offer.setStatus(OfferRecord.Status.APPROVED);
-        offer = offerRepository.save(offer);
-        return ResponseEntity.ok(ApiResponse.ok(Map.of(
-                "id", offer.getId(),
-                "status", offer.getStatus().name()
-        )));
+        OfferRecord offer = offerService.approve(id);
+        return ResponseEntity.ok(ApiResponse.ok(offerService.toResponse(offer)));
     }
 
     @PostMapping
     public ResponseEntity<ApiResponse<Map<String, Object>>> create(
-            @RequestBody Map<String, Object> body, Authentication auth) {
+            @Valid @RequestBody CreateOfferRequest req, Authentication auth) {
         OfferRecord offer = OfferRecord.builder()
-                .candidateId(Long.valueOf(body.get("candidateId").toString()))
-                .jobId(Long.valueOf(body.get("jobId").toString()))
-                .salary((String) body.getOrDefault("salary", null))
-                .startDate(body.get("startDate") != null ? java.time.LocalDate.parse(body.get("startDate").toString()) : null)
-                .remark((String) body.getOrDefault("remark", null))
-                .status(OfferRecord.Status.PENDING)
+                .candidateId(req.getCandidateId())
+                .jobId(req.getJobId())
+                .salary(req.getSalary())
+                .startDate(req.getStartDate())
+                .remark(req.getRemark())
                 .build();
-        offer = offerRepository.save(offer);
-        return ResponseEntity.ok(ApiResponse.ok(Map.of(
-                "id", offer.getId(),
-                "status", offer.getStatus().name()
-        )));
+        offer = offerService.create(offer);
+        return ResponseEntity.ok(ApiResponse.ok(offerService.toResponse(offer)));
+    }
+
+    @Data
+    public static class CreateOfferRequest {
+        @NotNull(message = "candidateId is required")
+        private Long candidateId;
+        @NotNull(message = "jobId is required")
+        private Long jobId;
+        private String salary;
+        private LocalDate startDate;
+        private String remark;
     }
 }

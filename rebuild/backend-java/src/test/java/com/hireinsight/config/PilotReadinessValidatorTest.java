@@ -3,14 +3,19 @@ package com.hireinsight.config;
 import com.hireinsight.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.mock.env.MockEnvironment;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(OutputCaptureExtension.class)
 class PilotReadinessValidatorTest {
 
     private AppConfig appConfig;
@@ -150,5 +155,52 @@ class PilotReadinessValidatorTest {
         assertThatThrownBy(validator::validate)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("FIELD_ENCRYPTION_KEY");
+    }
+
+    @Test
+    void warnsWhenBossDemoModeEnabled(CapturedOutput output) {
+        appConfig.getBoss().setDemoMode(true);
+        appConfig.getLlm().setApiKey("sk-real-llm-key");
+
+        PilotReadinessValidator validator = new PilotReadinessValidator(appConfig, environment, userRepository);
+
+        assertThatCode(validator::validate).doesNotThrowAnyException();
+        assertThat(output.getOut()).contains("BOSS_DEMO_MODE");
+    }
+
+    @Test
+    void warnsWhenLlmApiKeyMissing(CapturedOutput output) {
+        appConfig.getBoss().setDemoMode(false);
+        appConfig.getLlm().setApiKey("");
+
+        PilotReadinessValidator validator = new PilotReadinessValidator(appConfig, environment, userRepository);
+
+        assertThatCode(validator::validate).doesNotThrowAnyException();
+        assertThat(output.getOut()).contains("LLM_API_KEY");
+    }
+
+    @Test
+    void noWarningsWhenBossDemoModeOffAndLlmKeySet(CapturedOutput output) {
+        appConfig.getBoss().setDemoMode(false);
+        appConfig.getLlm().setApiKey("sk-real-llm-key");
+
+        PilotReadinessValidator validator = new PilotReadinessValidator(appConfig, environment, userRepository);
+
+        assertThatCode(validator::validate).doesNotThrowAnyException();
+        assertThat(output.getOut()).doesNotContain("BOSS_DEMO_MODE");
+        assertThat(output.getOut()).doesNotContain("LLM_API_KEY");
+    }
+
+    @Test
+    void warningsDoNotCauseFailureEvenWhenBothPresent(CapturedOutput output) {
+        // Both warnings present but all hard failures resolved -> should pass
+        appConfig.getBoss().setDemoMode(true);
+        appConfig.getLlm().setApiKey("");
+
+        PilotReadinessValidator validator = new PilotReadinessValidator(appConfig, environment, userRepository);
+
+        assertThatCode(validator::validate).doesNotThrowAnyException();
+        assertThat(output.getOut()).contains("BOSS_DEMO_MODE");
+        assertThat(output.getOut()).contains("LLM_API_KEY");
     }
 }
