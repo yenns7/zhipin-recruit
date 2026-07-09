@@ -3,6 +3,8 @@
 > 日期：2026-07-08（更新）
 > 目标：记录 `rebuild/` 当前与前端壳层直接相关的真实状态，特别是这轮收口的 Java 环境、PostgreSQL dev 数据库、前端入口和 demo 边界。
 
+> ⚠️ 本文档反映 BE-1~BE-7 落地前的 MVP 状态（129 测试、BOSS demo-stub、AI 面试 rule-based、Agent 会话进程内存）。当前能力以 `rebuild/backend-java/API.md` 边界标注与 `docs/18` 状态为准（后端 277 测试，BE-1~BE-7 已落地真实实现）。
+
 ## 1. 当前结论
 
 `rebuild/` 当前更准确的状态是：**技术主流程可运行 + 产品可试用关键路径补齐。后端 129 测试全绿、前端 79 测试全绿、TypeScript 0 错误。**
