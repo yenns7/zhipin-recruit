@@ -1,17 +1,15 @@
 <div align="center">
 
-# 智聘 · AI 招聘管理系统
+**中文** · [English](./README.en.md)
 
-**AI-Powered Recruitment Management System**
+# 🎯 智聘 · AI 招聘管理系统
 
-用自然语言驱动的企业招聘平台 — 简历解析、智能匹配、AI 面试、数据看板，一站式闭环
+#### 用自然语言驱动的企业招聘平台 —— 简历解析、智能匹配、AI 面试、数据看板，一站式闭环
 
-[![Backend](https://img.shields.io/badge/backend-Flask%203.1-000000)](https://flask.palletsprojects.com/)
-[![Frontend](https://img.shields.io/badge/frontend-React%2018%20%2B%20Vite%208-61dafb)](https://react.dev/)
-[![AI](https://img.shields.io/badge/AI-LangGraph%20%2B%20DeepSeek-ff6b6b)](https://langchain-ai.github.io/langgraph/)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-
-[English](README.en.md) · 中文
+[![Backend](https://img.shields.io/badge/backend-Flask%203.1-000000?style=for-the-badge)](https://flask.palletsprojects.com/)
+[![Frontend](https://img.shields.io/badge/frontend-React%2018%20%2B%20Vite%208-61dafb?style=for-the-badge)](https://react.dev/)
+[![AI](https://img.shields.io/badge/AI-LangGraph%20%2B%20DeepSeek-ff6b6b?style=for-the-badge)](https://langchain-ai.github.io/langgraph/)
+[![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
 
 </div>
 

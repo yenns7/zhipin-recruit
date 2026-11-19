@@ -1,17 +1,15 @@
 <div align="center">
 
-# Zhipin · AI Recruitment Management System
+[中文](./README.md) · **English**
 
-**智聘 · AI 招聘管理系统**
+# 🎯 Zhipin · AI Recruitment Management System
 
-A recruitment platform driven by natural language — resume parsing, smart matching, AI interviews and BI dashboards in one closed loop
+#### A recruitment platform driven by natural language — resume parsing, smart matching, AI interviews and BI dashboards in one closed loop
 
-[![Backend](https://img.shields.io/badge/backend-Flask%203.1-000000)](https://flask.palletsprojects.com/)
-[![Frontend](https://img.shields.io/badge/frontend-React%2018%20%2B%20Vite%208-61dafb)](https://react.dev/)
-[![AI](https://img.shields.io/badge/AI-LangGraph%20%2B%20DeepSeek-ff6b6b)](https://langchain-ai.github.io/langgraph/)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-
-English · [中文](README.md)
+[![Backend](https://img.shields.io/badge/backend-Flask%203.1-000000?style=for-the-badge)](https://flask.palletsprojects.com/)
+[![Frontend](https://img.shields.io/badge/frontend-React%2018%20%2B%20Vite%208-61dafb?style=for-the-badge)](https://react.dev/)
+[![AI](https://img.shields.io/badge/AI-LangGraph%20%2B%20DeepSeek-ff6b6b?style=for-the-badge)](https://langchain-ai.github.io/langgraph/)
+[![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
 
 </div>
 
