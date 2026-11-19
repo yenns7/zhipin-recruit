@@ -11,6 +11,8 @@
 [![AI](https://img.shields.io/badge/AI-LangGraph%20%2B%20DeepSeek-ff6b6b)](https://langchain-ai.github.io/langgraph/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
+[English](README.en.md) · 中文
+
 </div>
 
 ---
